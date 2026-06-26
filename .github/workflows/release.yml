@@ -333,3 +333,4 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./repo
           keep_files: true
+          cname: lumen.moraxcheng.me

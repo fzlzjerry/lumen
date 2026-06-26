@@ -80,22 +80,31 @@ An API token from <https://crates.io/settings/tokens> with the
 
 An ASCII-armored GPG private key used to sign the apt `Release` file. The
 pipeline builds a signed **flat apt repository** from the `.deb` packages and
-deploys it to GitHub Pages (the `gh-pages` branch).
+deploys it to GitHub Pages, served at the custom domain **`lumen.moraxcheng.me`**
+(set via the `cname:` input in the workflow).
 
 Generate and export a key:
 
 ```bash
-gpg --quick-generate-key "Lumen Apt <you@example.com>" rsa4096 sign never
+gpg --quick-generate-key "Lumen Apt <apt@lumen.moraxcheng.me>" rsa4096 sign never
 gpg --armor --export-secret-keys <KEYID>   # paste into APT_GPG_PRIVATE_KEY
 ```
 
-Enable **Settings → Pages → Source: gh-pages branch** once. Users then add the
-repo (served at `https://fzlzjerry.github.io/lumen`):
+One-time hosting setup for the custom domain:
+
+1. **DNS** — add a CNAME record on `moraxcheng.me`:
+   `lumen  CNAME  fzlzjerry.github.io.`
+2. Trigger one release so the `apt-repo` job creates the `gh-pages` branch (it
+   writes a `CNAME` file automatically).
+3. **Settings → Pages** — confirm the custom domain `lumen.moraxcheng.me` and
+   tick **Enforce HTTPS** (GitHub provisions the TLS cert once DNS resolves).
+
+Users then add the repo (served at `https://lumen.moraxcheng.me`):
 
 ```bash
-curl -fsSL https://fzlzjerry.github.io/lumen/lumen-archive-keyring.gpg \
+curl -fsSL https://lumen.moraxcheng.me/lumen-archive-keyring.gpg \
   | sudo tee /usr/share/keyrings/lumen.gpg > /dev/null
-echo "deb [signed-by=/usr/share/keyrings/lumen.gpg] https://fzlzjerry.github.io/lumen ./" \
+echo "deb [signed-by=/usr/share/keyrings/lumen.gpg] https://lumen.moraxcheng.me ./" \
   | sudo tee /etc/apt/sources.list.d/lumen.list
 sudo apt update && sudo apt install lumen
 ```
