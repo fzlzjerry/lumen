@@ -89,7 +89,7 @@ impl Printer {
                 self.out.push(';');
             }
             Stmt::Destructure { pattern, init, .. } => {
-                let pat = self.pattern_str(pattern);
+                let pat = Self::pattern_str(pattern);
                 let v = self.expr(init, 0);
                 self.out.push_str("let ");
                 self.out.push_str(&pat);
@@ -366,14 +366,18 @@ impl Printer {
                 format!("{{{}}}", parts.join(", "))
             }
             ExprKind::Assign { target, value } => {
-                format!("{} = {}", self.expr(target, 9), self.expr(value, 1))
+                format!("{} = {}", self.expr(target, 13), self.expr(value, 1))
+            }
+            ExprKind::CompoundAssign { target, op, value } => {
+                format!("{} {}= {}", self.expr(target, 13), binary_sym(*op), self.expr(value, 1))
             }
             ExprKind::Unary { op, operand } => {
                 let sym = match op {
                     UnaryOp::Neg => "-",
                     UnaryOp::Not => "!",
+                    UnaryOp::BitNot => "~",
                 };
-                format!("{}{}", sym, self.expr(operand, 8))
+                format!("{}{}", sym, self.expr(operand, 12))
             }
             ExprKind::Binary { op, left, right } => {
                 let p = expr_prec(e);
@@ -392,15 +396,23 @@ impl Printer {
                 };
                 format!("{} {} {}", self.expr(left, p), sym, self.expr(right, p + 1))
             }
+            ExprKind::Ternary { cond, then_branch, else_branch } => {
+                format!(
+                    "{} ? {} : {}",
+                    self.expr(cond, 2),
+                    self.expr(then_branch, 1),
+                    self.expr(else_branch, 1)
+                )
+            }
             ExprKind::Call { callee, args, .. } => {
                 let a: Vec<String> = args.iter().map(|x| self.expr(x, 0)).collect();
-                format!("{}({})", self.expr(callee, 9), a.join(", "))
+                format!("{}({})", self.expr(callee, 13), a.join(", "))
             }
             ExprKind::Index { object, index } => {
-                format!("{}[{}]", self.expr(object, 9), self.expr(index, 0))
+                format!("{}[{}]", self.expr(object, 13), self.expr(index, 0))
             }
             ExprKind::Get { object, name, .. } => {
-                format!("{}.{}", self.expr(object, 9), name)
+                format!("{}.{}", self.expr(object, 13), name)
             }
             ExprKind::Lambda(f) => {
                 let params = self.params_str(&f.params);
@@ -415,7 +427,7 @@ impl Printer {
                     for arm in arms {
                         let pad = p.pad();
                         p.out.push_str(&pad);
-                        let pat = p.pattern_str(&arm.pattern);
+                        let pat = Self::pattern_str(&arm.pattern);
                         p.out.push_str(&pat);
                         if let Some(g) = &arm.guard {
                             let gs = p.expr(g, 0);
@@ -437,7 +449,7 @@ impl Printer {
         }
     }
 
-    fn pattern_str(&mut self, pat: &Pattern) -> String {
+    fn pattern_str(pat: &Pattern) -> String {
         match &pat.kind {
             PatternKind::Wildcard => "_".to_string(),
             PatternKind::Int(n) => n.to_string(),
@@ -450,7 +462,7 @@ impl Printer {
                 let parts: Vec<String> = elems
                     .iter()
                     .map(|el| match el {
-                        PatElem::Pattern(p) => self.pattern_str(p),
+                        PatElem::Pattern(p) => Self::pattern_str(p),
                         PatElem::Rest(None) => "..".to_string(),
                         PatElem::Rest(Some(n)) => format!("..{n}"),
                     })
@@ -466,7 +478,7 @@ impl Printer {
                         } else {
                             format!("\"{}\"", escape_string(k))
                         };
-                        format!("{}: {}", key, self.pattern_str(p))
+                        format!("{}: {}", key, Self::pattern_str(p))
                     })
                     .collect();
                 format!("{{{}}}", parts.join(", "))
@@ -488,25 +500,37 @@ fn binary_sym(op: BinaryOp) -> &'static str {
         BinaryOp::Le => "<=",
         BinaryOp::Gt => ">",
         BinaryOp::Ge => ">=",
+        BinaryOp::BitAnd => "&",
+        BinaryOp::BitOr => "|",
+        BinaryOp::BitXor => "^",
+        BinaryOp::Shl => "<<",
+        BinaryOp::Shr => ">>",
     }
 }
 
 /// Precedence of an expression, matching the parser's levels (higher binds
-/// tighter). Atoms are 10; assignment is 1.
+/// tighter). Atoms are 14; assignment is 1. Bitwise operators sit between
+/// comparison and the shift/arithmetic levels (Lua/Python convention).
 fn expr_prec(e: &Expr) -> u8 {
     match &e.kind {
         ExprKind::Assign { .. } => 1,
+        ExprKind::CompoundAssign { .. } => 1,
+        ExprKind::Ternary { .. } => 1,
         ExprKind::Logical { op: LogicalOp::Or, .. } => 2,
         ExprKind::Logical { op: LogicalOp::And, .. } => 3,
         ExprKind::Binary { op, .. } => match op {
             BinaryOp::Eq | BinaryOp::Ne => 4,
             BinaryOp::Lt | BinaryOp::Le | BinaryOp::Gt | BinaryOp::Ge => 5,
-            BinaryOp::Add | BinaryOp::Sub => 6,
-            BinaryOp::Mul | BinaryOp::Div | BinaryOp::Rem => 7,
+            BinaryOp::BitOr => 6,
+            BinaryOp::BitXor => 7,
+            BinaryOp::BitAnd => 8,
+            BinaryOp::Shl | BinaryOp::Shr => 9,
+            BinaryOp::Add | BinaryOp::Sub => 10,
+            BinaryOp::Mul | BinaryOp::Div | BinaryOp::Rem => 11,
         },
-        ExprKind::Unary { .. } => 8,
-        ExprKind::Call { .. } | ExprKind::Index { .. } | ExprKind::Get { .. } => 9,
-        _ => 10,
+        ExprKind::Unary { .. } => 12,
+        ExprKind::Call { .. } | ExprKind::Index { .. } | ExprKind::Get { .. } => 13,
+        _ => 14,
     }
 }
 

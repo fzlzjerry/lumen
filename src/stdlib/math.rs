@@ -38,6 +38,11 @@ pub fn build(vm: &mut Vm) -> Value {
         f(vm, "max", Exact(2), max),
         f(vm, "hypot", Exact(2), hypot),
         f(vm, "gcd", Exact(2), gcd),
+        f(vm, "lcm", Exact(2), lcm),
+        f(vm, "is_nan", Exact(1), is_nan),
+        f(vm, "is_finite", Exact(1), is_finite),
+        f(vm, "degrees", Exact(1), degrees),
+        f(vm, "radians", Exact(1), radians),
     ];
     vm.make_module("math", exports)
 }
@@ -120,4 +125,34 @@ fn gcd(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
         x = t;
     }
     Ok(Value::Int(x))
+}
+
+/// `lcm(a, b)` -> least common multiple; `0` if either operand is `0`.
+fn lcm(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    let (x, y) = (super::int(vm, a[0])?.abs(), super::int(vm, a[1])?.abs());
+    if x == 0 || y == 0 {
+        return Ok(Value::Int(0));
+    }
+    let (mut g, mut b) = (x, y);
+    while b != 0 {
+        let t = b;
+        b = g % b;
+        g = t;
+    }
+    Ok(Value::Int((x / g).wrapping_mul(y)))
+}
+
+fn is_nan(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    Ok(Value::Bool(num(vm, a[0])?.is_nan()))
+}
+fn is_finite(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    Ok(Value::Bool(num(vm, a[0])?.is_finite()))
+}
+
+/// Radians -> degrees and back, for any numeric operand.
+fn degrees(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    Ok(Value::Float(num(vm, a[0])?.to_degrees()))
+}
+fn radians(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    Ok(Value::Float(num(vm, a[0])?.to_radians()))
 }

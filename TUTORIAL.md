@@ -132,6 +132,36 @@ println("");   // "02"
 
 `range(n)`, `range(lo, hi)`, and `range(lo, hi, step)` produce arrays to iterate.
 
+Two conveniences worth knowing early. The **conditional expression** `cond ? a : b`
+is a compact `if`/`else` that *produces a value* — only the selected branch runs:
+
+```lumen
+fn sign(n) { return n < 0 ? "neg" : n == 0 ? "zero" : "pos"; }
+println(sign(-3));   // neg
+```
+
+And **compound assignment** updates a variable, array element, or field in place:
+`x += e` means `x = x + e` (likewise `-=`, `*=`, `/=`, `%=`), evaluating the
+target exactly once:
+
+```lumen
+let total = 0;
+for x in [10, 20, 30] { total += x; }
+let counts = {a: 0};
+counts["a"] += 5;
+println(total);        // 60
+println(counts["a"]);  // 5
+```
+
+Integers also support **bitwise** operators — `&` `|` `^` `~` and the shifts
+`<<` `>>` (shift amounts must be `0..=63`); they bind tighter than comparison:
+
+```lumen
+println(5 & 3);        // 1
+println(1 << 4);       // 16
+println(~0);           // -1
+```
+
 ## 5. Functions and closures
 
 Functions are values. Top-level functions can call each other in any order:
@@ -149,6 +179,21 @@ let inc = fn(x) { return x + 1; };
 fn apply_twice(f, x) { return f(f(x)); }
 println(apply_twice(inc, 5));   // 7
 ```
+
+For a one-expression function there's the **arrow shorthand** `params => expr`,
+which implicitly returns the expression. Use `x => …` for a single parameter and
+`(a, b) => …` (or `() => …`) for any other arity:
+
+```lumen
+import "array" as a;
+println(a.map([1, 2, 3], x => x * x));            // [1, 4, 9]
+println(a.reduce([1, 2, 3, 4], (acc, x) => acc + x, 0)); // 10
+let add = x => y => x + y;                          // curried
+println(add(3)(4));                                 // 7
+```
+
+The arrow body is a single expression — for a block body (multiple statements),
+use the `fn(x) { … }` form.
 
 Closures capture variables by reference, so they can hold private state:
 
@@ -338,7 +383,8 @@ println(json.stringify({x: 1, y: 2}));                   // {"x":1,"y":2}
 ```
 
 The full set — `math`, `string`, `array`, `map`, `io`, `os`, `time`, `json`,
-`random`, and the self-hosted `seq` — is documented in [`API.md`](API.md).
+`random`, `hash`, and the self-hosted `seq` and `path` — is documented in
+[`API.md`](API.md).
 
 ## 12. The toolchain
 

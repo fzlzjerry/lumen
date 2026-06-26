@@ -108,6 +108,150 @@ fn destructuring_rejects_nested_patterns() {
 }
 
 #[test]
+fn ternary_expression() {
+    assert_eq!(out("println(true ? 1 : 2);"), "1\n");
+    assert_eq!(out("println(false ? 1 : 2);"), "2\n");
+    // Truthiness: only nil/false are falsy, so 0 and "" are truthy.
+    assert_eq!(out("println(0 ? \"t\" : \"f\");"), "t\n");
+    assert_eq!(out("println(nil ? \"t\" : \"f\");"), "f\n");
+    // As a parenthesized subexpression of a larger expression.
+    assert_eq!(out("let x = 5; println((x > 3 ? \"big\" : \"small\") + \"!\");"), "big!\n");
+    // Right-associative chaining: a ? b : c ? d : e  ==  a ? b : (c ? d : e).
+    assert_eq!(
+        out("fn g(n) { return n < 0 ? \"neg\" : n == 0 ? \"zero\" : \"pos\"; }
+             println(g(-1)); println(g(0)); println(g(7));"),
+        "neg\nzero\npos\n"
+    );
+    // Only the taken branch is evaluated (lazy): boom() must not run.
+    assert_eq!(out("fn boom() { throw \"x\"; } println(true ? 42 : boom());"), "42\n");
+}
+
+#[test]
+fn compound_assignment() {
+    // Local variable, each operator.
+    assert_eq!(out("let x = 10; x += 5; println(x);"), "15\n");
+    assert_eq!(out("let x = 10; x -= 3; x *= 2; println(x);"), "14\n");
+    assert_eq!(out("let x = 17; x /= 5; println(x);"), "3\n"); // int division truncates
+    assert_eq!(out("let x = 17; x %= 5; println(x);"), "2\n");
+    // Global variable; `+=` on strings concatenates.
+    assert_eq!(out("let s = \"a\"; s += \"b\"; s += \"c\"; println(s);"), "abc\n");
+    // Index target — array and map.
+    assert_eq!(out("let a = [1, 2, 3]; a[1] += 10; println(a);"), "[1, 12, 3]\n");
+    assert_eq!(out("let m = {n: 5}; m[\"n\"] *= 4; println(m[\"n\"]);"), "20\n");
+    // Property target.
+    assert_eq!(
+        out("class C { init() { this.v = 1; } } let c = C(); c.v += 41; println(c.v);"),
+        "42\n"
+    );
+    // The whole expression yields the new value.
+    assert_eq!(out("let x = 1; println(x += 9);"), "10\n");
+    // Single-evaluation: the index expression runs exactly once.
+    let src = "let calls = [0]; let a = [0, 0, 0];
+               fn idx() { calls[0] = calls[0] + 1; return 1; }
+               a[idx()] += 100;
+               println(a[1]); println(calls[0]);";
+    assert_eq!(out(src), "100\n1\n");
+    // Robust when nested in a larger expression: the index target compiles with
+    // top-relative ops, so pending stack temporaries don't corrupt it.
+    assert_eq!(out("let a = [10, 20, 30]; println(a[1] += 5); println(a[1]);"), "25\n25\n");
+    assert_eq!(out("let b = [0, 0]; let z = (b[0] += 7) + 100; println(z); println(b[0]);"), "107\n7\n");
+    // Reassigning a const is a static error.
+    let e = run("const x = 1; x += 1;").unwrap_err();
+    assert!(e.contains("cannot assign to constant"), "got: {e}");
+}
+
+#[test]
+fn lambda_shorthand() {
+    // Single bare parameter; paren list; zero params.
+    assert_eq!(out("let sq = x => x * x; println(sq(5));"), "25\n");
+    assert_eq!(out("let add = (a, b) => a + b; println(add(3, 4));"), "7\n");
+    assert_eq!(out("let answer = () => 42; println(answer());"), "42\n");
+    // As higher-order arguments.
+    assert_eq!(out("import \"array\" as a; println(a.map([1,2,3], x => x * 10));"), "[10, 20, 30]\n");
+    assert_eq!(
+        out("import \"array\" as a; println(a.reduce([1,2,3,4], (acc, x) => acc + x, 0));"),
+        "10\n"
+    );
+    // Curried (right-associative body).
+    assert_eq!(out("let add = x => y => x + y; println(add(3)(4));"), "7\n");
+    // Closure capture works (arrows are ordinary closures).
+    assert_eq!(out("fn adder(n) { return x => x + n; } let inc = adder(1); println(inc(10));"), "11\n");
+    // Body may be any expression — a ternary, a map literal.
+    assert_eq!(out("let s = n => n < 0 ? \"neg\" : \"pos\"; println(s(-2)); println(s(2));"), "neg\npos\n");
+    assert_eq!(out("let mk = v => {val: v}; println(mk(7)[\"val\"]);"), "7\n");
+    // Default parameters work (reuses the `fn` parameter parser).
+    assert_eq!(out("let f = (a, b = 10) => a + b; println(f(1)); println(f(1, 2));"), "11\n3\n");
+    // Grouping is NOT mistaken for a lambda.
+    assert_eq!(out("println((1 + 2) * 3);"), "9\n");
+    // An arrow as a match-arm body (the arm `=>` is distinct from the arrow `=>`).
+    assert_eq!(out("let g = match 1 { 1 => x => x + 100, _ => x => x }; println(g(5));"), "105\n");
+    // The formatter canonicalizes arrows to the `fn` form (still idempotent).
+    let (p1, e1) = lumen::parse_source("let f = x => x + 1;");
+    assert!(e1.is_empty(), "{e1:?}");
+    let printed = lumen::ast_printer::print_program(&p1);
+    assert!(printed.contains("fn(x)") && printed.contains("return x + 1"), "got: {printed}");
+}
+
+#[test]
+fn bitwise_operators() {
+    // Basic binary ops and unary complement.
+    assert_eq!(out("println(5 & 3);"), "1\n");
+    assert_eq!(out("println(5 | 2);"), "7\n");
+    assert_eq!(out("println(5 ^ 1);"), "4\n");
+    assert_eq!(out("println(~0);"), "-1\n");
+    assert_eq!(out("println(~5);"), "-6\n");
+    // Shifts (`>>` is arithmetic / sign-extending on signed ints).
+    assert_eq!(out("println(1 << 4);"), "16\n");
+    assert_eq!(out("println(256 >> 2);"), "64\n");
+    assert_eq!(out("println((0 - 8) >> 1);"), "-4\n");
+    assert_eq!(out("println(1 << 63);"), "-9223372036854775808\n"); // wraps, no error
+    // Precedence (Lua/Python style): bitwise binds tighter than comparison;
+    // additive binds tighter than shift.
+    assert_eq!(out("println(1 & 3 | 4);"), "5\n"); // (1 & 3) | 4 = 1 | 4
+    assert_eq!(out("println(1 << 2 + 1);"), "8\n"); // 1 << (2 + 1)
+    assert_eq!(out("println(1 & 1 == 1);"), "true\n"); // (1 & 1) == 1, NOT a type error
+    // Logical &&/|| still lex correctly after repurposing &/|.
+    assert_eq!(out("println(true && false);"), "false\n");
+    assert_eq!(out("println(true || false);"), "true\n");
+}
+
+#[test]
+fn bitwise_errors() {
+    // Integer-only: float operands throw a TypeError.
+    assert!(run("println(1 & 2.0);").is_err());
+    assert!(run("println(~3.0);").is_err());
+    // Shift amount must be in 0..=63.
+    assert!(run("println(1 << 64);").is_err());
+    assert!(run("println(1 << (0 - 1));").is_err());
+}
+
+#[test]
+fn super_invoke() {
+    // super.method(args) calls the superclass method with `this` as the receiver.
+    // Exercises 0-arg and 1-arg super calls, and dynamic dispatch of `this.speak()`
+    // (called from the superclass method) back to the subclass override.
+    let src = "class Animal {
+                   init(name) { this.name = name; }
+                   speak() { return this.name + \" makes a sound\"; }
+                   describe(prefix) { return prefix + \": \" + this.speak(); }
+               }
+               class Dog < Animal {
+                   speak() { return super.speak() + \" (woof)\"; }
+                   describe(prefix) { return \"Dog \" + super.describe(prefix); }
+               }
+               let d = Dog(\"Rex\");
+               println(d.speak());
+               println(d.describe(\"info\"));";
+    assert_eq!(out(src), "Rex makes a sound (woof)\nDog info: Rex makes a sound (woof)\n");
+    // Calling an undefined superclass method throws a NameError.
+    let e = run("class A { greet() { return 1; } }
+                 class B < A { f() { return super.missing(); } }
+                 B().f();")
+    .unwrap_err();
+    assert!(e.contains("undefined method 'missing' in superclass"), "got: {e}");
+}
+
+#[test]
 fn formatter_roundtrips_new_features() {
     // Parse -> print -> parse must be stable for the new syntax.
     let srcs = [
@@ -115,6 +259,15 @@ fn formatter_roundtrips_new_features() {
         "let [a, b, ..rest] = xs;",
         "let {x, y} = m;",
         "let g = fn(n = 5) { return n; };",
+        "let t = a ? b : c;",
+        "let u = p ? q : r ? s : v;",
+        "x += 1;",
+        "a[i] *= 2;",
+        "o.f -= 3;",
+        "let bw = 1 & 2 | 3 ^ 4;",
+        "let sh = 1 << 2 >> 1;",
+        "let bn = ~x & y;",
+        "let pr = (a | b) & c;",
     ];
     for src in srcs {
         let (p1, e1) = lumen::parse_source(src);

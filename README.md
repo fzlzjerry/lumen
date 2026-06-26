@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 **Lumen** is a small, dynamically-typed programming language with a hand-written
-compiler, a bytecode virtual machine, and a tracing garbage collector — all
+compiler, a bytecode virtual machine, and a generational garbage collector — all
 implemented from scratch in **Rust**, using only the standard library (no
 parser generators, no runtime crates). It is in the lineage of Lua and *Crafting
 Interpreters*' clox, extended with closures, classes with single inheritance,
@@ -56,8 +56,8 @@ println(label);
   (with `..rest`), and maps, with arm guards.
 - **Modules**: `import "name";`, aliasing, and selective imports; per-module
   global scope.
-- **A real GC**: handle-based mark-and-sweep, in safe Rust, that collects cycles
-  and interns strings.
+- **A real GC**: a handle-based, generational mark-and-sweep collector, in safe
+  Rust, that collects cycles and interns strings.
 - **A full toolchain**: REPL, source-level debugger, formatter, language server,
   and a `lumen.toml` project/test runner.
 
@@ -126,7 +126,7 @@ structures (`18_data_structures`), and a JSON toolkit (`19_json_tool`). The
 | `new <name>`           | Scaffold a new project                                  |
 | `build`                | Static-check every source file in a project             |
 | `test`                 | Run the project's `tests/*.lum` files                   |
-| `lsp`                  | Run the language server (stdio; diagnostics + hover)    |
+| `lsp`                  | Language server (diagnostics, hover, go-to-def, completion, symbols, formatting, references, rename, signature help) |
 | `bench`                | Run the micro-benchmarks                                |
 | `lex` / `parse <file>` | Inspect tokens / run the front end                      |
 
@@ -147,26 +147,28 @@ source ─▶ Lexer ─▶ Parser ─▶ Resolver ─▶ Compiler ─▶ Chunk(b
 - **Resolver** ([`src/resolver.rs`](src/resolver.rs)) — a validation pass:
   undefined variables, const reassignment, `this`/`super`/`break`/`continue`/
   `return` context, duplicate declarations.
-- **Compiler** ([`src/compiler.rs`](src/compiler.rs)) — emits a 58-instruction
+- **Compiler** ([`src/compiler.rs`](src/compiler.rs)) — emits a 67-instruction
   bytecode (documented in [`OPCODES.md`](OPCODES.md)) with constant pools, jump
   backpatching, local-slot allocation, and clox-style upvalues.
 - **VM** ([`src/vm.rs`](src/vm.rs)) — a stack machine with call frames, closures,
   class/method dispatch, exception unwinding, and a re-entrant runner that lets
   native functions call back into Lumen.
-- **GC** ([`src/gc.rs`](src/gc.rs)) — a tracing mark-and-sweep collector over a
-  handle-indexed heap; no `unsafe`, collects cycles, interns strings.
+- **GC** ([`src/gc.rs`](src/gc.rs)) — a generational mark-and-sweep collector over
+  a handle-indexed heap; no `unsafe`, collects cycles, interns strings.
 
 The standard library ([`src/stdlib/`](src/stdlib/)) provides native `math`,
-`string`, `array`, `map`, `io`, `os`, `time`, `json`, and `random` modules, plus
-four self-hosted modules written in Lumen itself ([`std/`](std/)): `seq`
-(sequence utilities), `set` (a hash set), `functional` (closures: compose, curry,
-memoize), and `testing` (a unit-test harness). Full reference: [`API.md`](API.md).
+`string`, `array`, `map`, `io`, `os`, `time`, `json`, `random`, and `hash`
+(non-cryptographic hashing + hex/base64) modules, plus five self-hosted modules
+written in Lumen itself ([`std/`](std/)): `seq` (sequence utilities), `set` (a
+hash set), `functional` (closures: compose, curry, memoize), `path` (POSIX path
+manipulation), and `testing` (a unit-test harness). Full reference:
+[`API.md`](API.md).
 
 ## Building, testing, and contributing
 
 ```sh
 cargo build            # debug build (zero warnings)
-cargo test             # all 159 tests: unit + e2e snapshots + errors + fuzz + GC stress
+cargo test             # all 229 tests: unit + e2e snapshots + errors + fuzz + GC stress
 cargo build --release  # optimized build
 cargo llvm-cov --summary-only   # coverage (core components are ≥90%)
 ```

@@ -67,14 +67,15 @@ fn run_input(vm: &mut Vm, raw: &str, globals: &mut Vec<String>) {
     // Accept a bare trailing expression (no `;`): if the raw input doesn't parse
     // but appending `;` does, evaluate that (so `x + y` prints its value).
     let input = prepare_input(raw);
-    let (program, mut errs) = crate::parse_source(&input);
-    if errs.is_empty() {
-        errs = crate::resolver::resolve_with(&program, globals);
+    let (program, mut diags) = crate::parse_source(&input);
+    if diags.is_empty() {
+        diags = crate::resolver::resolve_with(&program, globals);
     }
-    if !errs.is_empty() {
-        for d in &errs {
-            eprintln!("{}\n", d.render(&input, None));
-        }
+    // Print every diagnostic (errors and warnings); only errors block evaluation.
+    for d in &diags {
+        eprintln!("{}\n", d.render(&input, None));
+    }
+    if crate::has_errors(&diags) {
         return;
     }
     match crate::compiler::compile_repl(&program) {

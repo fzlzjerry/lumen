@@ -300,7 +300,12 @@ fn report(errs: &[crate::diagnostics::Diagnostic], src: &str, file: &str) {
 }
 
 fn indent(s: &str) -> String {
-    s.lines().map(|l| format!("    {l}\n")).collect()
+    use std::fmt::Write;
+    let mut out = String::new();
+    for l in s.lines() {
+        let _ = writeln!(out, "    {l}");
+    }
+    out
 }
 
 #[cfg(test)]

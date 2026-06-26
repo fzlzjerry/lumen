@@ -55,15 +55,30 @@ pub fn parse_source(src: &str) -> (ast::Program, Vec<Diagnostic>) {
     (program, errors)
 }
 
-/// Front-end of the compiler: lex, parse, and resolve. Returns the AST together
-/// with every static error from all three stages. Later phases (compile, run)
-/// should refuse to proceed when the error list is non-empty. If lexing or
-/// parsing fails, resolution is skipped (it would only produce noise on a
-/// malformed tree).
+/// Front-end gate: lex, parse, and resolve. Returns the AST together with the
+/// static **errors** from all three stages (resolver *warnings* are filtered
+/// out — see [`check_all`]). Later phases (compile, run) refuse to proceed when
+/// this list is non-empty. If lexing or parsing fails, resolution is skipped (it
+/// would only produce noise on a malformed tree).
 pub fn check_source(src: &str) -> (ast::Program, Vec<Diagnostic>) {
-    let (program, mut errors) = parse_source(src);
-    if errors.is_empty() {
-        errors.extend(resolve(&program));
-    }
+    let (program, diags) = check_all(src);
+    let errors = diags.into_iter().filter(|d| d.severity == Severity::Error).collect();
     (program, errors)
+}
+
+/// Like [`check_source`], but the returned list also includes resolver
+/// **warnings** (unused variables, unreachable code, wrong-arity calls) next to
+/// errors. Warnings never block execution — use this to *surface* findings (the
+/// LSP, the CLI) and [`check_source`] for the hard go/no-go gate.
+pub fn check_all(src: &str) -> (ast::Program, Vec<Diagnostic>) {
+    let (program, mut diags) = parse_source(src);
+    if diags.is_empty() {
+        diags.extend(resolve(&program));
+    }
+    (program, diags)
+}
+
+/// Whether any diagnostic is an error (as opposed to a warning or note).
+pub fn has_errors(diags: &[Diagnostic]) -> bool {
+    diags.iter().any(|d| d.severity == Severity::Error)
 }

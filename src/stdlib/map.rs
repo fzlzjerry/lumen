@@ -19,6 +19,11 @@ pub fn build(vm: &mut Vm) -> Value {
         f(vm, "len", Exact(1), len),
         f(vm, "entries", Exact(1), entries),
         f(vm, "merge", Exact(2), merge),
+        f(vm, "each", Exact(2), each),
+        f(vm, "map", Exact(2), map_values),
+        f(vm, "filter", Exact(2), filter),
+        f(vm, "clear", Exact(1), clear),
+        f(vm, "from_entries", Exact(1), from_entries),
     ];
     vm.make_module("map", exports)
 }
@@ -110,6 +115,124 @@ fn merge(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
     for (k, v) in a_entries.into_iter().chain(b_entries) {
         let key = vm.map_key(k)?;
         out.insert(key, k, v);
+    }
+    Ok(Value::Obj(vm.heap.alloc_map(out)))
+}
+
+/// Snapshot a map's `(key, value)` pairs in insertion order, releasing the heap
+/// borrow before any re-entrant callback runs.
+fn snapshot(vm: &mut Vm, r: crate::value::GcRef) -> Vec<(Value, Value)> {
+    if let Obj::Map(m) = vm.heap.get(r) {
+        m.iter().collect()
+    } else {
+        Vec::new()
+    }
+}
+
+/// `each(m, f)` -> call `f(key, value)` for every entry in insertion order.
+fn each(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    let r = require_map(vm, a[0])?;
+    let f = a[1];
+    for (k, v) in snapshot(vm, r) {
+        vm.call_and_run(f, &[k, v])?;
+    }
+    Ok(Value::Nil)
+}
+
+/// `map(m, f)` -> a new map with the same keys and values replaced by
+/// `f(key, value)`. The result is pinned as a temp root across the callbacks.
+fn map_values(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    let r = require_map(vm, a[0])?;
+    let f = a[1];
+    let pairs = snapshot(vm, r);
+    let result = Value::Obj(vm.heap.alloc_map(LumMap::new()));
+    vm.push_temp_root(result);
+    let rr = result.as_obj().unwrap();
+    for (k, v) in pairs {
+        // Resolve the key *before* the callback: the new value `nv` it returns is
+        // only held in a Rust local, so no allocation (e.g. interning a key) may
+        // run between getting `nv` and inserting it, or it could be collected.
+        let key = match vm.map_key(k) {
+            Ok(key) => key,
+            Err(e) => {
+                vm.pop_temp_root();
+                return Err(e);
+            }
+        };
+        match vm.call_and_run(f, &[k, v]) {
+            Ok(nv) => {
+                if let Obj::Map(m) = vm.heap.get_mut(rr) {
+                    m.insert(key, k, nv);
+                }
+                vm.write_barrier(rr, k);
+                vm.write_barrier(rr, nv);
+            }
+            Err(e) => {
+                vm.pop_temp_root();
+                return Err(e);
+            }
+        }
+    }
+    vm.pop_temp_root();
+    Ok(result)
+}
+
+/// `filter(m, f)` -> a new map of the entries for which `f(key, value)` is truthy.
+fn filter(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    let r = require_map(vm, a[0])?;
+    let pred = a[1];
+    let pairs = snapshot(vm, r);
+    let result = Value::Obj(vm.heap.alloc_map(LumMap::new()));
+    vm.push_temp_root(result);
+    let rr = result.as_obj().unwrap();
+    for (k, v) in pairs {
+        match vm.call_and_run(pred, &[k, v]) {
+            Ok(keep) if keep.is_truthy() => {
+                let key = match vm.map_key(k) {
+                    Ok(key) => key,
+                    Err(e) => {
+                        vm.pop_temp_root();
+                        return Err(e);
+                    }
+                };
+                if let Obj::Map(m) = vm.heap.get_mut(rr) {
+                    m.insert(key, k, v);
+                }
+                vm.write_barrier(rr, k);
+                vm.write_barrier(rr, v);
+            }
+            Ok(_) => {}
+            Err(e) => {
+                vm.pop_temp_root();
+                return Err(e);
+            }
+        }
+    }
+    vm.pop_temp_root();
+    Ok(result)
+}
+
+/// `clear(m)` -> remove every entry in place; returns the (now empty) map.
+fn clear(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    let r = require_map(vm, a[0])?;
+    if let Obj::Map(m) = vm.heap.get_mut(r) {
+        *m = LumMap::new();
+    }
+    Ok(a[0])
+}
+
+/// `from_entries(pairs)` -> a new map built from an array of `[key, value]`
+/// arrays (the inverse of `entries`).
+fn from_entries(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    let pairs = super::array_of(vm, a[0])?;
+    let mut out = LumMap::new();
+    for pair in pairs {
+        let kv = super::array_of(vm, pair)?;
+        if kv.len() != 2 {
+            return Err(err(vm, error_kind::VALUE, "from_entries() expects [key, value] pairs"));
+        }
+        let key = vm.map_key(kv[0])?;
+        out.insert(key, kv[0], kv[1]);
     }
     Ok(Value::Obj(vm.heap.alloc_map(out)))
 }

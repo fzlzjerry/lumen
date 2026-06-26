@@ -106,11 +106,14 @@ lexical error.
 ```
 +  -  *  /  %        (* arithmetic *)
 =                    (* assignment *)
++= -= *= /= %=       (* compound assignment *)
 == != < <= > >=      (* comparison *)
 && ||  !             (* logical (symbolic) — and/or/not are keyword aliases *)
+&  |  ^  ~  << >>     (* bitwise / shift (integer only) *)
+?  :                 (* conditional (ternary) expression *)
 . , ; :              (* member, separators *)
 ( ) [ ] { }          (* grouping, indexing, blocks/maps *)
-=> ..                (* match arm, array rest/spread *)
+=> ..                (* match arm / lambda arrow, array rest/spread *)
 <                    (* also: superclass marker in class decls *)
 ```
 
@@ -200,33 +203,46 @@ consumes its own `;`, or an empty `;`).
 ### 3.3 Expressions and precedence
 
 Expressions are parsed by a Pratt parser. Precedence from **lowest to highest**;
-all binary operators are left-associative except assignment, which is
-right-associative.
+all binary operators are left-associative except assignment and the conditional,
+which are right-associative. Compound assignment (`x += e`) evaluates its target
+exactly once and otherwise behaves as `x = x + e`. Bitwise/shift operators are
+**integer only** and — following Lua/Python — bind **tighter** than comparison.
 
-| Level | Operators                | Assoc  | Notes                              |
-|-------|--------------------------|--------|------------------------------------|
-| 1     | `=`                      | right  | target must be an lvalue           |
-| 2     | `\|\|` `or`              | left   | short-circuit                      |
-| 3     | `&&` `and`               | left   | short-circuit                      |
-| 4     | `==` `!=`                | left   |                                    |
-| 5     | `<` `<=` `>` `>=`        | left   |                                    |
-| 6     | `+` `-`                  | left   |                                    |
-| 7     | `*` `/` `%`              | left   |                                    |
-| 8     | `!` `not` `-` (unary)    | right  | prefix                             |
-| 9     | `()` `[]` `.`            | left   | call, index, member (postfix)      |
-| 10    | primary                  | —      | atoms                              |
+| Level | Operators                     | Assoc  | Notes                              |
+|-------|-------------------------------|--------|------------------------------------|
+| 1     | `=` `+=` `-=` `*=` `/=` `%=`   | right  | target must be an lvalue           |
+| 2     | `?` `:`                       | right  | conditional: `cond ? a : b`        |
+| 3     | `\|\|` `or`                   | left   | short-circuit                      |
+| 4     | `&&` `and`                    | left   | short-circuit                      |
+| 5     | `==` `!=`                     | left   |                                    |
+| 6     | `<` `<=` `>` `>=`             | left   |                                    |
+| 7     | `\|`                          | left   | bitwise or (int)                   |
+| 8     | `^`                           | left   | bitwise xor (int)                  |
+| 9     | `&`                           | left   | bitwise and (int)                  |
+| 10    | `<<` `>>`                     | left   | shift (int); amount in `0..=63`    |
+| 11    | `+` `-`                       | left   |                                    |
+| 12    | `*` `/` `%`                   | left   |                                    |
+| 13    | `!` `not` `-` `~` (unary)     | right  | prefix                             |
+| 14    | `()` `[]` `.`                 | left   | call, index, member (postfix)      |
+| 15    | primary                       | —      | atoms                              |
 
 ```
-expression = assignment ;
-assignment = ( call "." identifier | call "[" expression "]" | identifier ) "=" assignment
-           | logicOr ;
+expression  = assignment ;
+assignment  = lvalue ( "=" | "+=" | "-=" | "*=" | "/=" | "%=" ) assignment
+            | conditional ;
+lvalue      = call "." identifier | call "[" expression "]" | identifier ;
+conditional = logicOr [ "?" assignment ":" assignment ] ;
 logicOr    = logicAnd { ("||"|"or") logicAnd } ;
 logicAnd   = equality { ("&&"|"and") equality } ;
 equality   = comparison { ("=="|"!=") comparison } ;
-comparison = term { ("<"|"<="|">"|">=") term } ;
+comparison = bitOr { ("<"|"<="|">"|">=") bitOr } ;
+bitOr      = bitXor { "|" bitXor } ;
+bitXor     = bitAnd { "^" bitAnd } ;
+bitAnd     = shift { "&" shift } ;
+shift      = term { ("<<"|">>") term } ;
 term       = factor { ("+"|"-") factor } ;
 factor     = unary { ("*"|"/"|"%") unary } ;
-unary      = ("!"|"not"|"-") unary | postfix ;
+unary      = ("!"|"not"|"-"|"~") unary | postfix ;
 postfix    = primary { call | index | member } ;
 call       = "(" [ argList ] ")" ;
 argList    = expression { "," expression } [ "," ] ;
@@ -240,7 +256,9 @@ arrayLit   = "[" [ element { "," element } [ "," ] ] "]" ;
 element    = [ ".." ] expression ;     (* ".." spreads an array into this one *)
 mapLit     = "{" [ entry { "," entry } [ "," ] ] "}" ;
 entry      = ( string | identifier | "[" expression "]" ) ":" expression ;
-lambda     = "fn" "(" [ paramList ] ")" block ;
+lambda     = "fn" "(" [ paramList ] ")" block      (* block body, explicit return *)
+           | identifier "=>" assignment            (* arrow: single param, expr body *)
+           | "(" [ paramList ] ")" "=>" assignment ;
 matchExpr  = "match" exprNoBrace "{" arm { "," arm } [ "," ] "}" ;
 arm        = pattern [ "if" expression ] "=>" expression ;
 ```
@@ -249,7 +267,9 @@ In a map literal an `identifier` key is shorthand for the string of that name
 (`{x: 1}` ≡ `{"x": 1}`); a `[expr]` key is computed. `super.method` is only
 valid inside a method of a class that has a superclass. `match` is an expression:
 each arm's body is an expression, and the whole `match` evaluates to the body of
-the first matching arm.
+the first matching arm. The conditional `cond ? a : b` evaluates `cond` (by
+truthiness, §6.1) and then **only** the selected branch — the other is not
+evaluated.
 
 ### 3.4 Patterns
 

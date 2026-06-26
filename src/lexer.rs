@@ -218,11 +218,13 @@ impl<'src> Lexer<'src> {
                 ',' => TokenKind::Comma,
                 ';' => TokenKind::Semicolon,
                 ':' => TokenKind::Colon,
-                '+' => TokenKind::Plus,
-                '-' => TokenKind::Minus,
-                '*' => TokenKind::Star,
-                '%' => TokenKind::Percent,
-                '/' => TokenKind::Slash, // comments already consumed by skip_trivia
+                '?' => TokenKind::Question,
+                '+' => if self.match_char('=') { TokenKind::PlusEq } else { TokenKind::Plus },
+                '-' => if self.match_char('=') { TokenKind::MinusEq } else { TokenKind::Minus },
+                '*' => if self.match_char('=') { TokenKind::StarEq } else { TokenKind::Star },
+                '%' => if self.match_char('=') { TokenKind::PercentEq } else { TokenKind::Percent },
+                // comments already consumed by skip_trivia
+                '/' => if self.match_char('=') { TokenKind::SlashEq } else { TokenKind::Slash },
                 '.' => {
                     if self.match_char('.') {
                         TokenKind::DotDot
@@ -249,6 +251,8 @@ impl<'src> Lexer<'src> {
                 '<' => {
                     if self.match_char('=') {
                         TokenKind::LtEq
+                    } else if self.match_char('<') {
+                        TokenKind::Shl
                     } else {
                         TokenKind::Lt
                     }
@@ -256,6 +260,8 @@ impl<'src> Lexer<'src> {
                 '>' => {
                     if self.match_char('=') {
                         TokenKind::GtEq
+                    } else if self.match_char('>') {
+                        TokenKind::Shr
                     } else {
                         TokenKind::Gt
                     }
@@ -264,24 +270,18 @@ impl<'src> Lexer<'src> {
                     if self.match_char('&') {
                         TokenKind::AmpAmp
                     } else {
-                        self.error(
-                            "unexpected '&'; did you mean '&&'?",
-                            Span::new(start, 1, line, col),
-                        );
-                        continue;
+                        TokenKind::Amp
                     }
                 }
                 '|' => {
                     if self.match_char('|') {
                         TokenKind::PipePipe
                     } else {
-                        self.error(
-                            "unexpected '|'; did you mean '||'?",
-                            Span::new(start, 1, line, col),
-                        );
-                        continue;
+                        TokenKind::Pipe
                     }
                 }
+                '^' => TokenKind::Caret,
+                '~' => TokenKind::Tilde,
                 other => {
                     self.error(
                         format!("unexpected character '{}'", other.escape_default()),

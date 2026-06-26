@@ -29,8 +29,65 @@ pub fn build(vm: &mut Vm) -> Value {
         f(vm, "chars", Exact(1), chars),
         f(vm, "pad_left", Range(2, 3), pad_left),
         f(vm, "pad_right", Range(2, 3), pad_right),
+        f(vm, "format", Exact(2), format),
     ];
     vm.make_module("string", exports)
+}
+
+/// `format(template, args)` — substitute `{}` (next positional arg) and `{N}`
+/// (indexed arg) placeholders, rendering each value as `str()` would. `{{` and
+/// `}}` are literal braces. Throws `ValueError` on a missing argument, an
+/// out-of-range index, or an unmatched brace.
+fn format(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    let fmt = string_of(vm, a[0])?;
+    let args = array_of(vm, a[1])?;
+    let chars: Vec<char> = fmt.chars().collect();
+    let mut result = String::with_capacity(fmt.len());
+    let mut next = 0usize; // index of the next argument for a bare `{}`
+    let mut i = 0;
+    while i < chars.len() {
+        match chars[i] {
+            '{' if i + 1 < chars.len() && chars[i + 1] == '{' => {
+                result.push('{');
+                i += 2;
+            }
+            '}' if i + 1 < chars.len() && chars[i + 1] == '}' => {
+                result.push('}');
+                i += 2;
+            }
+            '}' => return Err(err(vm, error_kind::VALUE, "format: unmatched '}'")),
+            '{' => {
+                let mut j = i + 1;
+                let mut spec = String::new();
+                while j < chars.len() && chars[j] != '}' {
+                    spec.push(chars[j]);
+                    j += 1;
+                }
+                if j >= chars.len() {
+                    return Err(err(vm, error_kind::VALUE, "format: unmatched '{'"));
+                }
+                let idx = if spec.is_empty() {
+                    let k = next;
+                    next += 1;
+                    k
+                } else {
+                    spec.parse::<usize>()
+                        .map_err(|_| err(vm, error_kind::VALUE, format!("format: invalid placeholder '{{{spec}}}'")))?
+                };
+                let val = *args
+                    .get(idx)
+                    .ok_or_else(|| err(vm, error_kind::VALUE, format!("format: argument {idx} out of range (have {})", args.len())))?;
+                let rendered = vm.to_display(val, false)?;
+                result.push_str(&rendered);
+                i = j + 1;
+            }
+            c => {
+                result.push(c);
+                i += 1;
+            }
+        }
+    }
+    Ok(vm.new_string(&result))
 }
 
 fn upper(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {

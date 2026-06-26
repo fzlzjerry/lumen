@@ -1001,12 +1001,16 @@ impl Compiler {
                 self.emit_op_u16(OpCode::GetSuper, idx, line);
             }
             ExprKind::Assign { target, value } => self.compile_assign(target, value, span),
+            ExprKind::CompoundAssign { target, op, value } => {
+                self.compile_compound_assign(target, *op, value, span)
+            }
             ExprKind::Unary { op, operand } => {
                 self.compile_expr(operand);
                 self.emit_op(
                     match op {
                         UnaryOp::Neg => OpCode::Neg,
                         UnaryOp::Not => OpCode::Not,
+                        UnaryOp::BitNot => OpCode::BitNot,
                     },
                     line,
                 );
@@ -1017,13 +1021,16 @@ impl Compiler {
                 self.emit_op(binary_op(*op), line);
             }
             ExprKind::Logical { op, left, right } => self.compile_logical(*op, left, right, span),
+            ExprKind::Ternary { cond, then_branch, else_branch } => {
+                self.compile_ternary(cond, then_branch, else_branch, span)
+            }
             ExprKind::Call { callee, args, paren_span } => {
                 if args.len() > 255 {
                     self.error(*paren_span, "too many call arguments (max 255)");
                 }
-                // `obj.method(args)` fuses to a single INVOKE (no bound-method
-                // allocation for the common instance-method case). `super.m()`
-                // is a distinct node, so it still uses GET_SUPER + CALL.
+                // `obj.method(args)` fuses to a single INVOKE and `super.m(args)`
+                // to SUPER_INVOKE — both skip the bound-method allocation of the
+                // generic GET_PROP/GET_SUPER + CALL path.
                 if let ExprKind::Get { object, name, name_span } = &callee.kind {
                     self.compile_expr(object);
                     for a in args {
@@ -1031,6 +1038,17 @@ impl Compiler {
                     }
                     let idx = self.string_const(name, *name_span);
                     self.emit_op_u16(OpCode::Invoke, idx, line);
+                    self.emit_byte(args.len() as u8, line);
+                } else if let ExprKind::Super { method, method_span } = &callee.kind {
+                    // Layout: [this, args…, superclass]. SUPER_INVOKE pops the
+                    // superclass and calls with `this` already in the receiver slot.
+                    self.named_variable_get("this", span);
+                    for a in args {
+                        self.compile_expr(a);
+                    }
+                    self.named_variable_get("super", span);
+                    let idx = self.string_const(method, *method_span);
+                    self.emit_op_u16(OpCode::SuperInvoke, idx, line);
                     self.emit_byte(args.len() as u8, line);
                 } else {
                     self.compile_expr(callee);
@@ -1077,6 +1095,45 @@ impl Compiler {
         }
     }
 
+    /// `target op= value`, evaluating the target (and any object/index
+    /// sub-expressions) exactly once.
+    fn compile_compound_assign(&mut self, target: &Expr, op: BinaryOp, value: &Expr, span: Span) {
+        let line = span.line;
+        match &target.kind {
+            ExprKind::Var(name) => {
+                self.named_variable_get(name, span);
+                self.compile_expr(value);
+                self.emit_op(binary_op(op), line);
+                self.named_variable_set(name, span);
+            }
+            ExprKind::Get { object, name, .. } => {
+                // `obj` is evaluated once and duplicated for the read; `SetProp`
+                // consumes the original. Top-relative ops, so safe when nested.
+                self.compile_expr(object); // [obj]
+                self.emit_op(OpCode::Dup, line); // [obj, obj]
+                let idx = self.string_const(name, span);
+                self.emit_op_u16(OpCode::GetProp, idx, line); // [obj, cur]
+                self.compile_expr(value); // [obj, cur, rhs]
+                self.emit_op(binary_op(op), line); // [obj, result]
+                self.emit_op_u16(OpCode::SetProp, idx, line); // [result]
+            }
+            ExprKind::Index { object, index } => {
+                // `obj` and `index` are each evaluated once, then `Dup2` copies
+                // the pair for the read while `INDEX_SET` consumes the originals.
+                // All ops are top-relative, so this is correct even when the
+                // compound assignment is nested in a larger expression.
+                self.compile_expr(object); // [obj]
+                self.compile_expr(index); // [obj, idx]
+                self.emit_op(OpCode::Dup2, line); // [obj, idx, obj, idx]
+                self.emit_op(OpCode::IndexGet, line); // [obj, idx, cur]
+                self.compile_expr(value); // [obj, idx, cur, rhs]
+                self.emit_op(binary_op(op), line); // [obj, idx, result]
+                self.emit_op(OpCode::IndexSet, line); // [result]
+            }
+            _ => self.error(span, "invalid assignment target"),
+        }
+    }
+
     fn compile_logical(&mut self, op: LogicalOp, left: &Expr, right: &Expr, span: Span) {
         let line = span.line;
         match op {
@@ -1097,6 +1154,21 @@ impl Compiler {
                 self.patch_jump(end, span);
             }
         }
+    }
+
+    /// `cond ? then : else` — like the `||`/`&&` lowering, `JumpIfFalse` leaves
+    /// the condition on the stack, so each branch pops it before evaluating.
+    fn compile_ternary(&mut self, cond: &Expr, then_branch: &Expr, else_branch: &Expr, span: Span) {
+        let line = span.line;
+        self.compile_expr(cond);
+        let else_jump = self.emit_jump(OpCode::JumpIfFalse, line);
+        self.emit_op(OpCode::Pop, line); // discard the (truthy) condition
+        self.compile_expr(then_branch);
+        let end = self.emit_jump(OpCode::Jump, line);
+        self.patch_jump(else_jump, span);
+        self.emit_op(OpCode::Pop, line); // discard the (falsy) condition
+        self.compile_expr(else_branch);
+        self.patch_jump(end, span);
     }
 
     // ---- pattern matching --------------------------------------------------
@@ -1347,6 +1419,11 @@ fn binary_op(op: BinaryOp) -> OpCode {
         BinaryOp::Le => OpCode::Le,
         BinaryOp::Gt => OpCode::Gt,
         BinaryOp::Ge => OpCode::Ge,
+        BinaryOp::BitAnd => OpCode::BitAnd,
+        BinaryOp::BitOr => OpCode::BitOr,
+        BinaryOp::BitXor => OpCode::BitXor,
+        BinaryOp::Shl => OpCode::Shl,
+        BinaryOp::Shr => OpCode::Shr,
     }
 }
 
@@ -1404,7 +1481,20 @@ mod tests {
         assert!(d.contains("CLASS"));
         assert!(d.contains("METHOD"));
         assert!(d.contains("INHERIT"));
+        // A super *call* fuses to SUPER_INVOKE (no separate GET_SUPER + CALL).
+        assert!(d.contains("SUPER_INVOKE"));
+    }
+
+    #[test]
+    fn super_reference_without_call_emits_get_super() {
+        // Referencing a super method without immediately calling it still uses
+        // GET_SUPER (only the fused call form becomes SUPER_INVOKE).
+        let d = dis(
+            "class A { m() { return 1; } }
+             class B < A { m() { let f = super.m; return f(); } }",
+        );
         assert!(d.contains("GET_SUPER"));
+        assert!(!d.contains("SUPER_INVOKE"));
     }
 
     #[test]

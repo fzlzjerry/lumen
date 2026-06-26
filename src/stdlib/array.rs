@@ -32,6 +32,12 @@ pub fn build(vm: &mut Vm) -> Value {
         f(vm, "first", Exact(1), first),
         f(vm, "last", Exact(1), last),
         f(vm, "flatten", Exact(1), flatten),
+        f(vm, "find", Exact(2), find),
+        f(vm, "find_index", Exact(2), find_index),
+        f(vm, "any", Exact(2), any),
+        f(vm, "all", Exact(2), all),
+        f(vm, "unique", Exact(1), unique),
+        f(vm, "zip", Exact(2), zip),
     ];
     vm.make_module("array", exports)
 }
@@ -271,4 +277,86 @@ fn flatten(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
         }
     }
     Ok(vm.new_array(out))
+}
+
+/// `find(arr, pred)` -> the first element for which `pred` is truthy, else `nil`.
+/// The source array stays on the stack as an argument, keeping the candidate
+/// elements rooted across the re-entrant predicate call (like `each`).
+fn find(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    let items = array_of(vm, a[0])?;
+    let pred = a[1];
+    for it in items {
+        if vm.call_and_run(pred, &[it])?.is_truthy() {
+            return Ok(it);
+        }
+    }
+    Ok(Value::Nil)
+}
+
+/// `find_index(arr, pred)` -> the index of the first match, or `-1`.
+fn find_index(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    let items = array_of(vm, a[0])?;
+    let pred = a[1];
+    for (i, it) in items.into_iter().enumerate() {
+        if vm.call_and_run(pred, &[it])?.is_truthy() {
+            return Ok(Value::Int(i as i64));
+        }
+    }
+    Ok(Value::Int(-1))
+}
+
+/// `any(arr, pred)` -> `true` iff `pred` is truthy for at least one element.
+fn any(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    let items = array_of(vm, a[0])?;
+    let pred = a[1];
+    for it in items {
+        if vm.call_and_run(pred, &[it])?.is_truthy() {
+            return Ok(Value::Bool(true));
+        }
+    }
+    Ok(Value::Bool(false))
+}
+
+/// `all(arr, pred)` -> `true` iff `pred` is truthy for every element.
+fn all(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    let items = array_of(vm, a[0])?;
+    let pred = a[1];
+    for it in items {
+        if !vm.call_and_run(pred, &[it])?.is_truthy() {
+            return Ok(Value::Bool(false));
+        }
+    }
+    Ok(Value::Bool(true))
+}
+
+/// `unique(arr)` -> a new array with duplicates removed, keeping first-seen
+/// order. Equality is structural (`values_equal`), like `contains`/`index_of`.
+fn unique(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    let items = array_of(vm, a[0])?;
+    let mut out: Vec<Value> = Vec::new();
+    for it in items {
+        if !out.iter().any(|&seen| vm.values_equal(seen, it)) {
+            out.push(it);
+        }
+    }
+    Ok(vm.new_array(out))
+}
+
+/// `zip(xs, ys)` -> an array of `[x, y]` pairs, truncated to the shorter input.
+/// Roots the partial result across the pair allocations (like `map`).
+fn zip(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    let xs = array_of(vm, a[0])?;
+    let ys = array_of(vm, a[1])?;
+    let n = xs.len().min(ys.len());
+    let result = vm.new_array(Vec::with_capacity(n));
+    vm.push_temp_root(result);
+    let r = result.as_obj().unwrap();
+    for i in 0..n {
+        let pair = vm.new_array(vec![xs[i], ys[i]]);
+        if let Obj::Array(arr) = vm.heap.get_mut(r) {
+            arr.push(pair);
+        }
+    }
+    vm.pop_temp_root();
+    Ok(result)
 }

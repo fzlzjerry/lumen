@@ -516,25 +516,53 @@ impl Parser {
     }
 
     fn assignment(&mut self) -> PResult<Expr> {
-        let expr = self.logic_or()?;
+        let expr = self.ternary()?;
         if self.check(&K::Eq) {
             let eq = self.advance();
             let value = self.assignment()?; // right-associative
-            match &expr.kind {
-                ExprKind::Var(_) | ExprKind::Index { .. } | ExprKind::Get { .. } => {
-                    let span = expr.span.to(value.span);
-                    Ok(Expr::new(
-                        ExprKind::Assign { target: Box::new(expr), value: Box::new(value) },
-                        span,
-                    ))
-                }
-                _ => {
-                    self.error_at(eq.span, "invalid assignment target");
-                    Err(ParseError)
-                }
+            if !is_assignable(&expr.kind) {
+                self.error_at(eq.span, "invalid assignment target");
+                return Err(ParseError);
             }
+            let span = expr.span.to(value.span);
+            Ok(Expr::new(ExprKind::Assign { target: Box::new(expr), value: Box::new(value) }, span))
+        } else if let Some(op) = compound_op(&self.peek().kind) {
+            let tok = self.advance();
+            let value = self.assignment()?; // right-associative
+            if !is_assignable(&expr.kind) {
+                self.error_at(tok.span, "invalid assignment target");
+                return Err(ParseError);
+            }
+            let span = expr.span.to(value.span);
+            Ok(Expr::new(
+                ExprKind::CompoundAssign { target: Box::new(expr), op, value: Box::new(value) },
+                span,
+            ))
         } else {
             Ok(expr)
+        }
+    }
+
+    /// `cond ? then : else` — sits between assignment and `||`. Right-
+    /// associative, so `a ? b : c ? d : e` parses as `a ? b : (c ? d : e)`.
+    fn ternary(&mut self) -> PResult<Expr> {
+        let cond = self.logic_or()?;
+        if self.check(&K::Question) {
+            self.advance();
+            let then_branch = self.assignment()?;
+            self.consume(&K::Colon, "expected ':' in conditional expression")?;
+            let else_branch = self.assignment()?;
+            let span = cond.span.to(else_branch.span);
+            Ok(Expr::new(
+                ExprKind::Ternary {
+                    cond: Box::new(cond),
+                    then_branch: Box::new(then_branch),
+                    else_branch: Box::new(else_branch),
+                },
+                span,
+            ))
+        } else {
+            Ok(cond)
         }
     }
 
@@ -590,13 +618,60 @@ impl Parser {
     }
 
     fn comparison(&mut self) -> PResult<Expr> {
-        let mut left = self.term()?;
+        let mut left = self.bit_or()?;
         loop {
             let op = match self.peek().kind {
                 K::Lt => BinaryOp::Lt,
                 K::LtEq => BinaryOp::Le,
                 K::Gt => BinaryOp::Gt,
                 K::GtEq => BinaryOp::Ge,
+                _ => break,
+            };
+            self.advance();
+            let right = self.bit_or()?;
+            left = self.binary(op, left, right);
+        }
+        Ok(left)
+    }
+
+    // Bitwise operators bind tighter than comparison (Lua/Python convention), in
+    // the order `|` < `^` < `&` < shift, with shifts just above `+`/`-`.
+    fn bit_or(&mut self) -> PResult<Expr> {
+        let mut left = self.bit_xor()?;
+        while matches!(self.peek().kind, K::Pipe) {
+            self.advance();
+            let right = self.bit_xor()?;
+            left = self.binary(BinaryOp::BitOr, left, right);
+        }
+        Ok(left)
+    }
+
+    fn bit_xor(&mut self) -> PResult<Expr> {
+        let mut left = self.bit_and()?;
+        while matches!(self.peek().kind, K::Caret) {
+            self.advance();
+            let right = self.bit_and()?;
+            left = self.binary(BinaryOp::BitXor, left, right);
+        }
+        Ok(left)
+    }
+
+    fn bit_and(&mut self) -> PResult<Expr> {
+        let mut left = self.shift()?;
+        while matches!(self.peek().kind, K::Amp) {
+            self.advance();
+            let right = self.shift()?;
+            left = self.binary(BinaryOp::BitAnd, left, right);
+        }
+        Ok(left)
+    }
+
+    fn shift(&mut self) -> PResult<Expr> {
+        let mut left = self.term()?;
+        loop {
+            let op = match self.peek().kind {
+                K::Shl => BinaryOp::Shl,
+                K::Shr => BinaryOp::Shr,
                 _ => break,
             };
             self.advance();
@@ -649,6 +724,7 @@ impl Parser {
         let (op, kw_span) = match self.peek().kind {
             K::Bang | K::Not => (UnaryOp::Not, self.peek().span),
             K::Minus => (UnaryOp::Neg, self.peek().span),
+            K::Tilde => (UnaryOp::BitNot, self.peek().span),
             _ => return self.postfix(),
         };
         self.advance();
@@ -739,6 +815,13 @@ impl Parser {
                 self.advance();
                 self.build_string(parts, span)
             }
+            K::Ident(name) if matches!(self.peek2().kind, K::FatArrow) => {
+                // `x => expr` — single-parameter arrow lambda.
+                self.advance(); // the identifier
+                self.advance(); // '=>'
+                let params = vec![Param { name, span, default: None, is_rest: false }];
+                self.finish_arrow(params, span)
+            }
             K::Ident(name) => {
                 self.advance();
                 Ok(Expr::new(ExprKind::Var(name), span))
@@ -756,6 +839,15 @@ impl Parser {
                     ExprKind::Super { method, method_span },
                     span.to(method_span),
                 ))
+            }
+            K::LParen if self.is_arrow_params() => {
+                // `(a, b) => expr` / `() => expr` — arrow lambda with a parameter
+                // list (reusing the `fn` parameter parser, so defaults/rest work).
+                self.advance(); // '('
+                let params = self.params()?;
+                self.consume(&K::RParen, "expected ')' after lambda parameters")?;
+                self.consume(&K::FatArrow, "expected '=>' after lambda parameters")?;
+                self.finish_arrow(params, span)
             }
             K::LParen => {
                 self.advance();
@@ -851,6 +943,40 @@ impl Parser {
         let func = self.function_rest(None, kw.span, kw.span)?;
         let span = func.span;
         Ok(Expr::new(ExprKind::Lambda(func), span))
+    }
+
+    /// Finish an arrow lambda once its parameters are parsed: the body is a
+    /// single expression (parsed at assignment level, so it extends rightward and
+    /// `a => b => c` curries), wrapped as a `Function` that returns it. Reusing
+    /// `ExprKind::Lambda` means the resolver and compiler need no changes.
+    fn finish_arrow(&mut self, params: Vec<Param>, start: Span) -> PResult<Expr> {
+        let body = self.assignment()?;
+        let span = start.to(body.span);
+        let block = Block { stmts: vec![Stmt::Return { value: Some(body), span }], span };
+        let func = Function { name: None, name_span: start, params, body: block, span };
+        Ok(Expr::new(ExprKind::Lambda(func), span))
+    }
+
+    /// With the cursor on `(`, whether the matching `)` is immediately followed by
+    /// `=>` — distinguishing an arrow lambda's parameter list from a grouping.
+    fn is_arrow_params(&self) -> bool {
+        let mut depth = 0usize;
+        let mut i = self.pos;
+        while i < self.tokens.len() {
+            match &self.tokens[i].kind {
+                K::LParen => depth += 1,
+                K::RParen => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return matches!(self.tokens.get(i + 1).map(|t| &t.kind), Some(K::FatArrow));
+                    }
+                }
+                K::Eof => return false,
+                _ => {}
+            }
+            i += 1;
+        }
+        false
     }
 
     fn match_expr(&mut self) -> PResult<Expr> {
@@ -1105,6 +1231,23 @@ impl Parser {
         }
         Ok(s)
     }
+}
+
+/// Whether an expression is a valid assignment target (`=` or `op=` left side).
+fn is_assignable(kind: &ExprKind) -> bool {
+    matches!(kind, ExprKind::Var(_) | ExprKind::Index { .. } | ExprKind::Get { .. })
+}
+
+/// Map a compound-assignment token (`+=`, …) to its arithmetic operator.
+fn compound_op(kind: &K) -> Option<BinaryOp> {
+    Some(match kind {
+        K::PlusEq => BinaryOp::Add,
+        K::MinusEq => BinaryOp::Sub,
+        K::StarEq => BinaryOp::Mul,
+        K::SlashEq => BinaryOp::Div,
+        K::PercentEq => BinaryOp::Rem,
+        _ => return None,
+    })
 }
 
 /// Derive the binding name for a bare `import "path";` — the basename without a

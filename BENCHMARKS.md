@@ -74,12 +74,30 @@ Items 1, 3, and (partially) 4 from the original list were done in Phase A. What
 remains:
 
 1. **A global-variable inline cache** (resolve the name to a slot once, reuse).
-   This is the biggest remaining win for global-heavy loops but needs *mutable*
-   chunks (or a side cache table) to patch the resolved slot back, since Lumen's
-   chunks are immutable `Rc<FnProto>`s — a real architectural change rather than a
-   local edit, so it's deferred deliberately.
-2. **`SUPER_INVOKE`** to fuse `super.m()` the way `INVOKE` fuses `obj.m()`.
-3. **Specialized fast-path opcodes** (`ADD_INT`, `GET_LOCAL_0`).
+   This was the candidate "biggest remaining win," so the improvement track
+   **measured and analysed it** before committing. Finding: globals already use
+   **FxHash**, which is very fast on the 1–2-character names these benchmarks use.
+   On the most global-heavy case (`loop sum to 10M`, ~20M global ops, ~100 ns/iter)
+   the two global ops are only ~10 ns/iter; a perfect cache would trim ~6 ns →
+   **best case ~5–6% on that one benchmark, less everywhere else.** And it is *not*
+   a local edit: the GC marks globals through `module_globals`, so converting the
+   table to an index-map (the prerequisite for stable slots) **touches GC
+   root-marking** — the one invariant where a mistake is a silent use-after-free.
+   Marginal reward against real risk + permanent complexity, so it stays
+   **deferred deliberately** (decision recorded 2026-06; the immutable-chunk note
+   below still applies — a side cache keyed by `(proto, ip)` with a global epoch
+   counter would be the implementation if it is ever revisited).
+2. ~~**`SUPER_INVOKE`** to fuse `super.m()` the way `INVOKE` fuses `obj.m()`.~~
+   **Done** (improvement track). `super.m(args)` now compiles to a single
+   `SUPER_INVOKE` whose fast path calls the superclass method with the receiver
+   already in slot 0 — no bound-method allocation, exactly as `INVOKE` does for
+   `obj.m()`. Like `INVOKE`'s, the win is one fewer heap allocation per super
+   call; the current benchmark suite has no super-call-heavy case to isolate it.
+3. **Specialized fast-path opcodes** (`ADD_INT`, `GET_LOCAL_0`). Also deferred:
+   without type inference, `ADD_INT` only applies where the compiler can *prove*
+   integer operands (near-zero coverage here), and `GET_LOCAL_0`-style fusions
+   save a single operand-byte read — both add permanent instruction-set surface
+   for a sub-percent, hard-to-measure win.
 4. **String building** stays O(n²): strings are immutable and interned (DESIGN
    D9), so making `+` produce non-interned strings would speed concatenation but
    force `map`-key use to intern on every access — a worse trade for map-heavy

@@ -28,6 +28,7 @@ operand stack, and any side effects. The numeric encoding lives in
 | `POP` | — | `…, a -> …` | Discard the top. |
 | `POP_N` | `u8` n | `…, x1..xn -> …` | Discard the top `n`. |
 | `DUP` | — | `…, a -> …, a, a` | Duplicate the top. |
+| `DUP2` | — | `…, a, b -> …, a, b, a, b` | Duplicate the top two (read-modify-write for `obj[i] op= v`). |
 
 ## Variables
 
@@ -54,6 +55,9 @@ All pop two operands (one for `NEG`/`NOT`) and push one result, per SPEC §6.4.
 | `NOT` | `…, a -> …, b` | Logical negation (always a bool). |
 | `EQ` `NE` | `…, a, b -> …, c` | Equality per SPEC §6.2. |
 | `LT` `LE` `GT` `GE` | `…, a, b -> …, c` | Ordered comparison of numbers or strings. |
+| `BIT_AND` `BIT_OR` `BIT_XOR` | `…, a, b -> …, c` | Integer bitwise and/or/xor (TypeError on non-int). |
+| `SHL` `SHR` | `…, a, b -> …, c` | Integer shift left / arithmetic shift right; amount in `0..=63`. |
+| `BIT_NOT` | `…, a -> …, b` | Integer bitwise complement (`~`). |
 
 ## Control flow
 
@@ -69,6 +73,7 @@ All pop two operands (one for `NEG`/`NOT`) and push one result, per SPEC §6.4.
 |---|---|---|---|
 | `CALL` | `u8` argc | `…, f, a1..aN -> …, r` | Call `f` with `argc` args; checks arity. |
 | `INVOKE` | `u16` name, `u8` argc | `…, recv, a1..aN -> …, r` | `recv.name(args)`: fused property-read + call; skips bound-method allocation for instance methods. |
+| `SUPER_INVOKE` | `u16` name, `u8` argc | `…, this, a1..aN, super -> …, r` | `super.name(args)`: pops the superclass, resolves `name` in it, and calls with `this` as receiver; skips the bound-method allocation. |
 | `DEFAULT_ARG` | `u8` index, `u16` d | `…` | At function entry: if parameter `index` was supplied, `ip += d` (skip its default expression); else fall through to evaluate it. |
 | `CLOSURE` | `u16` proto, then `(u8 is_local, u8 index)×upvalues` | `… -> …, closure` | Build a closure, capturing the listed upvalues from the enclosing frame's locals (`is_local=1`) or upvalues (`is_local=0`). |
 | `RETURN` | — | `…, v -> ` | Return `v` from the current function; close its open upvalues. |

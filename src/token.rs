@@ -80,6 +80,11 @@ pub enum TokenKind {
     Star,       // *
     Slash,      // /
     Percent,    // %
+    PlusEq,     // +=
+    MinusEq,    // -=
+    StarEq,     // *=
+    SlashEq,    // /=
+    PercentEq,  // %=
     Eq,         // =
     EqEq,       // ==
     BangEq,     // !=
@@ -89,12 +94,19 @@ pub enum TokenKind {
     GtEq,       // >=
     AmpAmp,     // &&
     PipePipe,   // ||
+    Amp,        // &  (bitwise and)
+    Pipe,       // |  (bitwise or)
+    Caret,      // ^  (bitwise xor)
+    Tilde,      // ~  (bitwise not)
+    Shl,        // << (shift left)
+    Shr,        // >> (shift right)
     Bang,       // !
     Dot,        // .
     DotDot,     // ..
     Comma,      // ,
     Semicolon,  // ;
     Colon,      // :
+    Question,   // ?
     LParen,     // (
     RParen,     // )
     LBracket,   // [
@@ -197,6 +209,11 @@ impl TokenKind {
             TokenKind::Star => "*",
             TokenKind::Slash => "/",
             TokenKind::Percent => "%",
+            TokenKind::PlusEq => "+=",
+            TokenKind::MinusEq => "-=",
+            TokenKind::StarEq => "*=",
+            TokenKind::SlashEq => "/=",
+            TokenKind::PercentEq => "%=",
             TokenKind::Eq => "=",
             TokenKind::EqEq => "==",
             TokenKind::BangEq => "!=",
@@ -206,12 +223,19 @@ impl TokenKind {
             TokenKind::GtEq => ">=",
             TokenKind::AmpAmp => "&&",
             TokenKind::PipePipe => "||",
+            TokenKind::Amp => "&",
+            TokenKind::Pipe => "|",
+            TokenKind::Caret => "^",
+            TokenKind::Tilde => "~",
+            TokenKind::Shl => "<<",
+            TokenKind::Shr => ">>",
             TokenKind::Bang => "!",
             TokenKind::Dot => ".",
             TokenKind::DotDot => "..",
             TokenKind::Comma => ",",
             TokenKind::Semicolon => ";",
             TokenKind::Colon => ":",
+            TokenKind::Question => "?",
             TokenKind::LParen => "(",
             TokenKind::RParen => ")",
             TokenKind::LBracket => "[",

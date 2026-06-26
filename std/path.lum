@@ -1,0 +1,104 @@
+// The `path` module — POSIX-style path manipulation written in Lumen itself.
+// Paths use `/` as the separator and are treated as plain text (no filesystem
+// access; see the `io` module for that). Imported as: import "path" as path;
+
+import "string" as s;
+
+// The index of the last occurrence of `ch` in `str`, or -1 if absent.
+fn rindex(str, ch) {
+    let idx = -1;
+    let i = 0;
+    for c in str {
+        if c == ch { idx = i; }
+        i = i + 1;
+    }
+    return idx;
+}
+
+// Join path segments with a single `/`, skipping empty segments. A leading `/`
+// on the first segment is preserved (absolute paths).
+export fn join(parts) {
+    let result = "";
+    for p in parts {
+        if p == "" { continue; }
+        if result == "" {
+            result = p;
+        } else if s.ends_with(result, "/") {
+            result = result + p;
+        } else {
+            result = result + "/" + p;
+        }
+    }
+    return result;
+}
+
+// The final component of a path (after the last `/`). A trailing slash yields "".
+export fn basename(p) {
+    let i = rindex(p, "/");
+    if i < 0 { return p; }
+    return s.substring(p, i + 1, len(p));
+}
+
+// Everything before the final component: "." when there is no `/`, "/" at root.
+export fn dirname(p) {
+    let i = rindex(p, "/");
+    if i < 0 { return "."; }
+    if i == 0 { return "/"; }
+    return s.substring(p, 0, i);
+}
+
+// The extension of the final component, without the dot ("" if none, or for a
+// dotfile like ".bashrc").
+export fn ext(p) {
+    let base = basename(p);
+    let i = rindex(base, ".");
+    if i <= 0 { return ""; }
+    return s.substring(base, i + 1, len(base));
+}
+
+// The final component without its extension.
+export fn stem(p) {
+    let base = basename(p);
+    let i = rindex(base, ".");
+    if i <= 0 { return base; }
+    return s.substring(base, 0, i);
+}
+
+// Whether the path starts at the filesystem root.
+export fn is_absolute(p) {
+    return s.starts_with(p, "/");
+}
+
+// The non-empty components of a path, in order.
+export fn split(p) {
+    let out = [];
+    for part in s.split(p, "/") {
+        if part != "" { push(out, part); }
+    }
+    return out;
+}
+
+// Collapse `.`, `..`, and duplicate slashes, preserving a leading `/`.
+export fn normalize(p) {
+    let absolute = is_absolute(p);
+    let stack = [];
+    for part in split(p) {
+        if part == "." {
+            // current directory — drop it
+        } else if part == ".." {
+            let n = len(stack);
+            if n > 0 && stack[n - 1] != ".." {
+                pop(stack);
+            } else if !absolute {
+                push(stack, "..");
+            }
+            // a `..` at an absolute root is discarded
+        } else {
+            push(stack, part);
+        }
+    }
+    let joined = join(stack);
+    if absolute { return "/" + joined; }
+    if joined == "" { return "."; }
+    return joined;
+}

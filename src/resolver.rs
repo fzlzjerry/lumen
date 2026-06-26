@@ -40,10 +40,11 @@ pub fn resolve_with(program: &Program, predefined: &[String]) -> Vec<Diagnostic>
     }
     r.collect_globals(program);
     r.funcs.push(FuncCtx::new(FuncKind::Script, false, false));
-    for item in &program.items {
-        r.resolve_stmt(item);
-    }
+    // resolve_stmts (not a per-item loop) so unreachable-after-terminator is
+    // flagged at the top level too — the only valid top-level terminator is `throw`.
+    r.resolve_stmts(&program.items);
     r.funcs.pop();
+    r.flush_arity_warnings();
     r.errors
 }
 
@@ -60,6 +61,13 @@ struct Local {
     depth: usize,
     initialized: bool,
     is_const: bool,
+    /// Whether this binding was ever read (drives the unused-variable warning).
+    is_read: bool,
+    /// Whether an unread binding should warn — only plain `let`/`const` locals,
+    /// not params, loop/catch vars, pattern bindings, or function names.
+    track_unused: bool,
+    /// The declaration site, where the unused-variable warning points.
+    decl_span: Span,
 }
 
 struct FuncCtx {
@@ -91,11 +99,31 @@ enum Assignability {
     Undefined,
 }
 
+/// A deferred arity check: recorded at a call site (after the scope-sensitive
+/// shadow check), then emitted at the end of resolution — once we know whether
+/// the callee global was reassigned anywhere (which would invalidate the check).
+struct PendingArity {
+    name: String,
+    required: usize,
+    arity: usize,
+    has_rest: bool,
+    argc: usize,
+    span: Span,
+}
+
 struct Resolver {
     errors: Vec<Diagnostic>,
     /// Top-level names -> is_const. Collected up front so forward references and
     /// mutual recursion between globals are legal.
     globals: HashMap<String, bool>,
+    /// Top-level function name -> (required, fixed_arity, has_rest), for the
+    /// compile-time arity check on direct (`name(...)`) calls.
+    global_sigs: HashMap<String, (usize, usize, bool)>,
+    /// Names ever used as an assignment target. A global function in this set may
+    /// hold a different function value at a call site, so its arity is unknown.
+    reassigned: std::collections::HashSet<String>,
+    /// Arity checks deferred until `reassigned` is fully known (end of pass).
+    pending_arity: Vec<PendingArity>,
     /// Names defined by earlier REPL inputs; treated as known mutable globals.
     predefined: std::collections::HashSet<String>,
     funcs: Vec<FuncCtx>,
@@ -106,6 +134,9 @@ impl Resolver {
         Resolver {
             errors: Vec::new(),
             globals: HashMap::new(),
+            global_sigs: HashMap::new(),
+            reassigned: std::collections::HashSet::new(),
+            pending_arity: Vec::new(),
             predefined: std::collections::HashSet::new(),
             funcs: Vec::new(),
         }
@@ -113,6 +144,10 @@ impl Resolver {
 
     fn error(&mut self, span: Span, msg: impl Into<String>) {
         self.errors.push(Diagnostic::error("resolver", msg, span));
+    }
+
+    fn warning(&mut self, span: Span, msg: impl Into<String>) {
+        self.errors.push(Diagnostic::warning("resolver", msg, span));
     }
 
     // ---- global collection -------------------------------------------------
@@ -128,7 +163,11 @@ impl Resolver {
             Stmt::Let { name, name_span, .. } => self.add_global(name, *name_span, false),
             Stmt::Const { name, name_span, .. } => self.add_global(name, *name_span, true),
             Stmt::Destructure { pattern, .. } => self.collect_pattern_globals(pattern),
-            Stmt::Function(f) => self.add_global(f.name.as_deref().unwrap_or(""), f.name_span, false),
+            Stmt::Function(f) => {
+                let name = f.name.as_deref().unwrap_or("");
+                self.add_global(name, f.name_span, false);
+                self.global_sigs.insert(name.to_string(), compute_sig(&f.params));
+            }
             Stmt::Class(c) => self.add_global(&c.name, c.name_span, false),
             Stmt::Import(im) => match &im.kind {
                 ImportKind::Module { alias } => self.add_global(&alias.value, alias.span, false),
@@ -171,12 +210,24 @@ impl Resolver {
     }
 
     fn end_scope(&mut self) {
-        let depth = self.current().scope_depth;
+        let depth = self.current_ref().scope_depth;
+        // Warn on plain `let`/`const` locals that were never read (opt out with a
+        // leading underscore). Collected first to release the borrow before warning.
+        let unused: Vec<(Span, String)> = self
+            .current_ref()
+            .locals
+            .iter()
+            .filter(|l| l.depth == depth && l.track_unused && !l.is_read && !l.name.starts_with('_'))
+            .map(|l| (l.decl_span, l.name.clone()))
+            .collect();
+        for (span, name) in unused {
+            self.warning(span, format!("unused variable '{name}'"));
+        }
         self.current().locals.retain(|l| l.depth < depth);
         self.current().scope_depth -= 1;
     }
 
-    fn declare_local(&mut self, name: &str, span: Span, is_const: bool) {
+    fn declare_local(&mut self, name: &str, span: Span, is_const: bool, track_unused: bool) {
         let depth = self.current_ref().scope_depth;
         let dup = self
             .current_ref()
@@ -193,6 +244,9 @@ impl Resolver {
             depth,
             initialized: false,
             is_const,
+            is_read: false,
+            track_unused,
+            decl_span: span,
         });
     }
 
@@ -205,7 +259,7 @@ impl Resolver {
     /// Declare and immediately initialize a binding (params, loop vars, catch
     /// vars, pattern bindings, recursive function names).
     fn declare_defined(&mut self, name: &str, span: Span, is_const: bool) {
-        self.declare_local(name, span, is_const);
+        self.declare_local(name, span, is_const, false);
         self.define_last();
     }
 
@@ -215,7 +269,7 @@ impl Resolver {
         if self.is_global_scope() {
             return; // already in the globals table from collect_globals
         }
-        self.declare_local(name, span, is_const);
+        self.declare_local(name, span, is_const, false);
         if recursive {
             self.define_last();
         }
@@ -256,15 +310,33 @@ impl Resolver {
             if !initialized {
                 self.error(span, format!("cannot read '{name}' in its own initializer"));
             }
+            self.mark_read(name);
             return;
         }
         if self.find_upvalue(name).is_some() {
+            self.mark_read(name);
             return;
         }
         if self.globals.contains_key(name) || self.predefined.contains(name) || is_builtin(name) {
             return;
         }
         self.error(span, format!("undefined variable '{name}'"));
+    }
+
+    /// Mark the nearest binding named `name` (current function first, then
+    /// enclosing functions) as read, for the unused-variable warning.
+    fn mark_read(&mut self, name: &str) {
+        if let Some(l) = self.current().locals.iter_mut().rev().find(|l| l.name == name) {
+            l.is_read = true;
+            return;
+        }
+        let n = self.funcs.len();
+        for f in self.funcs[..n.saturating_sub(1)].iter_mut().rev() {
+            if let Some(l) = f.locals.iter_mut().rev().find(|l| l.name == name) {
+                l.is_read = true;
+                return;
+            }
+        }
     }
 
     fn assignability(&self, name: &str) -> Assignability {
@@ -285,11 +357,26 @@ impl Resolver {
 
     // ---- statements --------------------------------------------------------
 
+    /// Resolve a flat statement sequence, warning once on the first statement
+    /// that follows a terminator (return/throw/break/continue) in the same block.
+    fn resolve_stmts(&mut self, stmts: &[Stmt]) {
+        let mut terminated = false;
+        let mut warned = false;
+        for stmt in stmts {
+            if terminated && !warned {
+                self.warning(stmt.span(), "unreachable code");
+                warned = true;
+            }
+            self.resolve_stmt(stmt);
+            if is_terminator(stmt) {
+                terminated = true;
+            }
+        }
+    }
+
     fn resolve_block(&mut self, block: &Block) {
         self.begin_scope();
-        for stmt in &block.stmts {
-            self.resolve_stmt(stmt);
-        }
+        self.resolve_stmts(&block.stmts);
         self.end_scope();
     }
 
@@ -301,7 +388,7 @@ impl Resolver {
                         self.resolve_expr(e);
                     }
                 } else {
-                    self.declare_local(name, *name_span, false);
+                    self.declare_local(name, *name_span, false, true);
                     if let Some(e) = init {
                         self.resolve_expr(e);
                     }
@@ -312,7 +399,7 @@ impl Resolver {
                 if self.is_global_scope() {
                     self.resolve_expr(init);
                 } else {
-                    self.declare_local(name, *name_span, true);
+                    self.declare_local(name, *name_span, true, true);
                     self.resolve_expr(init);
                     self.define_last();
                 }
@@ -370,9 +457,7 @@ impl Resolver {
                 self.begin_scope();
                 self.declare_defined(var, *var_span, false);
                 self.current().loop_depth += 1;
-                for s in &body.stmts {
-                    self.resolve_stmt(s);
-                }
+                self.resolve_stmts(&body.stmts);
                 self.current().loop_depth -= 1;
                 self.end_scope();
             }
@@ -388,9 +473,7 @@ impl Resolver {
                     self.resolve_expr(s);
                 }
                 self.current().loop_depth += 1;
-                for s in &body.stmts {
-                    self.resolve_stmt(s);
-                }
+                self.resolve_stmts(&body.stmts);
                 self.current().loop_depth -= 1;
                 self.end_scope();
             }
@@ -424,9 +507,7 @@ impl Resolver {
                 if let Some(c) = catch {
                     self.begin_scope();
                     self.declare_defined(&c.name, c.name_span, false);
-                    for s in &c.body.stmts {
-                        self.resolve_stmt(s);
-                    }
+                    self.resolve_stmts(&c.body.stmts);
                     self.end_scope();
                 }
                 if let Some(f) = finally {
@@ -485,9 +566,7 @@ impl Resolver {
             }
             self.declare_defined(&p.name, p.span, false);
         }
-        for s in &f.body.stmts {
-            self.resolve_stmt(s);
-        }
+        self.resolve_stmts(&f.body.stmts);
         self.end_scope();
         self.funcs.pop();
     }
@@ -541,18 +620,45 @@ impl Resolver {
             ExprKind::Assign { target, value } => {
                 self.resolve_expr(value);
                 match &target.kind {
-                    ExprKind::Var(name) => match self.assignability(name) {
-                        Assignability::Constant => {
-                            self.error(target.span, format!("cannot assign to constant '{name}'"));
+                    ExprKind::Var(name) => {
+                        self.reassigned.insert(name.clone());
+                        match self.assignability(name) {
+                            Assignability::Constant => {
+                                self.error(target.span, format!("cannot assign to constant '{name}'"));
+                            }
+                            Assignability::Undefined => {
+                                self.error(
+                                    target.span,
+                                    format!("assignment to undefined variable '{name}'"),
+                                );
+                            }
+                            Assignability::Mutable => {}
                         }
-                        Assignability::Undefined => {
-                            self.error(
-                                target.span,
-                                format!("assignment to undefined variable '{name}'"),
-                            );
+                    }
+                    _ => self.resolve_expr(target),
+                }
+            }
+            ExprKind::CompoundAssign { target, value, .. } => {
+                // Same const/undefined rules as `=`; additionally `op=` *reads*
+                // the target, so mark it read (a Var target won't warn unused).
+                self.resolve_expr(value);
+                match &target.kind {
+                    ExprKind::Var(name) => {
+                        self.reassigned.insert(name.clone());
+                        match self.assignability(name) {
+                            Assignability::Constant => {
+                                self.error(target.span, format!("cannot assign to constant '{name}'"));
+                            }
+                            Assignability::Undefined => {
+                                self.error(
+                                    target.span,
+                                    format!("assignment to undefined variable '{name}'"),
+                                );
+                            }
+                            Assignability::Mutable => {}
                         }
-                        Assignability::Mutable => {}
-                    },
+                        self.mark_read(name);
+                    }
                     _ => self.resolve_expr(target),
                 }
             }
@@ -565,11 +671,17 @@ impl Resolver {
                 self.resolve_expr(left);
                 self.resolve_expr(right);
             }
-            ExprKind::Call { callee, args, .. } => {
+            ExprKind::Ternary { cond, then_branch, else_branch } => {
+                self.resolve_expr(cond);
+                self.resolve_expr(then_branch);
+                self.resolve_expr(else_branch);
+            }
+            ExprKind::Call { callee, args, paren_span } => {
                 self.resolve_expr(callee);
                 for a in args {
                     self.resolve_expr(a);
                 }
+                self.check_call_arity(callee, args, *paren_span);
             }
             ExprKind::Index { object, index } => {
                 self.resolve_expr(object);
@@ -592,6 +704,54 @@ impl Resolver {
                     self.resolve_expr(&arm.body);
                     self.end_scope();
                 }
+            }
+        }
+    }
+
+    /// Warn when a direct call to a statically-known top-level function passes
+    /// the wrong number of arguments. Deliberately conservative: it only fires
+    /// for a bare `name(...)` callee where `name` is a top-level `fn` **not**
+    /// shadowed by any local/upvalue (which could be a value of unknown arity).
+    fn check_call_arity(&mut self, callee: &Expr, args: &[Expr], paren_span: Span) {
+        let ExprKind::Var(name) = &callee.kind else {
+            return;
+        };
+        if self.find_local_current(name).is_some() || self.find_upvalue(name).is_some() {
+            return; // shadowed — the call resolves to a value, not the global fn
+        }
+        let Some(&(required, arity, has_rest)) = self.global_sigs.get(name) else {
+            return;
+        };
+        // The scope-sensitive shadow check is done; defer the warning itself until
+        // we know whether this global was reassigned anywhere in the program.
+        self.pending_arity.push(PendingArity {
+            name: name.clone(),
+            required,
+            arity,
+            has_rest,
+            argc: args.len(),
+            span: paren_span,
+        });
+    }
+
+    /// Emit the deferred arity warnings, skipping any global that was reassigned
+    /// (its value — and thus arity — at the call site is then unknown).
+    fn flush_arity_warnings(&mut self) {
+        let pending = std::mem::take(&mut self.pending_arity);
+        for p in pending {
+            if self.reassigned.contains(&p.name) {
+                continue;
+            }
+            if p.argc < p.required {
+                self.warning(
+                    p.span,
+                    format!("'{}' expects at least {} argument(s), but got {}", p.name, p.required, p.argc),
+                );
+            } else if !p.has_rest && p.argc > p.arity {
+                self.warning(
+                    p.span,
+                    format!("'{}' expects at most {} argument(s), but got {}", p.name, p.arity, p.argc),
+                );
             }
         }
     }
@@ -670,6 +830,24 @@ impl Resolver {
             _ => {}
         }
     }
+}
+
+/// Whether a statement unconditionally transfers control (so later statements in
+/// the same block are unreachable).
+fn is_terminator(stmt: &Stmt) -> bool {
+    matches!(
+        stmt,
+        Stmt::Return { .. } | Stmt::Throw { .. } | Stmt::Break { .. } | Stmt::Continue { .. }
+    )
+}
+
+/// A function's `(required, fixed_arity, has_rest)`, computed identically to the
+/// compiler so the static arity check agrees with the runtime check.
+fn compute_sig(params: &[Param]) -> (usize, usize, bool) {
+    let has_rest = params.last().map(|p| p.is_rest).unwrap_or(false);
+    let fixed = if has_rest { params.len() - 1 } else { params.len() };
+    let required = params.iter().take_while(|p| p.default.is_none() && !p.is_rest).count();
+    (required, fixed, has_rest)
 }
 
 #[cfg(test)]

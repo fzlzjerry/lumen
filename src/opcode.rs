@@ -69,6 +69,17 @@ pub enum OpCode {
     Gt,
     Ge,
 
+    // ---- bitwise (integer only) ----
+    BitAnd,
+    BitOr,
+    BitXor,
+    /// Bitwise complement (unary).
+    BitNot,
+    /// Left shift; the shift amount must be in `0..=63` (else a `ValueError`).
+    Shl,
+    /// Arithmetic (sign-extending) right shift; amount in `0..=63`.
+    Shr,
+
     // ---- control flow ----
     /// `Jump u16` — add the operand to `ip` (forward).
     Jump,
@@ -137,6 +148,10 @@ pub enum OpCode {
     Interpolate,
     /// Push a copy of the top value.
     Dup,
+    /// Push copies of the top *two* values: `[…, a, b] -> […, a, b, a, b]`.
+    /// Used to read-modify-write an indexed target (`obj[i] op= v`) with the
+    /// object and index evaluated exactly once.
+    Dup2,
     /// `Import u16` — load (compile + run once, cached) the module named by the
     /// string constant, and push the resulting module value.
     Import,
@@ -166,6 +181,12 @@ pub enum OpCode {
     /// slots below the top, with `argc` args. A fused `GET_PROP` + `CALL` that
     /// skips allocating a bound method for the common instance-method case.
     Invoke,
+
+    /// `SuperInvoke u16 u8` — call superclass method `constants[name]`. The
+    /// receiver (`this`) sits `argc` slots below the superclass on top of the
+    /// stack: `[…, this, args…, superclass]`. A fused `GET_SUPER` + `CALL` that
+    /// skips the bound-method allocation.
+    SuperInvoke,
 
     /// `DefaultArg u8 u16` — at function entry, if parameter `index` (0-based)
     /// was supplied by the caller, jump forward by the offset (skipping the
@@ -215,6 +236,12 @@ impl OpCode {
             OpCode::Le => "LE",
             OpCode::Gt => "GT",
             OpCode::Ge => "GE",
+            OpCode::BitAnd => "BIT_AND",
+            OpCode::BitOr => "BIT_OR",
+            OpCode::BitXor => "BIT_XOR",
+            OpCode::BitNot => "BIT_NOT",
+            OpCode::Shl => "SHL",
+            OpCode::Shr => "SHR",
             OpCode::Jump => "JUMP",
             OpCode::JumpIfFalse => "JUMP_IF_FALSE",
             OpCode::Loop => "LOOP",
@@ -239,6 +266,8 @@ impl OpCode {
             OpCode::Throw => "THROW",
             OpCode::Interpolate => "INTERPOLATE",
             OpCode::Dup => "DUP",
+            OpCode::Dup2 => "DUP2",
+            OpCode::SuperInvoke => "SUPER_INVOKE",
             OpCode::Import => "IMPORT",
             OpCode::IterNext => "ITER_NEXT",
             OpCode::MatchArray => "MATCH_ARRAY",

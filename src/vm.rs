@@ -718,6 +718,12 @@ impl Vm {
                 let v = self.peek(0);
                 self.push(v);
             }
+            OpCode::Dup2 => {
+                let a = self.peek(1);
+                let b = self.peek(0);
+                self.push(a);
+                self.push(b);
+            }
             OpCode::DefineGlobal => {
                 let name = self.read_string();
                 let v = self.pop();
@@ -829,6 +835,16 @@ impl Vm {
                 self.push(Value::Bool(!eq));
             }
             OpCode::Lt | OpCode::Le | OpCode::Gt | OpCode::Ge => self.binary_compare(op)?,
+            OpCode::BitAnd | OpCode::BitOr | OpCode::BitXor | OpCode::Shl | OpCode::Shr => {
+                self.binary_bitwise(op)?
+            }
+            OpCode::BitNot => {
+                let v = self.pop();
+                match v {
+                    Value::Int(n) => self.push(Value::Int(!n)),
+                    _ => return Err(self.throw(error_kind::TYPE, "cannot apply '~' to a non-integer")),
+                }
+            }
             OpCode::Jump => {
                 let off = self.read_u16() as usize;
                 self.frames.last_mut().unwrap().ip += off;
@@ -1058,6 +1074,26 @@ impl Vm {
                 self.stack[receiver_idx] = callable;
                 return self.call_value(callable, argc, receiver_idx);
             }
+            OpCode::SuperInvoke => {
+                // Fused `super.name(args)`. Stack: [this, args…, superclass]; pop
+                // the superclass, resolve the method in it, and call directly with
+                // `this` already in the receiver slot — no bound-method allocation.
+                let idx = self.read_u16() as usize;
+                let argc = self.read_byte() as usize;
+                let superclass = self.pop();
+                let receiver_idx = self.stack.len() - argc - 1;
+                let fi = self.frames.len() - 1;
+                let name = const_str(&self.frames[fi].proto, idx);
+                let sr = superclass.as_obj().unwrap();
+                if let Some(method) = self.find_method(sr, name) {
+                    let proto = self.closure_proto(method);
+                    return self.call_closure(method, proto, argc, receiver_idx);
+                }
+                let owned = name.to_string();
+                return Err(
+                    self.throw(error_kind::NAME, format!("undefined method '{owned}' in superclass"))
+                );
+            }
             OpCode::DefaultArg => {
                 let param_index = self.read_byte() as usize;
                 let skip = self.read_u16() as usize;
@@ -1164,6 +1200,40 @@ impl Vm {
             Some(v) => Ok(Value::Int(v)),
             None => Err(self.throw(error_kind::VALUE, format!("integer overflow in {what}"))),
         }
+    }
+
+    /// Integer-only bitwise/shift operators. Non-int operands throw a TypeError;
+    /// a shift amount outside `0..=63` throws a ValueError (Rust's shift would
+    /// otherwise panic). `>>` is an arithmetic (sign-extending) shift.
+    fn binary_bitwise(&mut self, op: OpCode) -> Result<(), Value> {
+        let b = self.pop();
+        let a = self.pop();
+        let (ix, iy) = match (a, b) {
+            (Value::Int(x), Value::Int(y)) => (x, y),
+            _ => return Err(self.type_error_binary(op_symbol(op), a, b)),
+        };
+        let result = match op {
+            OpCode::BitAnd => ix & iy,
+            OpCode::BitOr => ix | iy,
+            OpCode::BitXor => ix ^ iy,
+            OpCode::Shl | OpCode::Shr => {
+                if !(0..64).contains(&iy) {
+                    return Err(self.throw(
+                        error_kind::VALUE,
+                        format!("shift amount out of range (0..=63), got {iy}"),
+                    ));
+                }
+                let s = iy as u32;
+                if op == OpCode::Shl {
+                    ix << s
+                } else {
+                    ix >> s
+                }
+            }
+            _ => unreachable!("non-bitwise opcode in binary_bitwise"),
+        };
+        self.push(Value::Int(result));
+        Ok(())
     }
 
     fn binary_compare(&mut self, op: OpCode) -> Result<(), Value> {
@@ -2013,6 +2083,11 @@ fn op_symbol(op: OpCode) -> &'static str {
         OpCode::Le => "<=",
         OpCode::Gt => ">",
         OpCode::Ge => ">=",
+        OpCode::BitAnd => "&",
+        OpCode::BitOr => "|",
+        OpCode::BitXor => "^",
+        OpCode::Shl => "<<",
+        OpCode::Shr => ">>",
         _ => "?",
     }
 }

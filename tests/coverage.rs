@@ -129,6 +129,7 @@ fn vm_eval_persists_and_recovers() {
             if errs.is_empty() {
                 errs = lumen::resolver::resolve_with(&program, &globals);
             }
+            errs.retain(|d| d.severity == lumen::Severity::Error); // ignore warnings
             assert!(errs.is_empty(), "static errors: {:?}", errs);
             let (proto, _print) = lumen::compiler::compile_repl(&program).unwrap();
             let r = vm.eval(proto);

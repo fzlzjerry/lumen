@@ -94,6 +94,9 @@ import "math".{sqrt, pi};  // selected exports directly:     sqrt(2), pi
 | `sign` | `(x) -> int` | `-1`, `0`, or `1`. |
 | `min` `max` | `(a, b) -> int\|float` | Smaller/larger argument, unchanged (type preserved). |
 | `gcd` | `(a, b) -> int` | Greatest common divisor (operands must be ints). |
+| `lcm` | `(a, b) -> int` | Least common multiple (operands must be ints); `0` if either is `0`. |
+| `is_nan` `is_finite` | `(x) -> bool` | Whether `x` is NaN / finite. |
+| `degrees` `radians` | `(x) -> float` | Convert between radians and degrees. |
 
 Numeric functions **throw** `TypeError` on non-number arguments.
 
@@ -126,6 +129,7 @@ the end. Functions **throw** `TypeError` on non-string arguments.
 | `reverse` | `(s) -> string` | Reversed by character. |
 | `chars` | `(s) -> array` | Array of one-character strings. |
 | `pad_left` `pad_right` | `(s, width, fill?) -> string` | Pad to `width` chars with `fill` (default a space). |
+| `format` | `(template, args) -> string` | Substitute `{}` (next positional arg) / `{N}` (indexed arg) placeholders, each rendered with `str`; `{{` and `}}` are literal braces. **Throws** `ValueError` on a missing argument, out-of-range index, or unmatched brace. |
 
 ```lumen
 import "string" as s;
@@ -133,6 +137,7 @@ println(s.split("a,b,c", ","));   // ["a", "b", "c"]
 println(s.join(["a", "b"], "-")); // a-b
 println(s.substring("hello", 1, 4)); // ell
 println(s.pad_left("7", 3));      // "  7"
+println(s.format("{} = {0}", [42])); // "42 = 42"
 ```
 
 ### `array` — sequence operations
@@ -156,6 +161,11 @@ Higher-order functions take a callback and call back into Lumen. Functions
 | `concat` | `(a, b) -> array` | New array of `a` followed by `b`. |
 | `first` `last` | `(arr) -> any` | First / last element, or `nil` if empty. |
 | `flatten` | `(arr) -> array` | Concatenate one level of nested arrays. |
+| `find` | `(arr, pred) -> any` | First element where `pred(x)` is truthy, or `nil`. |
+| `find_index` | `(arr, pred) -> int` | Index of the first match, or `-1`. |
+| `any` `all` | `(arr, pred) -> bool` | Whether `pred` holds for some / every element. |
+| `unique` | `(arr) -> array` | New array with duplicates removed (first-seen order, value equality). |
+| `zip` | `(a, b) -> array` | New array of `[a[i], b[i]]` pairs, truncated to the shorter input. |
 
 ```lumen
 import "array" as a;
@@ -181,6 +191,11 @@ map.
 | `len` | `(map) -> int` | Number of entries. |
 | `entries` | `(map) -> array` | Array of `[key, value]` pairs, in order. |
 | `merge` | `(a, b) -> map` | New map: `b`'s entries layered over a copy of `a`. |
+| `each` | `(map, f) -> nil` | Call `f(key, value)` for each entry, in order. |
+| `map` | `(map, f) -> map` | New map with each value replaced by `f(key, value)`. |
+| `filter` | `(map, pred) -> map` | New map of entries where `pred(key, value)` is truthy. |
+| `clear` | `(map) -> map` | Remove all entries in place; returns the map. |
+| `from_entries` | `(pairs) -> map` | Build a map from an array of `[key, value]` pairs (inverse of `entries`). |
 
 ```lumen
 import "map" as mp;
@@ -234,7 +249,34 @@ println(r.shuffle([1, 2, 3, 4, 5]));
 | `append_file` | `(path, content) -> nil` | Append `content` to `path` (creating it if needed). |
 | `exists` | `(path) -> bool` | Whether a path exists. |
 | `lines` | `(path) -> array` | The file's lines as an array of strings. |
+| `mkdir` | `(path) -> nil` | Create a directory and any missing parents (like `mkdir -p`). |
+| `listdir` | `(path) -> array` | The entry names directly under `path`, sorted. **Throws** `ValueError` if `path` is not a readable directory. |
+| `remove` | `(path) -> nil` | Delete a file. **Throws** `ValueError` on error (use `rmdir` for directories). |
+| `rmdir` | `(path) -> nil` | Delete an **empty** directory (never recursive). |
+| `is_dir` `is_file` | `(path) -> bool` | Whether `path` is a directory / regular file. |
 | `eprint` `eprintln` | `(x) -> nil` | Like `print`/`println`, but to stderr. |
+
+### `hash` — non-cryptographic hashing and encodings
+
+Hashes are deterministic 64-bit values returned as `int` (the unsigned result is
+reinterpreted as a signed integer, so it may be negative). The encodings operate
+on a string's UTF-8 bytes. **Not** suitable for security or cryptography.
+
+| Function | Signature | Description |
+|---|---|---|
+| `fnv1a` | `(s) -> int` | FNV-1a 64-bit hash. |
+| `djb2` | `(s) -> int` | djb2 hash. |
+| `hex_encode` | `(s) -> string` | Lowercase hex of the UTF-8 bytes. |
+| `hex_decode` | `(s) -> string` | Inverse of `hex_encode`. **Throws** `ValueError` on odd length, a non-hex digit, or non-UTF-8 result. |
+| `base64_encode` | `(s) -> string` | Standard base64 with `=` padding. |
+| `base64_decode` | `(s) -> string` | Inverse of `base64_encode` (ignores embedded newlines). **Throws** `ValueError` on malformed input or non-UTF-8 result. |
+
+```lumen
+import "hash" as h;
+println(h.hex_encode("abc"));        // "616263"
+println(h.base64_encode("Man"));     // "TWFu"
+println(h.base64_decode("TWFu"));    // "Man"
+```
 
 ### `os` — process and environment
 
@@ -281,6 +323,31 @@ import "seq" as q;
 println(q.zip([1, 2, 3], ["a", "b", "c"])); // [[1, "a"], [2, "b"], [3, "c"]]
 println(q.take([1, 2, 3, 4, 5], 2));        // [1, 2]
 println(q.windows([1, 2, 3, 4], 2));        // [[1, 2], [2, 3], [3, 4]]
+```
+
+## `path` — self-hosted path manipulation
+
+Written in Lumen (`std/path.lum`). Pure text manipulation of POSIX-style paths
+(`/` separator); no filesystem access — use `io` for that. Import it with
+`import "path" as path;`.
+
+| Function | Signature | Description |
+|---|---|---|
+| `join` | `(parts) -> string` | Join segments with a single `/`, skipping empty ones (a leading `/` is preserved). |
+| `basename` | `(p) -> string` | The final component (after the last `/`). |
+| `dirname` | `(p) -> string` | Everything before the final component (`"."` if none, `"/"` at root). |
+| `ext` | `(p) -> string` | The extension of the final component without the dot (`""` for none or a dotfile). |
+| `stem` | `(p) -> string` | The final component without its extension. |
+| `is_absolute` | `(p) -> bool` | Whether `p` starts at the root (`/`). |
+| `split` | `(p) -> array` | The non-empty path components. |
+| `normalize` | `(p) -> string` | Collapse `.`, `..`, and duplicate slashes (preserving a leading `/`). |
+
+```lumen
+import "path" as path;
+println(path.join(["/usr", "local", "bin"])); // "/usr/local/bin"
+println(path.basename("/a/b/c.txt"));         // "c.txt"
+println(path.ext("archive.tar.gz"));          // "gz"
+println(path.normalize("/a/b/../c"));         // "/a/c"
 ```
 
 ## `set` — self-hosted hash set

@@ -812,3 +812,200 @@ crate and brought it to **zero clippy lints**: implemented `Display` for the LSP
 range, and tightened a `&mut String` parameter to `&str`; one false positive
 (`approximate_constant` flagging a `3.14` sample literal) was sidestepped by using
 `3.25`. All pure lints — no behavior change, suite stayed green.
+
+---
+
+# Improvement track
+
+A research pass (three parallel codebase sweeps plus this journal and
+`BENCHMARKS.md`) produced a tiered roadmap; this track records its execution.
+
+## Tier 0 — Docs caught up to reality
+
+The README had drifted from the code: it called the GC "tracing"/"mark-and-sweep"
+(it's been **generational** since Enhancement Phase C), counted "58 instructions"
+(Phase B's `DEFAULT_ARG` made it 59), and "159 tests" (208 after Phase F).
+Corrected all three against the source. Also brought `cargo clippy` back to zero
+under a newer toolchain: two lints had appeared from clippy drift, not new code —
+`only_used_in_recursion` on the formatter's `pattern_str` (made it an associated
+fn, since it only recursed on `self`) and `format_collect` on `project::indent`
+(rewrote with `writeln!`).
+
+## Tier 1 — A v0.2 bundle
+
+**Stdlib parity (16 native functions).** `array` gained `find`/`find_index`/
+`any`/`all`/`unique`/`zip` (previously only on the self-hosted `seq`); `map` gained
+`each`/`map`/`filter`/`clear`/`from_entries`; `math` gained `lcm`/`is_nan`/
+`is_finite`/`degrees`/`radians`. The higher-order additions reuse the existing
+`call_and_run` + temp-root discipline (DESIGN D18); `map.map` resolves each key
+*before* its callback so the freshly-returned value is never left unrooted across
+an allocation. A new GC-stress test runs them under collect-on-every-allocation.
+
+**Ternary `cond ? a : b`.** New `Question` token and `Ternary` AST node, slotted
+between assignment and `||` in the Pratt parser (right-associative). It lowers to
+the same `JUMP_IF_FALSE`/`JUMP` shape as `||`/`&&` — **no new opcode** — so only
+the taken branch runs. Formatter round-trips it.
+
+**Compound assignment `+= -= *= /= %=`.** New compound-assign tokens desugaring to
+the arithmetic ops, with the target evaluated **once**. `Var` reads/writes the
+binding; `Get` duplicates the object with `DUP`; `Index` needed both object *and*
+index reused, which `DUP` (top-only) can't express — and `add_local`-style temps
+are unsafe mid-expression here (the compiler allocates local slots as
+`locals.len()`, assuming a clean stack, so a temp declared while a callee/operand
+is pending reads the wrong slot — the same latent limitation `match`'s `@subj`
+has, just never exercised nested). A probe (`println(a[1] += 5)`) confirmed the
+miscompile, so I added a small **`DUP2`** opcode (`[a,b] -> [a,b,a,b]`,
+top-relative) that makes the index form correct in any nesting.
+
+**`SUPER_INVOKE`** (the next item on `BENCHMARKS.md`'s deferred list). Fuses
+`super.m(args)` the way `INVOKE` fuses `obj.m(args)`: the compiler lays out
+`[this, args…, superclass]`, and the op pops the superclass, resolves the method
+in it, and calls with `this` already in the receiver slot — no bound-method
+allocation. `GET_SUPER` remains for a bare super reference (`let f = super.m;`).
+
+**Net.** Two new opcodes (`DUP2`, `SUPER_INVOKE`) → **61** instructions. Every
+feature flows through `SPEC`/`TUTORIAL`/`API`/`OPCODES` as applicable. `cargo
+build`/`clippy` clean (0 warnings, 0 lints), `cargo test` green at **217** (+9),
+nothing skipped; the formatter round-trips all new syntax and the e2e class
+snapshots guard `SUPER_INVOKE`'s semantics.
+
+**Deferred to Tier 2 and beyond.** See the next section for Tier 2; the bigger
+Tier 3 perf items (specialized opcodes, the global inline cache — still blocked on
+immutable `Rc<FnProto>` chunks) and Tier 4 (new stdlib modules, LSP
+`formatting`/`rename`, a dependency story) remain as the roadmap.
+
+## Tier 2 — Language features + static diagnostics
+
+A design pass first: three parallel agents produced grounded, file-cited
+implementation plans (the lambda agent stalled twice on the model side and was
+designed by hand). Then implemented sequentially with TDD — these features all
+touch the shared parser/resolver/formatter, so they don't parallelize cleanly.
+
+**Static diagnostics — three resolver warnings.** *Unused variables* (an `is_read`
+flag on locals, flagged at scope exit; only plain `let`/`const`, never params,
+loop/catch vars, captures, or `_`-prefixed). *Unreachable code* (a `resolve_stmts`
+pass warns once per block on the first statement after a terminator). *Wrong-arity
+calls* (top-level `fn` signatures collected up front; a direct `name(...)` with the
+wrong count warns — conservative, skipping shadowed names and computed callees so
+it can't false-positive). The key infra choice: warnings are **non-fatal**.
+`check_source` still returns *errors only* (so all ~28 existing gates/tests are
+untouched); a new `check_all` carries warnings to the LSP (mapped to LSP severity),
+the REPL, and `lumen run`. The runtime still enforces arity, so a missed warning
+costs nothing. All 19 examples are warning-clean.
+
+**Bitwise operators** `& | ^ ~ << >>` (integer only). New tokens (repurposing the
+old "did you mean `&&`?" lexer errors), `BinaryOp`/`UnaryOp` variants, six opcodes,
+and VM handlers that throw `TypeError` on non-ints and a `ValueError` on a shift
+amount outside `0..=63` (Rust's shift would otherwise panic); `>>` is arithmetic.
+Precedence follows **Lua/Python** (bitwise *above* comparison), not C — so
+`1 & 1 == 1` is `(1&1) == 1`, avoiding C's classic footgun. The formatter's
+precedence table was renumbered to 15 levels; the round-trip idempotency test is
+the safety net that proves the renumbering correct.
+
+**Lambda shorthand** `x => e` and `(a, b) => e` / `() => e`, body an implicitly-
+returned single expression. Disambiguation: `IDENT =>` is caught with the existing
+two-token lookahead; `(params) =>` with a cheap paren-scan to the matching `)`
+(no speculative parse, no spurious errors) before committing to the arrow vs a
+grouping. It reuses the `fn` parameter parser (so defaults/rest compose) and builds
+an ordinary `ExprKind::Lambda(Function)` whose body is one `return expr` — so the
+resolver, compiler, and closure machinery need **zero** changes, and the formatter
+canonicalizes arrows to the `fn` form (idempotent). Bodies parse at assignment
+level, so `a => b => c` curries right.
+
+**Net.** Six new opcodes (bitwise) → **67** instructions. Every feature flows
+through `SPEC`/`TUTORIAL`/`OPCODES` as applicable. `cargo build`/`clippy` clean
+(0 warnings, 0 lints), `cargo test` green at **223** (+6 over Tier 1), nothing
+skipped; formatter round-trips all new syntax. (Mid-session the macOS Xcode license
+lapsed and blocked the *linker* — `cargo check` still compiled; the suite was
+re-run once the license was re-accepted.)
+
+## Tier 4 — Stdlib expansion (first increment)
+
+Four library additions, each TDD'd (test → red → implement → green) and landed as
+an isolated, independently-testable unit. No language, compiler, or VM changes —
+zero architectural risk — so they don't touch the GC invariant or the bytecode.
+
+- **`io` directory ops** — `mkdir` (recursive, `mkdir -p`), `listdir` (sorted for
+  deterministic output), `remove` (file), `rmdir` (**empty** dir only — never
+  recursive, so it can't delete a tree by accident), and `is_dir`/`is_file`
+  predicates. Mirrors the existing `io` natives exactly.
+- **`string.format(template, args)`** — positional substitution: `{}` takes the
+  next argument, `{N}` an indexed one, `{{`/`}}` are literal braces; values render
+  through the same `to_display` path as `str()`/`println`. A programmatic
+  complement to the language's `${...}` interpolation. Throws `ValueError` on a
+  missing arg, out-of-range index, or unmatched brace. GC-safe without a temp root:
+  the args array stays on the VM stack for the whole native call (truncation
+  happens *after* the function returns), so its elements survive any GC a
+  custom `str()` hook might trigger inside `to_display`.
+- **`hash` module** (new native) — non-cryptographic `fnv1a`/`djb2` (64-bit,
+  returned as `int`) and `hex`/`base64` encode/decode over UTF-8 bytes, all
+  std-only and hand-rolled. Round-trips preserve multi-byte UTF-8; malformed input
+  throws `ValueError`.
+- **`path` module** (new self-hosted, `std/path.lum`) — `join`/`basename`/
+  `dirname`/`ext`/`stem`/`is_absolute`/`split`/`normalize` over POSIX `/` paths,
+  pure text (no filesystem). Written in Lumen, importing `string` — proving a
+  self-hosted module can build on a native one. Brings the self-hosted count to
+  **five**.
+
+**Net.** One new native module (`hash`) + one self-hosted (`path`) → 10 native +
+5 self-hosted. `cargo build`/`clippy` clean (0 warnings, 0 lints); `cargo test`
+green at **229** (+4 test fns), nothing skipped. Docs (`API`, `README`, `TUTORIAL`)
+synced.
+
+## Tier 3 — measured, then deferred (decision)
+
+Before touching anything, the inline cache (the candidate "biggest remaining win")
+was **measured**, per the benchmark-gate discipline. Release baseline showed the
+most global-heavy benchmark (`loop sum to 10M`, ~20M global ops) at ~100 ns/iter
+with only ~10 ns of that in the two global ops — globals already use FxHash, which
+is fast on the 1–2-char names involved. A perfect cache trims maybe ~6 ns →
+**best case ~5–6% on that one benchmark, less elsewhere.** And the prerequisite
+index-map refactor **touches GC root-marking** (`vm.rs:242` marks globals through
+`module_globals`) — so it is *not* the local, low-risk change first assumed.
+Marginal reward against real risk + permanent complexity → **deferred** (recorded
+in `BENCHMARKS.md`). Specialized opcodes / peephole are even more marginal (no
+type inference → `ADD_INT` has near-zero coverage). Tier 3 is, honestly, "already
+optimized; the remaining wins aren't worth their cost."
+
+## Tier 4 — LSP tooling
+
+Four cohesive editor features, all building on the existing `collect_defs` scope
+walker and `ast_printer`. TDD on the stdlib half; the LSP half was impl-then-test,
+so each new test was **proven to have teeth** by sabotaging the implementation and
+watching exactly the right tests go red before reverting.
+
+- **`textDocument/formatting`** — one full-document `TextEdit` from
+  `ast_printer::print_program`, but only on a clean parse (never reformat broken
+  code, matching `lumen fmt`).
+- **`textDocument/references`** — the inverse of go-to-definition: resolve the
+  identifier under the cursor to its declaration (`resolve_def`, factored out and
+  now shared with go-to-def), then keep every identifier token that resolves to
+  the *same* declaration. Lexical shadowing falls out for free — an inner binding's
+  uses don't match an outer target. Honors `includeDeclaration`.
+- **`textDocument/rename`** — the reference set as a `WorkspaceEdit`; rejects a
+  `newName` that isn't a valid identifier.
+- **`textDocument/signatureHelp`** — a backward token scan from the cursor finds
+  the enclosing call's callee and the active argument index (commas at paren depth
+  0, nested calls handled); a signature table (name → parameter labels, defaults
+  and `..rest` rendered) supplies the label. Covers user-defined functions and
+  methods.
+
+Capabilities now advertised: diagnostics, hover, definition, completion, symbols,
+**formatting, references, rename, signatureHelp**.
+
+An adversarial review caught two real defects, both fixed and regression-tested:
+(1) `signatureHelp` counted commas inside `[...]`/`{...}` arguments as separators
+(so `g([1, 2], x)` mis-highlighted) — the backward scan now tracks bracket/brace
+depth and bails when the cursor is inside a literal; (2) the old `collect_defs`
+didn't walk lambda bodies, so references/**rename** of an outer variable would
+reach across a same-named **lambda parameter** and corrupt it — fixed by a second,
+additive pass (`lambdas_in_stmt`/`lambdas_in_expr`) that adds each lambda's
+parameters and locals scoped to the lambda body, so the tighter scope wins and the
+outer symbol's edits stop at the lambda boundary. Both new tests were proven to
+have teeth by sabotaging the fix and watching exactly them go red.
+
+**Net.** `cargo build`/`clippy` clean; `cargo test` green at **242** (+13 LSP test
+fns over the increment), nothing skipped. README capability line updated. Still
+pending: the chosen **dependency model** — git + path deps + a `lumen.lock` (no
+central registry), with `lumen add` editing the manifest — plus `datetime` and a
+basic `regex`.

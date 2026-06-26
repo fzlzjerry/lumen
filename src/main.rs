@@ -72,10 +72,15 @@ fn cmd_run(path: Option<&str>) -> ExitCode {
         Ok(v) => v,
         Err(code) => return code,
     };
-    let (program, errors) = lumen::check_source(&src);
-    if !errors.is_empty() {
-        print_diagnostics(&errors, &src, &file);
-        eprintln!("{} error(s)", errors.len());
+    // `check_all` also reports resolver warnings (unused vars, unreachable code,
+    // wrong arity); they print but do not stop the run — only errors do.
+    let (program, diags) = lumen::check_all(&src);
+    if !diags.is_empty() {
+        print_diagnostics(&diags, &src, &file);
+    }
+    if lumen::has_errors(&diags) {
+        let errs = diags.iter().filter(|d| d.severity == lumen::Severity::Error).count();
+        eprintln!("{errs} error(s)");
         return ExitCode::FAILURE;
     }
     let proto = match lumen::compiler::compile(&program) {

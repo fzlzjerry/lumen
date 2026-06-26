@@ -241,6 +241,8 @@ pub enum MapKey {
 pub enum UnaryOp {
     Neg,
     Not,
+    /// `~x` — bitwise complement (integer only).
+    BitNot,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -256,6 +258,12 @@ pub enum BinaryOp {
     Le,
     Gt,
     Ge,
+    /// Integer-only bitwise / shift operators.
+    BitAnd,
+    BitOr,
+    BitXor,
+    Shl,
+    Shr,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -287,6 +295,12 @@ pub enum ExprKind {
         target: Box<Expr>,
         value: Box<Expr>,
     },
+    /// `target op= value` (e.g. `x += 1`). The target is evaluated once.
+    CompoundAssign {
+        target: Box<Expr>,
+        op: BinaryOp,
+        value: Box<Expr>,
+    },
     Unary {
         op: UnaryOp,
         operand: Box<Expr>,
@@ -300,6 +314,12 @@ pub enum ExprKind {
         op: LogicalOp,
         left: Box<Expr>,
         right: Box<Expr>,
+    },
+    /// `cond ? then_branch : else_branch` — only the taken branch is evaluated.
+    Ternary {
+        cond: Box<Expr>,
+        then_branch: Box<Expr>,
+        else_branch: Box<Expr>,
     },
     Call {
         callee: Box<Expr>,

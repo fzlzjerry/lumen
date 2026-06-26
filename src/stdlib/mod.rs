@@ -12,6 +12,7 @@ use crate::value::{error_kind, Value};
 use crate::vm::Vm;
 
 mod array;
+mod hash;
 mod io;
 mod json;
 mod map;
@@ -26,6 +27,7 @@ const SEQ_SRC: &str = include_str!("../../std/seq.lum");
 const SET_SRC: &str = include_str!("../../std/set.lum");
 const FUNCTIONAL_SRC: &str = include_str!("../../std/functional.lum");
 const TESTING_SRC: &str = include_str!("../../std/testing.lum");
+const PATH_SRC: &str = include_str!("../../std/path.lum");
 
 /// Install the standard library into a VM.
 pub fn install(vm: &mut Vm) {
@@ -44,10 +46,12 @@ fn load(vm: &mut Vm, name: &str) -> Option<Result<Value, Value>> {
         "time" => Ok(time::build(vm)),
         "json" => Ok(json::build(vm)),
         "random" => Ok(random::build(vm)),
+        "hash" => Ok(hash::build(vm)),
         "seq" => vm.load_source_module("seq", SEQ_SRC),
         "set" => vm.load_source_module("set", SET_SRC),
         "functional" => vm.load_source_module("functional", FUNCTIONAL_SRC),
         "testing" => vm.load_source_module("testing", TESTING_SRC),
+        "path" => vm.load_source_module("path", PATH_SRC),
         _ => return None,
     })
 }
