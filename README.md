@@ -60,9 +60,27 @@ See [`SPEC.md`](SPEC.md) for the complete language specification (lexical and
 syntactic grammar in EBNF, type/evaluation/scope semantics, error and memory
 models), and [`DESIGN.md`](DESIGN.md) for the rationale behind the design.
 
-## Quick start
+## Install
 
-Lumen builds with a stable Rust toolchain (1.96+) and has no dependencies.
+Pre-built binaries for macOS (arm64/x86_64) and Linux (x86_64/arm64) ship on
+every [release](https://github.com/fzlzjerry/lumen/releases).
+
+```sh
+# Homebrew (macOS / Linux)
+brew install fzlzjerry/lumen/lumen
+
+# Debian / Ubuntu (.deb from the latest release)
+curl -LO https://github.com/fzlzjerry/lumen/releases/latest/download/lumen_amd64.deb
+sudo apt install ./lumen_*.deb
+
+# From source (stable Rust 1.82+, no dependencies)
+cargo install --git https://github.com/fzlzjerry/lumen
+```
+
+An `apt` repository and crates.io publishing are also wired up — see
+[`docs/RELEASING.md`](docs/RELEASING.md).
+
+## Quick start
 
 ```sh
 cargo build --release          # binary at target/release/lumen

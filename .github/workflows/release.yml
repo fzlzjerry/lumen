@@ -1,0 +1,335 @@
+name: release
+
+# Auto-release pipeline. A push to `main` whose head commit message contains the
+# keyword `[release]` cuts a release of the version currently in Cargo.toml:
+# cross-platform binaries + checksums + .deb go to a GitHub Release, and the
+# Homebrew tap, apt repository, and crates.io are updated (each gated on a
+# secret — see docs/RELEASING.md). Re-running on an already-released version is a
+# no-op (the gate checks whether the tag exists).
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  gate:
+    name: decide whether to release
+    runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.check.outputs.release }}
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: check
+        shell: bash
+        run: |
+          msg="$(git log -1 --pretty=%B)"
+          version="$(grep -m1 '^version' Cargo.toml | sed -E 's/.*"([^"]+)".*/\1/')"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Head commit message:"; echo "$msg"
+          if echo "$msg" | grep -qiE '\[release\]'; then
+            if git rev-parse "v$version" >/dev/null 2>&1; then
+              echo "::notice::Tag v$version already exists — skipping release."
+              echo "release=false" >> "$GITHUB_OUTPUT"
+            else
+              echo "::notice::Releasing v$version."
+              echo "release=true" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "No [release] keyword in the commit; nothing to do."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  test:
+    name: test before release
+    needs: gate
+    if: needs.gate.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - run: cargo test --all --locked
+      - run: cargo clippy --all-targets --locked -- -D warnings
+
+  build:
+    name: build ${{ matrix.target }}
+    needs: [gate, test]
+    if: needs.gate.outputs.release == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: macos-latest
+            target: x86_64-apple-darwin
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            cross_linker: gcc-aarch64-linux-gnu
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Install cross linker (aarch64 Linux)
+        if: matrix.cross_linker != ''
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ${{ matrix.cross_linker }}
+          mkdir -p .cargo
+          {
+            echo '[target.aarch64-unknown-linux-gnu]'
+            echo 'linker = "aarch64-linux-gnu-gcc"'
+          } >> .cargo/config.toml
+
+      - name: Build release binary
+        run: cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Package tarball + checksum
+        id: pkg
+        shell: bash
+        run: |
+          v="${{ needs.gate.outputs.version }}"
+          name="lumen-$v-${{ matrix.target }}"
+          mkdir -p "$name"
+          cp "target/${{ matrix.target }}/release/lumen" "$name/"
+          cp README.md LICENSE "$name/"
+          tar czf "$name.tar.gz" "$name"
+          if command -v sha256sum >/dev/null; then
+            sha256sum "$name.tar.gz" > "$name.tar.gz.sha256"
+          else
+            shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256"
+          fi
+
+      - name: Build .deb (Linux targets)
+        if: runner.os == 'Linux'
+        run: |
+          cargo install cargo-deb --locked || cargo install cargo-deb
+          cargo deb --no-build --locked --target ${{ matrix.target }}
+          # Collect the produced .deb into the working dir for upload.
+          find target/${{ matrix.target }}/debian -name '*.deb' -exec cp {} . \;
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.target }}
+          path: |
+            lumen-*.tar.gz
+            lumen-*.tar.gz.sha256
+            *.deb
+          if-no-files-found: error
+
+  publish-release:
+    name: GitHub Release
+    needs: [gate, build]
+    if: needs.gate.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: List artifacts
+        run: ls -la dist
+      - name: Create / update the GitHub Release (creates the tag)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          v="${{ needs.gate.outputs.version }}"
+          notes="Automated release of v$v.
+
+          Binaries: macOS (arm64/x86_64) and Linux (x86_64/arm64) tarballs with
+          SHA-256 checksums, plus Debian/Ubuntu .deb packages. Install via
+          Homebrew (\`brew install fzlzjerry/lumen/lumen\`), apt, or by downloading
+          a tarball. See docs/RELEASING.md."
+          if gh release view "v$v" >/dev/null 2>&1; then
+            gh release upload "v$v" dist/* --clobber
+          else
+            gh release create "v$v" dist/* \
+              --target "$GITHUB_SHA" \
+              --title "v$v" \
+              --notes "$notes"
+          fi
+
+  homebrew:
+    name: update Homebrew tap
+    needs: [gate, publish-release]
+    if: needs.gate.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update the formula in the tap repo
+        env:
+          TAP_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.gate.outputs.version }}
+        shell: bash
+        run: |
+          if [ -z "$TAP_TOKEN" ]; then
+            echo "::warning::TAP_GITHUB_TOKEN not set — skipping Homebrew tap update. See docs/RELEASING.md."
+            exit 0
+          fi
+          v="$VERSION"
+          # Pull every tarball checksum from the release's .sha256 assets.
+          mkdir -p shasums
+          gh release download "v$v" --repo "$GITHUB_REPOSITORY" \
+            --pattern '*.tar.gz.sha256' --dir shasums
+          sha() { awk '{print $1}' "shasums/lumen-$v-$1.tar.gz.sha256"; }
+          MAC_ARM="$(sha aarch64-apple-darwin)"
+          MAC_X86="$(sha x86_64-apple-darwin)"
+          LIN_ARM="$(sha aarch64-unknown-linux-gnu)"
+          LIN_X86="$(sha x86_64-unknown-linux-gnu)"
+          base="https://github.com/$GITHUB_REPOSITORY/releases/download/v$v"
+
+          cat > lumen.rb <<EOF
+          class Lumen < Formula
+            desc "Dynamic, bytecode-compiled programming language with a full toolchain"
+            homepage "https://github.com/$GITHUB_REPOSITORY"
+            version "$v"
+            license "MIT"
+
+            on_macos do
+              on_arm do
+                url "$base/lumen-$v-aarch64-apple-darwin.tar.gz"
+                sha256 "$MAC_ARM"
+              end
+              on_intel do
+                url "$base/lumen-$v-x86_64-apple-darwin.tar.gz"
+                sha256 "$MAC_X86"
+              end
+            end
+
+            on_linux do
+              on_arm do
+                url "$base/lumen-$v-aarch64-unknown-linux-gnu.tar.gz"
+                sha256 "$LIN_ARM"
+              end
+              on_intel do
+                url "$base/lumen-$v-x86_64-unknown-linux-gnu.tar.gz"
+                sha256 "$LIN_X86"
+              end
+            end
+
+            def install
+              bin.install "lumen"
+            end
+
+            test do
+              assert_match "lumen", shell_output("#{bin}/lumen --version")
+            end
+          end
+          EOF
+
+          tap="$GITHUB_REPOSITORY_OWNER/homebrew-lumen"
+          git clone "https://x-access-token:$TAP_TOKEN@github.com/$tap.git" tap
+          mkdir -p tap/Formula
+          cp lumen.rb tap/Formula/lumen.rb
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/lumen.rb
+          git commit -m "lumen $v" || { echo "no formula change"; exit 0; }
+          git push
+
+  crates:
+    name: publish to crates.io
+    needs: [gate, test]
+    if: needs.gate.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: cargo publish (if token set)
+        env:
+          TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::warning::CARGO_REGISTRY_TOKEN not set — skipping crates.io publish. See docs/RELEASING.md."
+            exit 0
+          fi
+          cargo publish --locked --token "$TOKEN" || \
+            echo "::warning::cargo publish failed (name taken or version already published?)"
+
+  apt-repo:
+    name: publish apt repository (GitHub Pages)
+    needs: [gate, publish-release]
+    if: needs.gate.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build & publish a signed flat apt repo
+        env:
+          GPG_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.APT_GPG_PASSPHRASE }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.gate.outputs.version }}
+        shell: bash
+        run: |
+          if [ -z "$GPG_KEY" ]; then
+            echo "::warning::APT_GPG_PRIVATE_KEY not set — skipping apt repo (the .deb files are still on the Release). See docs/RELEASING.md."
+            exit 0
+          fi
+          echo "HAS_GPG=true" >> "$GITHUB_ENV"
+          sudo apt-get update && sudo apt-get install -y apt-utils gnupg
+          v="$VERSION"
+
+          # Gather the .deb files from the just-published release.
+          mkdir -p repo
+          gh release download "v$v" --repo "$GITHUB_REPOSITORY" --pattern '*.deb' --dir repo
+
+          # Import the signing key.
+          echo "$GPG_KEY" | gpg --batch --import
+          KEYID="$(gpg --list-secret-keys --with-colons | awk -F: '/^sec:/{print $5; exit}')"
+          gpg --batch --yes --export --armor "$KEYID" > repo/lumen-archive-keyring.asc
+          gpg --batch --yes --export "$KEYID" > repo/lumen-archive-keyring.gpg
+
+          # Flat repository indexes.
+          cd repo
+          apt-ftparchive packages . > Packages
+          gzip -kf Packages
+          apt-ftparchive \
+            -o APT::FTPArchive::Release::Origin=lumen \
+            -o APT::FTPArchive::Release::Label=lumen \
+            -o APT::FTPArchive::Release::Suite=stable \
+            -o APT::FTPArchive::Release::Codename=stable \
+            -o APT::FTPArchive::Release::Architectures="amd64 arm64" \
+            -o APT::FTPArchive::Release::Components=main \
+            release . > Release
+          # Sign the Release file.
+          if [ -n "$GPG_PASSPHRASE" ]; then
+            echo "$GPG_PASSPHRASE" | gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 -abs -o Release.gpg Release
+            echo "$GPG_PASSPHRASE" | gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 --clearsign -o InRelease Release
+          else
+            gpg --batch --yes -abs -o Release.gpg Release
+            gpg --batch --yes --clearsign -o InRelease Release
+          fi
+          cd ..
+
+      - name: Deploy apt repo to GitHub Pages
+        if: env.HAS_GPG == 'true'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./repo
+          keep_files: true

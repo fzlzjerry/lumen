@@ -2,8 +2,16 @@
 name = "lumen"
 version = "0.1.0"
 edition = "2021"
-description = "Lumen — a dynamic, bytecode-compiled programming language"
+rust-version = "1.82"
+description = "Lumen — a dynamic, bytecode-compiled programming language with a bytecode VM, generational GC, and a full toolchain"
 license = "MIT"
+readme = "README.md"
+homepage = "https://github.com/fzlzjerry/lumen"
+repository = "https://github.com/fzlzjerry/lumen"
+keywords = ["language", "interpreter", "compiler", "vm", "cli"]
+categories = ["compilers", "command-line-utilities"]
+authors = ["fzlzjerry"]
+exclude = ["/.github", "/packaging", "/target"]
 
 [lib]
 name = "lumen"
@@ -21,3 +29,24 @@ panic = "abort"
 
 [profile.dev]
 opt-level = 0
+
+# Debian/Ubuntu packaging for `cargo deb` (used by the release pipeline to
+# produce a .deb and the apt repository). With `--target <triple>`, cargo-deb
+# automatically resolves `target/release/...` asset paths under that target.
+[package.metadata.deb]
+maintainer = "fzlzjerry <fzlzjerry@users.noreply.github.com>"
+copyright = "2026, fzlzjerry"
+license-file = ["LICENSE", "0"]
+extended-description = """
+Lumen is a dynamic, bytecode-compiled programming language implemented in Rust:
+a stack VM, a generational mark-and-sweep garbage collector, closures, classes
+with single inheritance, modules, exceptions, and pattern matching, plus a full
+toolchain (REPL, source-level debugger, language server, and formatter)."""
+depends = "$auto"
+section = "devel"
+priority = "optional"
+assets = [
+    ["target/release/lumen", "usr/bin/", "755"],
+    ["README.md", "usr/share/doc/lumen/README.md", "644"],
+    ["LICENSE", "usr/share/doc/lumen/copyright", "644"],
+]
