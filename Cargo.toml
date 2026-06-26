@@ -1,5 +1,5 @@
 [package]
-name = "lumen"
+name = "lumen-lang"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.82"
@@ -34,6 +34,7 @@ opt-level = 0
 # produce a .deb and the apt repository). With `--target <triple>`, cargo-deb
 # automatically resolves `target/release/...` asset paths under that target.
 [package.metadata.deb]
+name = "lumen"
 maintainer = "fzlzjerry <fzlzjerry@users.noreply.github.com>"
 copyright = "2026, fzlzjerry"
 license-file = ["LICENSE", "0"]
