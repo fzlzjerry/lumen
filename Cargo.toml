@@ -1,6 +1,6 @@
 [package]
 name = "lumen-lang"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 rust-version = "1.82"
 description = "Lumen — a dynamic, bytecode-compiled programming language with a bytecode VM, generational GC, and a full toolchain"
