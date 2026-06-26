@@ -268,8 +268,10 @@ jobs:
             echo "::warning::CARGO_REGISTRY_TOKEN not set — skipping crates.io publish. See docs/RELEASING.md."
             exit 0
           fi
-          cargo publish --locked --token "$TOKEN" || \
-            echo "::warning::cargo publish failed (name taken or version already published?)"
+          # Strip any stray whitespace/newline a pasted secret may carry — crates.io
+          # tokens are sent in an HTTP header and reject non-printable characters.
+          TOKEN="$(printf '%s' "$TOKEN" | tr -d '[:space:]')"
+          cargo publish --locked --token "$TOKEN"
 
   apt-repo:
     name: publish apt repository (GitHub Pages)
