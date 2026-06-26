@@ -20,6 +20,7 @@ fn main() -> ExitCode {
         Some("run") if args.len() > 1 => cmd_run(args.get(1).map(String::as_str)),
         Some("run") => ExitCode::from(lumen::project::cmd_run() as u8),
         Some("new") => ExitCode::from(lumen::project::cmd_new(args.get(1).map(String::as_str)) as u8),
+        Some("add") => ExitCode::from(lumen::project::cmd_add(&args[1..]) as u8),
         Some("build") => ExitCode::from(lumen::project::cmd_build() as u8),
         Some("test") => ExitCode::from(lumen::project::cmd_test() as u8),
         Some("repl") => ExitCode::from(lumen::repl::run() as u8),
@@ -266,6 +267,7 @@ fn print_usage() {
     println!("  fmt [--write] <f>   format a source file (in place with --write)");
     println!("  disasm <file>       disassemble a program to bytecode");
     println!("  new <name>          scaffold a new project");
+    println!("  add <name> <src>    add a dependency (a path, or --git <url> [--rev <r>])");
     println!("  build               static-check the current project");
     println!("  test                run the project's tests/ files");
     println!("  lsp                 run the language server (stdio)");

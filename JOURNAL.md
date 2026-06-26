@@ -1005,7 +1005,39 @@ outer symbol's edits stop at the lambda boundary. Both new tests were proven to
 have teeth by sabotaging the fix and watching exactly them go red.
 
 **Net.** `cargo build`/`clippy` clean; `cargo test` green at **242** (+13 LSP test
-fns over the increment), nothing skipped. README capability line updated. Still
-pending: the chosen **dependency model** — git + path deps + a `lumen.lock` (no
-central registry), with `lumen add` editing the manifest — plus `datetime` and a
-basic `regex`.
+fns over the increment), nothing skipped. README capability line updated.
+
+## Tier 4 — dependency management (git + path + lockfile)
+
+The chosen model (decided with the user): **path and git dependencies, a
+`lumen.lock`, no central registry**. Built in five TDD sub-increments, each
+landed green before the next:
+
+1. **Dependency model + inline-table TOML.** `[dependencies]` now takes a bare
+   string (`name = "path"`, back-compatible) *or* an inline table
+   (`{ path = ".." }` / `{ git = "url", rev = ".." }`). The hand-rolled TOML
+   parser already preserved `{...}` values verbatim, so a small `parse_dep`
+   splits the flat table. Deps are sorted by name for deterministic lockfiles.
+2. **Lockfile** (`lumen.lock`): a `[name]`-section-per-package format the existing
+   parser round-trips. Git entries pin an exact `commit` SHA (the `rev` is kept
+   for display); a git entry without a commit is treated as unusable, forcing
+   re-resolution.
+3. **`lumen add`**: pure, tested core — `parse_add_args` (`<name> <path>` or
+   `--git <url> [--rev <r>]`) and `add_dependency_to_manifest` (creates
+   `[dependencies]` if absent, replaces an existing entry in place).
+4. **Git resolution**: clone into `.lumen/git/<name>`, honour the locked commit
+   (else the rev, else the default branch), then `rev-parse HEAD` to pin the SHA;
+   the lock is only rewritten when it changes. Tested **network-free** against a
+   throwaway local git repo used as a `file` source (clone → checkout → lock →
+   idempotent re-resolve). Path-only projects skip git and never get a lockfile.
+5. **Wiring**: `lumen run`/`build`/`test` resolve before use; `lumen add` is on
+   the CLI + help; `lumen new` scaffolds a `.gitignore` for `/.lumen/`.
+
+Security: a dependency fetches and runs third-party code — documented as
+"only depend on sources you trust." A registry, semver resolution, and
+transitive dependencies are deliberately out of scope for this model.
+
+**Net.** `cargo build`/`clippy` clean; `cargo test` green at **251** (+9 project
+test fns), nothing skipped; validated end-to-end (`new` → `add --git` → `run`
+importing a module from the git checkout). Docs (README, project.rs) synced.
+Remaining roadmap items: `datetime` and a basic `regex` module.

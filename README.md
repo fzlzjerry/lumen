@@ -124,11 +124,35 @@ structures (`18_data_structures`), and a JSON toolkit (`19_json_tool`). The
 | `fmt [--write] <file>` | Format source (canonical layout; in place with `--write`) |
 | `disasm <file>`        | Disassemble a program to readable bytecode              |
 | `new <name>`           | Scaffold a new project                                  |
+| `add <name> <src>`     | Add a dependency — a local path, or `--git <url> [--rev <r>]` |
 | `build`                | Static-check every source file in a project             |
 | `test`                 | Run the project's `tests/*.lum` files                   |
 | `lsp`                  | Language server (diagnostics, hover, go-to-def, completion, symbols, formatting, references, rename, signature help) |
 | `bench`                | Run the micro-benchmarks                                |
 | `lex` / `parse <file>` | Inspect tokens / run the front end                      |
+
+## Dependencies
+
+A project declares dependencies in `lumen.toml`, by **local path** or **git URL**
+(there is no central registry). `lumen add` edits the manifest for you:
+
+```sh
+lumen add utils ../utils                              # a local path
+lumen add mathlib --git https://github.com/u/mathlib  # a git repo (default branch)
+lumen add mathlib --git https://github.com/u/mathlib --rev v1.2.0   # pinned ref
+```
+
+```toml
+[dependencies]
+utils   = "../utils"
+mathlib = { git = "https://github.com/u/mathlib", rev = "v1.2.0" }
+```
+
+On `lumen run`/`build`/`test`, git sources are cloned into `.lumen/git/<name>`
+and pinned to an exact commit in **`lumen.lock`** for reproducible builds — commit
+the lockfile; the `.lumen/` cache is git-ignored. Each dependency's directory joins
+the module search path, so its modules are importable by name (`import "mathlib";`).
+A dependency runs third-party code, so only depend on sources you trust.
 
 ## How it works
 
@@ -168,7 +192,7 @@ manipulation), and `testing` (a unit-test harness). Full reference:
 
 ```sh
 cargo build            # debug build (zero warnings)
-cargo test             # all 229 tests: unit + e2e snapshots + errors + fuzz + GC stress
+cargo test             # all 254 tests: unit + e2e snapshots + errors + fuzz + GC stress
 cargo build --release  # optimized build
 cargo llvm-cov --summary-only   # coverage (core components are ≥90%)
 ```
