@@ -1,0 +1,7 @@
+negative
+zero
+positive
+sum 0..5 = 15
+odds = [1, 3, 5, 7, 9]
+range total = 10
+a b c 

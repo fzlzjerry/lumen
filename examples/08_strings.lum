@@ -1,0 +1,31 @@
+// Strings: escapes, interpolation, indexing, and the `string` module.
+
+import "string" as str;
+
+let s = "Lumen";
+println("length    = ${len(s)}");
+println("upper     = ${str.upper(s)}");
+println("lower     = ${str.lower(s)}");
+println("s[0]      = ${s[0]}");        // "L"
+println("s[-1]     = ${s[-1]}");       // "n"
+
+// Escapes: newline, tab, quote, dollar, unicode.
+println("tab:\tafter");
+println("quote: \"quoted\"");
+println("dollar: \$5.00");
+println("unicode: \u{1F680} \u{2764}");
+
+// Splitting, joining, trimming, contains, replace.
+let csv = "a,b,c,d";
+let parts = str.split(csv, ",");
+println("parts     = ${parts}");
+println("joined    = ${str.join(parts, "-")}");
+println("trimmed   = '${str.trim("   hi   ")}'");
+println("contains  = ${str.contains("hello world", "world")}");
+println("replaced  = ${str.replace("a-b-c", "-", "+")}");
+println("starts    = ${str.starts_with("lumen", "lum")}");
+println("repeat    = ${str.repeat("ab", 3)}");
+
+// Build a string from pieces.
+let words = ["the", "quick", "brown", "fox"];
+println("sentence  = ${str.join(words, " ")}");

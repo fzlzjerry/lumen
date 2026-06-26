@@ -1,0 +1,11 @@
+// FizzBuzz — the classic, using match on a computed tuple-like array pattern.
+
+for n in range(1, 21) {        // 1..20
+    let label = match [n % 3, n % 5] {
+        [0, 0] => "FizzBuzz",
+        [0, _] => "Fizz",
+        [_, 0] => "Buzz",
+        _      => str(n),
+    };
+    println(label);
+}

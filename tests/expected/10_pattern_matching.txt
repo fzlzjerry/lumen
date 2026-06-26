@@ -1,0 +1,15 @@
+0 -> zero
+1 -> one
+2 -> two
+3 -> many
+4 -> many
+negative (-3)
+zero
+positive (7)
+empty
+one element: 42
+pair: 1, 2
+head 1, tail [2, 3, 4]
+read /users
+write /users
+unsupported

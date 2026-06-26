@@ -1,0 +1,16 @@
+xs        = [10, 20, 30]
+xs[0]     = 10
+xs[-1]    = 30
+len(xs)   = 3
+after push= [10, 20, 30, 40]
+popped    = 40, now [10, 20, 30]
+xs[1]=99  = [10, 99, 30]
+spread    = [0, 10, 99, 30, 100]
+concat    = [1, 2, 3, 4]
+person[name]= Ada
+person[age] = 36
+computed    = two
+has role? true
+keys      = ["name", "age", 2, "role"]
+values    = ["Ada", 36, "two", "engineer"]
+after del = false

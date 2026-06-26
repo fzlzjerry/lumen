@@ -1,0 +1,8 @@
+list:          [1, 2, 3]
+reversed:      [3, 2, 1]
+stack pop:     30
+stack peek:    20
+queue deq:     a
+queue deq:     b
+queue size:    1
+bst in-order:  [1, 2, 3, 4, 5, 6, 7, 8, 9]

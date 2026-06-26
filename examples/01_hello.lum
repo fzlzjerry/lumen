@@ -1,0 +1,14 @@
+// The obligatory first program.
+// Demonstrates: println, string literals, and string interpolation.
+
+let name = "Lumen";
+let year = 2026;
+
+println("Hello, world!");
+println("Welcome to ${name}, born in ${year}.");
+
+// Interpolated expressions can be arbitrary, and can nest strings.
+let a = 6;
+let b = 7;
+println("${a} times ${b} is ${a * b}.");
+println("Nested: ${"inner ${a + b}"}");

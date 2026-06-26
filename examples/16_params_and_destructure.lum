@@ -1,0 +1,59 @@
+// Default & rest parameters and destructuring let (the Phase B features).
+
+import "array" as arr;
+
+// --- Default parameters ---
+fn greet(name, greeting = "Hello", punct = "!") {
+    return "${greeting}, ${name}${punct}";
+}
+println(greet("Ada"));
+println(greet("Bob", "Hi"));
+println(greet("Cy", "Hey", "?"));
+
+// A default may reference an earlier parameter.
+fn rect(w, h = w) {
+    return w * h;
+}
+println("square 5  = ${rect(5)}");
+println("rect 5x3  = ${rect(5, 3)}");
+
+// --- Rest parameters ---
+fn total(..nums) {
+    let t = 0;
+    for n in nums {
+        t = t + n;
+    }
+    return t;
+}
+println("total()       = ${total()}");
+println("total(1,2,3,4)= ${total(1, 2, 3, 4)}");
+
+// Fixed parameters then a rest.
+fn labeled(label, ..items) {
+    return "${label}: ${items}";
+}
+println(labeled("nums", 1, 2, 3));
+
+// --- Destructuring let ---
+let [a, b, c] = [10, 20, 30];
+println("a=${a} b=${b} c=${c}");
+
+let [head, ..tail] = [1, 2, 3, 4, 5];
+println("head=${head} tail=${tail}");
+
+let {name, role} = {name: "Ada", role: "engineer"};
+println("${name} the ${role}");
+
+// Destructure a function's return value.
+fn bounds(xs) {
+    return [arr.min(xs), arr.max(xs)];
+}
+let [lo, hi] = bounds([5, 2, 9, 1, 7]);
+println("min=${lo} max=${hi}");
+
+// Everything composes: rest + destructuring + defaults.
+fn stats(..xs) {
+    return {count: len(xs), sum: arr.sum(xs)};
+}
+let {count, sum} = stats(2, 4, 6, 8);
+println("count=${count} sum=${sum}");

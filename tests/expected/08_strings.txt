@@ -1,0 +1,17 @@
+length    = 5
+upper     = LUMEN
+lower     = lumen
+s[0]      = L
+s[-1]     = n
+tab:	after
+quote: "quoted"
+dollar: $5.00
+unicode: 🚀 ❤
+parts     = ["a", "b", "c", "d"]
+joined    = a-b-c-d
+trimmed   = 'hi'
+contains  = true
+replaced  = a+b+c
+starts    = true
+repeat    = ababab
+sentence  = the quick brown fox

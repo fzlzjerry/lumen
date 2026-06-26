@@ -1,0 +1,115 @@
+// The `seq` module — sequence utilities written in Lumen itself (the standard
+// library's bootstrap). Demonstrates that the language is capable enough to
+// implement real, reusable code: every function here uses only core features
+// (arrays, closures, for/while, break) and the global builtins.
+//
+// Imported as: import "seq"; (or `import "seq" as seq;`)
+
+// The first `n` elements (or all, if fewer).
+export fn take(xs, n) {
+    let out = [];
+    let i = 0;
+    for x in xs {
+        if i >= n { break; }
+        push(out, x);
+        i = i + 1;
+    }
+    return out;
+}
+
+// All but the first `n` elements.
+export fn drop(xs, n) {
+    let out = [];
+    let i = 0;
+    for x in xs {
+        if i >= n { push(out, x); }
+        i = i + 1;
+    }
+    return out;
+}
+
+// The first element for which `pred` is truthy, or nil.
+export fn find(xs, pred) {
+    for x in xs {
+        if pred(x) { return x; }
+    }
+    return nil;
+}
+
+export fn any(xs, pred) {
+    for x in xs {
+        if pred(x) { return true; }
+    }
+    return false;
+}
+
+export fn all(xs, pred) {
+    for x in xs {
+        if !pred(x) { return false; }
+    }
+    return true;
+}
+
+export fn count(xs, pred) {
+    let n = 0;
+    for x in xs {
+        if pred(x) { n = n + 1; }
+    }
+    return n;
+}
+
+// Pair up two sequences element-wise, stopping at the shorter length.
+export fn zip(xs, ys) {
+    let out = [];
+    let n = len(xs);
+    if len(ys) < n { n = len(ys); }
+    for let i = 0; i < n; i = i + 1 {
+        push(out, [xs[i], ys[i]]);
+    }
+    return out;
+}
+
+// [[0, x0], [1, x1], ...]
+export fn enumerate(xs) {
+    let out = [];
+    let i = 0;
+    for x in xs {
+        push(out, [i, x]);
+        i = i + 1;
+    }
+    return out;
+}
+
+// An array of `value` repeated `n` times.
+export fn repeat(value, n) {
+    let out = [];
+    for let i = 0; i < n; i = i + 1 {
+        push(out, value);
+    }
+    return out;
+}
+
+// Map then concatenate the resulting arrays.
+export fn flat_map(xs, f) {
+    let out = [];
+    for x in xs {
+        for y in f(x) {
+            push(out, y);
+        }
+    }
+    return out;
+}
+
+// All contiguous sub-arrays of the given size.
+export fn windows(xs, size) {
+    let out = [];
+    let n = len(xs);
+    for let i = 0; i + size <= n; i = i + 1 {
+        let w = [];
+        for let j = 0; j < size; j = j + 1 {
+            push(w, xs[i + j]);
+        }
+        push(out, w);
+    }
+    return out;
+}

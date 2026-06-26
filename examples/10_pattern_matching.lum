@@ -1,0 +1,52 @@
+// Pattern matching: literals, bindings, wildcards, arrays, maps, and guards.
+
+// Literal and wildcard patterns. `match` is an expression.
+fn name_of(n) {
+    return match n {
+        0 => "zero",
+        1 => "one",
+        2 => "two",
+        _ => "many",
+    };
+}
+for x in range(0, 5) {
+    println("${x} -> ${name_of(x)}");
+}
+
+// Binding patterns with guards.
+fn sign(n) {
+    return match n {
+        0 => "zero",
+        x if x < 0 => "negative (${x})",
+        x => "positive (${x})",
+    };
+}
+println(sign(-3));
+println(sign(0));
+println(sign(7));
+
+// Array patterns, including a rest binding.
+fn describe(arr) {
+    return match arr {
+        [] => "empty",
+        [x] => "one element: ${x}",
+        [a, b] => "pair: ${a}, ${b}",
+        [first, ..rest] => "head ${first}, tail ${rest}",
+    };
+}
+println(describe([]));
+println(describe([42]));
+println(describe([1, 2]));
+println(describe([1, 2, 3, 4]));
+
+// Map patterns match by key and bind values.
+fn route(req) {
+    return match req {
+        {method: "GET", path: p} => "read ${p}",
+        {method: "POST", path: p} => "write ${p}",
+        _ => "unsupported",
+    };
+}
+println(route({method: "GET", path: "/users"}));
+println(route({method: "POST", path: "/users"}));
+println(route({method: "DELETE", path: "/users"}));

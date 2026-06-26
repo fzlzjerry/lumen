@@ -1,0 +1,55 @@
+// A real program: classic algorithms implemented in pure Lumen.
+// Demonstrates recursion, closures, arrays, and the array/math modules.
+
+import "array" as arr;
+import "math" as math;
+
+// --- Recursive quicksort (returns a new sorted array) ---
+fn quicksort(xs) {
+    if len(xs) <= 1 { return xs; }
+    let pivot = xs[0];
+    let less = [];
+    let more = [];
+    for i in range(1, len(xs)) {
+        if xs[i] < pivot { push(less, xs[i]); }
+        else { push(more, xs[i]); }
+    }
+    return quicksort(less) + [pivot] + quicksort(more);
+}
+
+let data = [5, 2, 9, 1, 7, 3, 8, 4, 6, 0];
+println("input   = ${data}");
+println("sorted  = ${quicksort(data)}");
+
+// --- Iterative binary search over a sorted array ---
+fn binary_search(xs, target) {
+    let lo = 0;
+    let hi = len(xs) - 1;
+    while lo <= hi {
+        let mid = (lo + hi) / 2;       // int division
+        if xs[mid] == target { return mid; }
+        if xs[mid] < target { lo = mid + 1; }
+        else { hi = mid - 1; }
+    }
+    return -1;
+}
+let sorted = quicksort(data);
+println("index of 7 = ${binary_search(sorted, 7)}");
+println("index of 99 = ${binary_search(sorted, 99)}");
+
+// --- Greatest common divisor (Euclid) ---
+fn gcd(a, b) {
+    while b != 0 {
+        let t = b;
+        b = a % b;
+        a = t;
+    }
+    return a;
+}
+println("gcd(48, 36) = ${gcd(48, 36)}");
+
+// --- Sum and reduce using the array module ---
+println("sum     = ${arr.sum([1, 2, 3, 4, 5])}");
+println("max     = ${arr.max(data)}");
+println("reduce  = ${arr.reduce([1, 2, 3, 4], fn(acc, x) { return acc + x; }, 0)}");
+println("sqrt 2  = ${math.sqrt(2)}");

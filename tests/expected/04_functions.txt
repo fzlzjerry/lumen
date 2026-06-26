@@ -1,0 +1,6 @@
+10 even? true
+7 even?  false
+apply_twice(inc, 5) = 7
+apply_twice(dbl, 5) = 20
+add10(5) = 15
+squares = [1, 4, 9, 16]

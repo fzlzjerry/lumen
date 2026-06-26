@@ -1,0 +1,36 @@
+// A real program: count word frequencies and print them sorted by count.
+// Demonstrates strings, maps, arrays, closures, and sorting with a comparator.
+
+import "string" as str;
+import "array" as arr;
+
+let text = "the quick brown fox the lazy dog the fox jumps the dog";
+
+// Tokenize and tally into a map.
+let counts = {};
+for word in str.split(text, " ") {
+    if has(counts, word) {
+        counts[word] = counts[word] + 1;
+    } else {
+        counts[word] = 1;
+    }
+}
+
+// Build [word, count] pairs and sort by count descending, then word ascending.
+let pairs = [];
+for word in keys(counts) {
+    push(pairs, [word, counts[word]]);
+}
+let ranked = arr.sort(pairs, fn(a, b) {
+    if a[1] != b[1] { return b[1] - a[1]; }   // higher count first
+    if a[0] < b[0] { return -1; }
+    if a[0] > b[0] { return 1; }
+    return 0;
+});
+
+println("word frequencies:");
+for pair in ranked {
+    println("  ${str.pad_right(pair[0], 6)} ${pair[1]}");
+}
+println("distinct words: ${len(keys(counts))}");
+println("total words:    ${len(str.split(text, " "))}");

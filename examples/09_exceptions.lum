@@ -1,0 +1,53 @@
+// Exceptions: throw, try/catch/finally, and built-in error objects.
+
+// User-thrown values can be anything.
+fn checked_div(a, b) {
+    if b == 0 {
+        throw "cannot divide ${a} by zero";
+    }
+    return a / b;
+}
+
+try {
+    println(checked_div(10, 2));     // 5
+    println(checked_div(10, 0));     // throws
+    println("unreachable");
+} catch (e) {
+    println("caught: ${e}");
+}
+
+// Built-in runtime errors carry .kind and .message.
+try {
+    let xs = [1, 2, 3];
+    println(xs[99]);                 // IndexError
+} catch (e) {
+    println("kind=${e.kind} message=${e.message}");
+}
+
+// finally always runs.
+fn with_cleanup(fail) {
+    try {
+        if fail { throw "boom"; }
+        return "ok";
+    } catch (e) {
+        return "handled: ${e}";
+    } finally {
+        println("  (cleanup ran)");
+    }
+}
+println(with_cleanup(false));
+println(with_cleanup(true));
+
+// Re-throwing and nesting.
+fn outer() {
+    try {
+        throw "inner failure";
+    } catch (e) {
+        throw "outer wraps [${e}]";
+    }
+}
+try {
+    outer();
+} catch (e) {
+    println("final: ${e}");
+}

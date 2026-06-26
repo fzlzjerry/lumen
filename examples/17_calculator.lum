@@ -1,0 +1,142 @@
+// A real arithmetic expression interpreter, written in Lumen: a tokenizer, a
+// recursive-descent parser honoring precedence and parentheses, and an
+// evaluator. Demonstrates strings, maps-as-records, classes, closures, and
+// exceptions working together on a non-trivial program.
+
+import "string" as str;
+
+fn is_digit(c) {
+    return c >= "0" && c <= "9";
+}
+
+// Turn "3 + 4 * 2" into a list of {kind, val} tokens.
+fn tokenize(src) {
+    let cs = str.chars(src);
+    let n = len(cs);
+    let toks = [];
+    let i = 0;
+    while i < n {
+        let c = cs[i];
+        if c == " " {
+            i = i + 1;
+        } else if c == "+" || c == "-" || c == "*" || c == "/" || c == "(" || c == ")" {
+            push(toks, {kind: "op", val: c});
+            i = i + 1;
+        } else if is_digit(c) {
+            let numstr = "";
+            while i < n && (is_digit(cs[i]) || cs[i] == ".") {
+                numstr = numstr + cs[i];
+                i = i + 1;
+            }
+            push(toks, {kind: "num", val: float(numstr)});
+        } else {
+            throw "unexpected character '${c}'";
+        }
+    }
+    return toks;
+}
+
+// Grammar:
+//   expr   := term   (("+" | "-") term)*
+//   term   := factor (("*" | "/") factor)*
+//   factor := number | "(" expr ")" | "-" factor
+class Parser {
+    init(toks) {
+        this.toks = toks;
+        this.pos = 0;
+    }
+
+    peek() {
+        if this.pos < len(this.toks) {
+            return this.toks[this.pos];
+        }
+        return nil;
+    }
+
+    advance() {
+        let t = this.toks[this.pos];
+        this.pos = this.pos + 1;
+        return t;
+    }
+
+    expr() {
+        let left = this.term();
+        while true {
+            let t = this.peek();
+            if t == nil || t["kind"] != "op" {
+                break;
+            }
+            if t["val"] == "+" {
+                this.advance();
+                left = left + this.term();
+            } else if t["val"] == "-" {
+                this.advance();
+                left = left - this.term();
+            } else {
+                break;
+            }
+        }
+        return left;
+    }
+
+    term() {
+        let left = this.factor();
+        while true {
+            let t = this.peek();
+            if t == nil || t["kind"] != "op" {
+                break;
+            }
+            if t["val"] == "*" {
+                this.advance();
+                left = left * this.factor();
+            } else if t["val"] == "/" {
+                this.advance();
+                left = left / this.factor();
+            } else {
+                break;
+            }
+        }
+        return left;
+    }
+
+    factor() {
+        let t = this.advance();
+        if t["kind"] == "num" {
+            return t["val"];
+        }
+        if t["kind"] == "op" && t["val"] == "(" {
+            let v = this.expr();
+            this.advance();   // consume ")"
+            return v;
+        }
+        if t["kind"] == "op" && t["val"] == "-" {
+            return -this.factor();
+        }
+        throw "unexpected token in factor";
+    }
+}
+
+fn calc(src) {
+    let p = Parser(tokenize(src));
+    return p.expr();
+}
+
+let exprs = [
+    "1 + 2 * 3",
+    "(1 + 2) * 3",
+    "10 / 2 - 3",
+    "2 * (3 + 4) - 1",
+    "-5 + 3",
+    "100 / (2 + 3) / 2",
+];
+
+for e in exprs {
+    println("${e} = ${calc(e)}");
+}
+
+// Errors propagate as Lumen exceptions; catch and report one.
+try {
+    calc("3 + @");
+} catch (err) {
+    println("error caught: ${err}");
+}

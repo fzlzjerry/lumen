@@ -1,0 +1,30 @@
+// The json standard module: parse text into Lumen values and serialize back.
+
+import "json" as json;
+
+let text = "{\"name\": \"Ada\", \"age\": 36, \"langs\": [\"Lumen\", \"Rust\"], \"active\": true, \"manager\": null}";
+
+let data = json.parse(text);
+println("name    = ${data["name"]}");
+println("age     = ${data["age"]}");
+println("langs   = ${data["langs"]}");
+println("active  = ${data["active"]}");
+println("manager = ${data["manager"]}");
+
+// Mutate and re-serialize.
+data["age"] = 37;
+push(data["langs"], "Zig");
+
+println("compact = ${json.stringify(data)}");
+println("pretty  =");
+println(json.stringify(data, 2));    // second arg = indent width
+
+// Round-trip a nested structure built in Lumen.
+let nested = {
+    grid: [[1, 2], [3, 4]],
+    meta: {rows: 2, cols: 2},
+    note: nil,
+};
+let round = json.parse(json.stringify(nested));
+println("round-trip cols = ${round["meta"]["cols"]}");
+println("round-trip grid = ${round["grid"]}");

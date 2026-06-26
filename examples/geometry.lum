@@ -1,0 +1,32 @@
+// A user-defined module imported by 11_modules.lum.
+// Only `export`ed names are visible to importers.
+
+import "math" as math;
+
+const TAU = 6.283185307179586;
+
+export fn circle_area(r) {
+    return math.pi * r * r;
+}
+
+export fn circle_circumference(r) {
+    return TAU * r;
+}
+
+export class Rect {
+    init(w, h) {
+        this.w = w;
+        this.h = h;
+    }
+    area() {
+        return this.w * this.h;
+    }
+    perimeter() {
+        return 2 * (this.w + this.h);
+    }
+}
+
+// Not exported: private helper, invisible to importers.
+fn secret() {
+    return 42;
+}

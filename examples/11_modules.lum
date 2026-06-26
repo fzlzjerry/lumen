@@ -1,0 +1,20 @@
+// Modules and imports: user modules, aliasing, and selective imports.
+
+import "geometry" as geo;          // whole module under an alias
+import "math".{sqrt, pow};         // selective import of built-ins
+
+println("circle area r=2     = ${geo.circle_area(2)}");
+println("circle circumf r=2  = ${geo.circle_circumference(2)}");
+
+let r = geo.Rect(3, 4);
+println("rect area           = ${r.area()}");
+println("rect perimeter      = ${r.perimeter()}");
+
+// Selectively imported names are used directly.
+println("sqrt(144)           = ${sqrt(144)}");
+println("pow(2, 10)          = ${pow(2, 10)}");
+
+// Modules are executed once and cached: importing again is cheap and shares
+// state. The private `secret` helper is not visible here.
+import "geometry" as geo2;
+println("same module value?  = ${geo == geo2}");

@@ -1,0 +1,66 @@
+// A small JSON toolkit written in Lumen: parse a document with the `json`
+// stdlib module, run a query over it, and pretty-print the structure with a
+// recursive printer of our own (the stdlib `stringify` is compact; this one
+// indents). Shows recursion over a dynamic data structure and type dispatch.
+
+import "json";
+import "string" as strs;   // not `str`: that would shadow the global str() builtin
+import "math";
+
+// Recursively render `v` as indented JSON.
+fn pretty(v, indent) {
+    let t = type(v);
+    if t == "map" {
+        let ks = keys(v);
+        if len(ks) == 0 {
+            return "{}";
+        }
+        let pad = strs.repeat("  ", indent + 1);
+        let parts = [];
+        for k in ks {
+            push(parts, "${pad}\"${k}\": ${pretty(v[k], indent + 1)}");
+        }
+        return "{\n" + strs.join(parts, ",\n") + "\n" + strs.repeat("  ", indent) + "}";
+    }
+    if t == "array" {
+        if len(v) == 0 {
+            return "[]";
+        }
+        let pad = strs.repeat("  ", indent + 1);
+        let parts = [];
+        for item in v {
+            push(parts, pad + pretty(item, indent + 1));
+        }
+        return "[\n" + strs.join(parts, ",\n") + "\n" + strs.repeat("  ", indent) + "]";
+    }
+    if t == "string" {
+        return "\"" + v + "\"";
+    }
+    return str(v);
+}
+
+let doc = "[" +
+    "{\"name\":\"Ada\",\"age\":36,\"active\":true}," +
+    "{\"name\":\"Bob\",\"age\":24,\"active\":false}," +
+    "{\"name\":\"Cy\",\"age\":29,\"active\":true}]";
+
+let users = json.parse(doc);
+
+// Query: who's active, and the average age.
+let active = [];
+let total = 0;
+for u in users {
+    if u["active"] {
+        push(active, u["name"]);
+    }
+    total = total + u["age"];
+}
+// Force float division (int `/` int truncates) so the average keeps decimals.
+let avg = math.round(float(total) / len(users) * 100) / 100.0;
+
+println("users:         ${len(users)}");
+println("active:        ${active}");
+println("average age:   ${avg}");
+println("compact json:  ${json.stringify(active)}");
+println("pretty:");
+println(pretty(users, 0));

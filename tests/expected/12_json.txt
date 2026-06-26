@@ -1,0 +1,20 @@
+name    = Ada
+age     = 36
+langs   = ["Lumen", "Rust"]
+active  = true
+manager = nil
+compact = {"name":"Ada","age":37,"langs":["Lumen","Rust","Zig"],"active":true,"manager":null}
+pretty  =
+{
+  "name": "Ada",
+  "age": 37,
+  "langs": [
+    "Lumen",
+    "Rust",
+    "Zig"
+  ],
+  "active": true,
+  "manager": null
+}
+round-trip cols = 2
+round-trip grid = [[1, 2], [3, 4]]

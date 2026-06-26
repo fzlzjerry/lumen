@@ -1,0 +1,10 @@
+word frequencies:
+  the    4
+  dog    2
+  fox    2
+  brown  1
+  jumps  1
+  lazy   1
+  quick  1
+distinct words: 7
+total words:    12

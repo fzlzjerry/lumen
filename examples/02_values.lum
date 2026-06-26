@@ -1,0 +1,31 @@
+// Values, variables, constants, and the arithmetic/number rules.
+// Demonstrates: let/const, int vs float, number literals, operators, type().
+
+const PI = 3.14159;
+let count = 10;        // int
+let ratio = 3.0;       // float
+
+// Number literals: decimal, hex, binary, scientific, with separators.
+let big = 1_000_000;
+let hex = 0xFF;
+let bin = 0b1010;
+let sci = 1.5e3;
+
+println("PI       = ${PI}        (${type(PI)})");
+println("count    = ${count}     (${type(count)})");
+println("big      = ${big}");
+println("hex 0xFF = ${hex}");
+println("bin 1010 = ${bin}");
+println("sci      = ${sci}");
+
+// Integer division truncates; float division does not.
+println("7 / 2    = ${7 / 2}");      // 3   (int / int -> truncating)
+println("7.0 / 2  = ${7.0 / 2}");    // 3.5 (float division)
+println("7 % 3    = ${7 % 3}");      // 1
+println("2 * 3    = ${2 * 3}");      // 6
+println("-count   = ${-count}");
+
+// Equality across int/float; truthiness.
+println("1 == 1.0 : ${1 == 1.0}");
+println("!nil     : ${!nil}");
+println("0 is truthy: ${bool(0)}");  // true — only nil and false are falsy

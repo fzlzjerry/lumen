@@ -1,0 +1,41 @@
+// First-class functions, recursion, lambdas, higher-order functions.
+
+// Plain recursive function. Top-level functions can call each other in any
+// order (late-bound globals), so `is_even` may reference `is_odd` defined below.
+fn is_even(n) {
+    if n == 0 { return true; }
+    return is_odd(n - 1);
+}
+fn is_odd(n) {
+    if n == 0 { return false; }
+    return is_even(n - 1);
+}
+println("10 even? ${is_even(10)}");
+println("7 even?  ${is_even(7)}");
+
+// Functions are values: store them, pass them, return them.
+let inc = fn(x) { return x + 1; };
+let dbl = fn(x) { return x * 2; };
+
+fn apply_twice(f, x) {
+    return f(f(x));
+}
+println("apply_twice(inc, 5) = ${apply_twice(inc, 5)}");   // 7
+println("apply_twice(dbl, 5) = ${apply_twice(dbl, 5)}");   // 20
+
+// Returning a function (a closure capturing `n`).
+fn adder(n) {
+    return fn(x) { return x + n; };
+}
+let add10 = adder(10);
+println("add10(5) = ${add10(5)}");   // 15
+
+// A tiny map/filter over an array using lambdas.
+fn map_arr(arr, f) {
+    let out = [];
+    for x in arr {
+        push(out, f(x));
+    }
+    return out;
+}
+println("squares = ${map_arr([1, 2, 3, 4], fn(x) { return x * x; })}");

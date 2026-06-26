@@ -1,0 +1,167 @@
+// Classic data structures implemented in Lumen: a singly linked list, a stack,
+// a queue, and a binary search tree. Exercises classes, mutable object graphs,
+// recursion, and the global collection builtins (push/pop/del/len).
+
+// ---- singly linked list ----------------------------------------------------
+
+class Node {
+    init(value) {
+        this.value = value;
+        this.next = nil;
+    }
+}
+
+class LinkedList {
+    init() {
+        this.head = nil;
+        this.count = 0;
+    }
+
+    push_front(v) {
+        let n = Node(v);
+        n.next = this.head;
+        this.head = n;
+        this.count = this.count + 1;
+        return this;
+    }
+
+    to_array() {
+        let out = [];
+        let cur = this.head;
+        while cur != nil {
+            push(out, cur.value);
+            cur = cur.next;
+        }
+        return out;
+    }
+
+    // Reverse the list in place by re-pointing each node.
+    reverse() {
+        let prev = nil;
+        let cur = this.head;
+        while cur != nil {
+            let nxt = cur.next;
+            cur.next = prev;
+            prev = cur;
+            cur = nxt;
+        }
+        this.head = prev;
+        return this;
+    }
+}
+
+// ---- stack (LIFO) ----------------------------------------------------------
+
+class Stack {
+    init() {
+        this.items = [];
+    }
+    push(v) {
+        push(this.items, v);
+        return this;
+    }
+    pop() {
+        return pop(this.items);
+    }
+    peek() {
+        return this.items[len(this.items) - 1];
+    }
+    is_empty() {
+        return len(this.items) == 0;
+    }
+}
+
+// ---- queue (FIFO) ----------------------------------------------------------
+
+class Queue {
+    init() {
+        this.items = [];
+    }
+    enqueue(v) {
+        push(this.items, v);
+        return this;
+    }
+    dequeue() {
+        let v = this.items[0];
+        del(this.items, 0);
+        return v;
+    }
+    size() {
+        return len(this.items);
+    }
+}
+
+// ---- binary search tree ----------------------------------------------------
+
+class TreeNode {
+    init(value) {
+        this.value = value;
+        this.left = nil;
+        this.right = nil;
+    }
+}
+
+class BST {
+    init() {
+        this.root = nil;
+    }
+
+    insert(v) {
+        this.root = this.insert_node(this.root, v);
+        return this;
+    }
+
+    insert_node(node, v) {
+        if node == nil {
+            return TreeNode(v);
+        }
+        if v < node.value {
+            node.left = this.insert_node(node.left, v);
+        } else {
+            node.right = this.insert_node(node.right, v);
+        }
+        return node;
+    }
+
+    // In-order traversal yields the values sorted.
+    in_order() {
+        let out = [];
+        this.walk(this.root, out);
+        return out;
+    }
+
+    walk(node, out) {
+        if node == nil {
+            return nil;
+        }
+        this.walk(node.left, out);
+        push(out, node.value);
+        this.walk(node.right, out);
+        return nil;
+    }
+}
+
+// ---- demo ------------------------------------------------------------------
+
+let list = LinkedList();
+list.push_front(3).push_front(2).push_front(1);
+println("list:          ${list.to_array()}");
+list.reverse();
+println("reversed:      ${list.to_array()}");
+
+let stack = Stack();
+stack.push(10).push(20).push(30);
+println("stack pop:     ${stack.pop()}");
+println("stack peek:    ${stack.peek()}");
+
+let queue = Queue();
+queue.enqueue("a").enqueue("b").enqueue("c");
+println("queue deq:     ${queue.dequeue()}");
+println("queue deq:     ${queue.dequeue()}");
+println("queue size:    ${queue.size()}");
+
+let tree = BST();
+for v in [5, 3, 8, 1, 4, 7, 9, 2, 6] {
+    tree.insert(v);
+}
+println("bst in-order:  ${tree.in_order()}");

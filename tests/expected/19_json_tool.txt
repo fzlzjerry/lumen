@@ -1,0 +1,22 @@
+users:         3
+active:        ["Ada", "Cy"]
+average age:   29.67
+compact json:  ["Ada","Cy"]
+pretty:
+[
+  {
+    "name": "Ada",
+    "age": 36,
+    "active": true
+  },
+  {
+    "name": "Bob",
+    "age": 24,
+    "active": false
+  },
+  {
+    "name": "Cy",
+    "age": 29,
+    "active": true
+  }
+]

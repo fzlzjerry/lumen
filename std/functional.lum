@@ -1,0 +1,87 @@
+// The `functional` module — higher-order helpers written in Lumen itself, part
+// of the standard library's self-hosted bootstrap. Everything here is built from
+// closures, proving the language's first-class functions are real.
+//
+// Imported as: import "functional" as fp;
+
+// The identity function.
+export fn identity(x) {
+    return x;
+}
+
+// A function that ignores its argument and always returns `x`.
+export fn constant(x) {
+    return fn(ignored) {
+        return x;
+    };
+}
+
+// Right-to-left composition: compose(f, g)(x) == f(g(x)).
+export fn compose(f, g) {
+    return fn(x) {
+        return f(g(x));
+    };
+}
+
+// Left-to-right pipeline through any number of unary functions.
+export fn pipe(..fns) {
+    return fn(x) {
+        let acc = x;
+        for f in fns {
+            acc = f(acc);
+        }
+        return acc;
+    };
+}
+
+// Curry a 2-argument function into f(a)(b).
+export fn curry2(f) {
+    return fn(a) {
+        return fn(b) {
+            return f(a, b);
+        };
+    };
+}
+
+// Bind the first argument of a 2-argument function.
+export fn partial(f, a) {
+    return fn(b) {
+        return f(a, b);
+    };
+}
+
+// Swap the argument order of a 2-argument function.
+export fn flip(f) {
+    return fn(a, b) {
+        return f(b, a);
+    };
+}
+
+// Negate a unary predicate.
+export fn complement(pred) {
+    return fn(x) {
+        return !pred(x);
+    };
+}
+
+// Memoize a unary function with a hashable argument (int/float/string/bool/nil).
+export fn memoize(f) {
+    let cache = {};
+    return fn(x) {
+        if has(cache, x) {
+            return cache[x];
+        }
+        let v = f(x);
+        cache[x] = v;
+        return v;
+    };
+}
+
+// Call `f` `n` times starting from `seed`, returning the final value.
+export fn iterate(f, seed, n) {
+    let acc = seed;
+    for let i = 0; i < n; i = i + 1 {
+        acc = f(acc);
+    }
+    return acc;
+}

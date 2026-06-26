@@ -1,0 +1,14 @@
+PI       = 3.14159        (float)
+count    = 10     (int)
+big      = 1000000
+hex 0xFF = 255
+bin 1010 = 10
+sci      = 1500.0
+7 / 2    = 3
+7.0 / 2  = 3.5
+7 % 3    = 1
+2 * 3    = 6
+-count   = -10
+1 == 1.0 : true
+!nil     : true
+0 is truthy: true

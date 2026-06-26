@@ -1,0 +1,46 @@
+// Classes, single inheritance, super, constructors, and custom str().
+
+class Animal {
+    init(name) {
+        this.name = name;
+    }
+    speak() {
+        return "${this.name} makes a sound";
+    }
+    str() {
+        return "Animal(${this.name})";
+    }
+}
+
+class Dog < Animal {
+    init(name, breed) {
+        super.init(name);       // call the superclass constructor
+        this.breed = breed;
+    }
+    speak() {
+        // Extend the inherited behavior.
+        return "${super.speak()} — woof!";
+    }
+    str() {
+        return "Dog(${this.name}, ${this.breed})";
+    }
+}
+
+let a = Animal("generic");
+let d = Dog("Rex", "Husky");
+
+println(a.speak());
+println(d.speak());
+
+// str() is used by interpolation and println for instances.
+println("a = ${a}");
+println("d = ${d}");
+
+// Fields are dynamic; reading a missing field yields nil.
+d.age = 3;
+println("Rex is ${d.age}");
+println("missing field: ${d.weight}");   // nil
+
+// Methods are first-class once bound to a receiver.
+let bark = d.speak;
+println("bound: ${bark()}");

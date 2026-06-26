@@ -1,0 +1,89 @@
+// The `set` module — a hash set written in Lumen itself, part of the standard
+// library's self-hosted bootstrap. Backed by a map (membership is a key), so it
+// holds hashable values: ints, floats, strings, bools, nil. Insertion order is
+// preserved by the underlying map, so `values()` is stable.
+//
+// Imported as: import "set"; let s = set.Set();   (or `set.of([1, 2, 3])`)
+
+export class Set {
+    init() {
+        this.items = {};
+    }
+
+    // Add a value; returns the set so calls can chain.
+    add(x) {
+        this.items[x] = true;
+        return this;
+    }
+
+    has(x) {
+        return has(this.items, x);
+    }
+
+    remove(x) {
+        if has(this.items, x) {
+            del(this.items, x);
+        }
+        return this;
+    }
+
+    size() {
+        return len(this.items);
+    }
+
+    is_empty() {
+        return len(this.items) == 0;
+    }
+
+    // The members, in insertion order.
+    values() {
+        return keys(this.items);
+    }
+
+    // A new set with the members of both.
+    union(other) {
+        let r = Set();
+        for x in this.values() { r.add(x); }
+        for x in other.values() { r.add(x); }
+        return r;
+    }
+
+    // A new set with the members present in both.
+    intersect(other) {
+        let r = Set();
+        for x in this.values() {
+            if other.has(x) { r.add(x); }
+        }
+        return r;
+    }
+
+    // A new set with this set's members that `other` lacks.
+    difference(other) {
+        let r = Set();
+        for x in this.values() {
+            if !other.has(x) { r.add(x); }
+        }
+        return r;
+    }
+
+    // Is every member of this set also in `other`?
+    is_subset(other) {
+        for x in this.values() {
+            if !other.has(x) { return false; }
+        }
+        return true;
+    }
+
+    str() {
+        return "Set(${this.values()})";
+    }
+}
+
+// Build a set from a sequence.
+export fn of(xs) {
+    let s = Set();
+    for x in xs {
+        s.add(x);
+    }
+    return s;
+}

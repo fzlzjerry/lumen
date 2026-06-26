@@ -1,0 +1,83 @@
+// The `testing` module — a tiny unit-test harness written in Lumen itself, part
+// of the standard library's self-hosted bootstrap. A `Suite` tallies checks and
+// prints a summary; `deep_eq` gives structural equality for arrays and maps
+// (the core `==` is structural only for primitives and strings).
+//
+// Imported as: import "testing" as t;
+//   let s = t.Suite("math");
+//   s.eq("adds", 1 + 1, 2);
+//   s.report();
+
+// Structural equality: recurses into arrays and maps, falls back to `==`.
+export fn deep_eq(a, b) {
+    let ta = type(a);
+    if ta != type(b) {
+        return false;
+    }
+    if ta == "array" {
+        if len(a) != len(b) { return false; }
+        for let i = 0; i < len(a); i = i + 1 {
+            if !deep_eq(a[i], b[i]) { return false; }
+        }
+        return true;
+    }
+    if ta == "map" {
+        if len(a) != len(b) { return false; }
+        for k in keys(a) {
+            if !has(b, k) { return false; }
+            if !deep_eq(a[k], b[k]) { return false; }
+        }
+        return true;
+    }
+    return a == b;
+}
+
+export class Suite {
+    init(name) {
+        this.name = name;
+        this.passed = 0;
+        this.failed = 0;
+        this.failures = [];
+    }
+
+    // Record a boolean check under `label`.
+    check(label, cond) {
+        if cond {
+            this.passed = this.passed + 1;
+        } else {
+            this.failed = this.failed + 1;
+            push(this.failures, label);
+        }
+        return cond;
+    }
+
+    // Assert structural equality of `actual` and `expected`.
+    eq(label, actual, expected) {
+        let ok = deep_eq(actual, expected);
+        if !ok {
+            push(this.failures, "${label}: expected ${expected}, got ${actual}");
+            this.failed = this.failed + 1;
+            return false;
+        }
+        this.passed = this.passed + 1;
+        return true;
+    }
+
+    truthy(label, v) {
+        return this.check(label, bool(v));
+    }
+
+    falsy(label, v) {
+        return this.check(label, !bool(v));
+    }
+
+    // Print the summary; returns true if every check passed.
+    report() {
+        let total = this.passed + this.failed;
+        println("${this.name}: ${this.passed}/${total} passed");
+        for f in this.failures {
+            println("  FAIL: ${f}");
+        }
+        return this.failed == 0;
+    }
+}

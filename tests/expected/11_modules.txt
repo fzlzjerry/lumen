@@ -1,0 +1,7 @@
+circle area r=2     = 12.566370614359172
+circle circumf r=2  = 12.566370614359172
+rect area           = 12
+rect perimeter      = 14
+sqrt(144)           = 12.0
+pow(2, 10)          = 1024.0
+same module value?  = true

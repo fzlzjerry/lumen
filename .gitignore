@@ -1,0 +1,10 @@
+# Rust build artifacts
+/target
+
+# Editor / OS noise
+*.swp
+.DS_Store
+
+# Tooling / session directories (not part of the project)
+.claude/
+.impeccable/

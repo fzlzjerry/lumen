@@ -1,0 +1,221 @@
+//! End-to-end VM behavior tests: compile a source string, run it with captured
+//! output, and assert on what it printed (or the uncaught error). These exercise
+//! the whole pipeline (lex → parse → resolve → compile → execute) and pin the
+//! runtime semantics from SPEC §6–7.
+
+use lumen::vm::Vm;
+use std::cell::RefCell;
+use std::io::Write;
+use std::rc::Rc;
+
+/// A `Write` sink that keeps its bytes so the test can read them back.
+#[derive(Clone)]
+struct SharedBuf(Rc<RefCell<Vec<u8>>>);
+
+impl Write for SharedBuf {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.0.borrow_mut().extend_from_slice(buf);
+        Ok(buf.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+/// Run `src`, returning captured stdout. Panics on a front-end error.
+fn run(src: &str) -> Result<String, String> {
+    let (program, errs) = lumen::check_source(src);
+    assert!(errs.is_empty(), "front-end errors: {errs:?}");
+    let proto = lumen::compiler::compile(&program).expect("compile ok");
+    let buf = SharedBuf(Rc::new(RefCell::new(Vec::new())));
+    let mut vm = Vm::with_output(Box::new(buf.clone()));
+    lumen::stdlib::install(&mut vm);
+    let result = vm.interpret(proto);
+    let out = String::from_utf8(buf.0.borrow().clone()).unwrap();
+    match result {
+        Ok(()) => Ok(out),
+        Err(msg) => Err(msg),
+    }
+}
+
+/// Convenience: run and return stdout, asserting no uncaught error.
+fn out(src: &str) -> String {
+    run(src).unwrap_or_else(|e| panic!("unexpected runtime error:\n{e}"))
+}
+
+#[test]
+fn arithmetic_and_number_semantics() {
+    assert_eq!(out("println(1 + 2 * 3);"), "7\n");
+    assert_eq!(out("println(7 / 2);"), "3\n"); // int division truncates
+    assert_eq!(out("println(7.0 / 2);"), "3.5\n"); // float division
+    assert_eq!(out("println(7 % 3);"), "1\n");
+    assert_eq!(out("println(2 * 3.0);"), "6.0\n"); // mixed promotes to float
+    assert_eq!(out("println(1 == 1.0);"), "true\n");
+    assert_eq!(out("println(-5);"), "-5\n");
+}
+
+#[test]
+fn truthiness_and_logical() {
+    assert_eq!(out("println(0 || \"x\");"), "0\n"); // 0 is truthy
+    assert_eq!(out("println(nil || \"x\");"), "x\n");
+    assert_eq!(out("println(false && \"x\");"), "false\n");
+    assert_eq!(out("println(\"a\" && \"b\");"), "b\n");
+    assert_eq!(out("println(!nil);"), "true\n");
+    assert_eq!(out("println(!0);"), "false\n");
+}
+
+#[test]
+fn control_flow() {
+    assert_eq!(out("if 1 < 2 { println(\"yes\"); } else { println(\"no\"); }"), "yes\n");
+    assert_eq!(out("let s = 0; for let i = 1; i <= 5; i = i + 1 { s = s + i; } println(s);"), "15\n");
+    assert_eq!(out("let s = 0; for x in [1,2,3,4] { s = s + x; } println(s);"), "10\n");
+    assert_eq!(out("let i = 0; while i < 3 { print(i); i = i + 1; } println(\"\");"), "012\n");
+}
+
+#[test]
+fn break_and_continue() {
+    assert_eq!(
+        out("for let i = 0; i < 10; i = i + 1 { if i == 5 { break; } print(i); } println(\"\");"),
+        "01234\n"
+    );
+    assert_eq!(
+        out("for let i = 0; i < 6; i = i + 1 { if i % 2 == 0 { continue; } print(i); } println(\"\");"),
+        "135\n"
+    );
+}
+
+#[test]
+fn functions_and_recursion() {
+    let src = "fn fib(n) { if n < 2 { return n; } return fib(n-1) + fib(n-2); } println(fib(20));";
+    assert_eq!(out(src), "6765\n");
+}
+
+#[test]
+fn closures_capture_by_reference() {
+    let src = "fn counter() { let n = 0; return fn() { n = n + 1; return n; }; }
+               let c = counter(); print(c()); print(c()); println(c());";
+    assert_eq!(out(src), "123\n");
+}
+
+#[test]
+fn per_iteration_capture() {
+    let src = "let fs = []; for let i = 0; i < 3; i = i + 1 { push(fs, fn() { return i; }); }
+               println(\"${fs[0]()}${fs[1]()}${fs[2]()}\");";
+    assert_eq!(out(src), "012\n");
+}
+
+#[test]
+fn classes_inheritance_super() {
+    let src = "class A { greet() { return \"A\"; } }
+               class B < A { greet() { return super.greet() + \"B\"; } }
+               println(B().greet());";
+    assert_eq!(out(src), "AB\n");
+}
+
+#[test]
+fn instances_fields_and_init() {
+    let src = "class Point { init(x, y) { this.x = x; this.y = y; } sum() { return this.x + this.y; } }
+               let p = Point(3, 4); println(p.sum()); println(p.x); println(p.missing);";
+    assert_eq!(out(src), "7\n3\nnil\n");
+}
+
+#[test]
+fn custom_str_method_used_in_interpolation() {
+    let src = "class Box { init(v) { this.v = v; } str() { return \"Box(${this.v})\"; } }
+               println(\"${Box(42)}\");";
+    assert_eq!(out(src), "Box(42)\n");
+}
+
+#[test]
+fn arrays_and_maps() {
+    assert_eq!(out("let a = [1,2,3]; push(a, 4); println(a);"), "[1, 2, 3, 4]\n");
+    assert_eq!(out("println([1,2] + [3,4]);"), "[1, 2, 3, 4]\n");
+    assert_eq!(out("let m = {x: 1}; m[\"y\"] = 2; println(m[\"x\"] + m[\"y\"]);"), "3\n");
+    assert_eq!(out("println([10,20,30][-1]);"), "30\n");
+    assert_eq!(out("println(\"abc\"[1]);"), "b\n");
+}
+
+#[test]
+fn string_concatenation_and_interpolation() {
+    assert_eq!(out("println(\"a\" + \"b\" + \"c\");"), "abc\n");
+    assert_eq!(out("let n = 5; println(\"n=${n}, n*2=${n*2}\");"), "n=5, n*2=10\n");
+}
+
+#[test]
+fn exceptions_try_catch_finally() {
+    let src = "try { throw \"boom\"; } catch (e) { println(\"caught: ${e}\"); }";
+    assert_eq!(out(src), "caught: boom\n");
+
+    let src2 = "fn f() { try { return \"a\"; } finally { println(\"cleanup\"); } }
+                println(f());";
+    assert_eq!(out(src2), "cleanup\na\n");
+}
+
+#[test]
+fn builtin_runtime_errors_have_kind() {
+    let src = "try { let a = [1]; print(a[5]); } catch (e) { println(e.kind); }";
+    assert_eq!(out(src), "IndexError\n");
+
+    let src2 = "try { print(1 / 0); } catch (e) { println(e.kind); }";
+    assert_eq!(out(src2), "DivisionByZero\n");
+
+    let src3 = "try { print(1 + \"x\"); } catch (e) { println(e.kind); }";
+    assert_eq!(out(src3), "TypeError\n");
+}
+
+#[test]
+fn pattern_matching() {
+    let src = "fn describe(v) { return match v {
+                   0 => \"zero\",
+                   [a, b] => \"pair ${a} ${b}\",
+                   [first, ..rest] => \"head ${first} rest ${rest}\",
+                   {kind: k} => \"kind ${k}\",
+                   n if n > 100 => \"big\",
+                   _ => \"other\",
+               }; }
+               println(describe(0));
+               println(describe([1, 2]));
+               println(describe([9, 8, 7]));
+               println(describe({kind: \"x\"}));
+               println(describe(500));
+               println(describe(3));";
+    assert_eq!(
+        out(src),
+        "zero\npair 1 2\nhead 9 rest [8, 7]\nkind x\nbig\nother\n"
+    );
+}
+
+#[test]
+fn higher_order_native_callback() {
+    // `sort`/comparators arrive in Phase 7; here verify a closure passed to a
+    // user function and invoked works (the call_and_run path is exercised by
+    // str() above; this checks plain higher-order user code).
+    let src = "fn apply(f, x) { return f(x); } println(apply(fn(n) { return n * n; }, 7));";
+    assert_eq!(out(src), "49\n");
+}
+
+#[test]
+fn uncaught_throw_reports_trace() {
+    let err = run("fn boom() { throw \"x\"; } boom();").unwrap_err();
+    assert!(err.contains("Uncaught"));
+    assert!(err.contains("fn boom"));
+    assert!(err.contains("Stack trace"));
+}
+
+#[test]
+fn arity_mismatch_throws() {
+    let err = run("fn f(a, b) { return a; } f(1);").unwrap_err();
+    assert!(err.contains("ArityError") || err.contains("expects 2"));
+}
+
+#[test]
+fn deep_recursion_is_stack_overflow_not_crash() {
+    let err = run("fn rec(n) { return rec(n + 1); } rec(0);").unwrap_err();
+    assert!(err.contains("StackOverflow") || err.contains("stack overflow"));
+}
+
+#[test]
+fn integer_overflow_throws() {
+    let err = run("println(9223372036854775807 + 1);").unwrap_err();
+    assert!(err.contains("overflow"));
+}

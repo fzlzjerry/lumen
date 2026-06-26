@@ -1,0 +1,43 @@
+// Arrays and maps: literals, indexing, mutation, and built-in helpers.
+
+// --- Arrays ---
+let xs = [10, 20, 30];
+println("xs        = ${xs}");
+println("xs[0]     = ${xs[0]}");
+println("xs[-1]    = ${xs[-1]}");      // negative index from the end
+println("len(xs)   = ${len(xs)}");
+
+push(xs, 40);                           // append
+println("after push= ${xs}");
+let last = pop(xs);                     // remove & return last
+println("popped    = ${last}, now ${xs}");
+
+xs[1] = 99;                             // index assignment
+println("xs[1]=99  = ${xs}");
+
+// Array spread inside a literal.
+let ys = [0, ..xs, 100];
+println("spread    = ${ys}");
+
+// Array concatenation with +.
+println("concat    = ${[1, 2] + [3, 4]}");
+
+// --- Maps ---
+// Maps are indexed with ["key"]; keys may be identifiers (sugar for the
+// string of that name), explicit strings, or computed [expr] keys.
+let person = {
+    name: "Ada",            // identifier key -> "name"
+    "age": 36,              // string key
+    [1 + 1]: "two",         // computed key
+};
+println("person[name]= ${person["name"]}");
+println("person[age] = ${person["age"]}");
+println("computed    = ${person[2]}");
+
+person["role"] = "engineer";            // add a key
+println("has role? ${has(person, "role")}");
+println("keys      = ${keys(person)}");
+println("values    = ${values(person)}");
+
+del(person, "age");
+println("after del = ${has(person, "age")}");   // false

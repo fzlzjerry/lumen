@@ -1,0 +1,39 @@
+// Closures capture variables by reference, with per-iteration loop bindings.
+
+// A counter that closes over private mutable state.
+fn make_counter() {
+    let count = 0;
+    return fn() {
+        count = count + 1;
+        return count;
+    };
+}
+let c = make_counter();
+println("${c()} ${c()} ${c()}");   // 1 2 3
+
+// Two counters are independent.
+let d = make_counter();
+println("c=${c()} d=${d()}");       // c=4 d=1
+
+// Per-iteration capture: each closure remembers its own i, not the final one.
+let fns = [];
+for let i = 0; i < 3; i = i + 1 {
+    push(fns, fn() { return i; });
+}
+println("captured: ${fns[0]()} ${fns[1]()} ${fns[2]()}");   // 0 1 2
+
+// Memoized Fibonacci using a closure over a map cache.
+fn make_fib() {
+    let cache = {};
+    let fib = nil;
+    fib = fn(n) {
+        if n < 2 { return n; }
+        if has(cache, n) { return cache[n]; }
+        let v = fib(n - 1) + fib(n - 2);
+        cache[n] = v;
+        return v;
+    };
+    return fib;
+}
+let fib = make_fib();
+println("fib(30) = ${fib(30)}");    // 832040

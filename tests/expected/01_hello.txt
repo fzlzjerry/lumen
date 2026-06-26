@@ -1,0 +1,4 @@
+Hello, world!
+Welcome to Lumen, born in 2026.
+6 times 7 is 42.
+Nested: inner 13

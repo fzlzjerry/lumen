@@ -1,0 +1,7 @@
+generic makes a sound
+Rex makes a sound — woof!
+a = Animal(generic)
+d = Dog(Rex, Husky)
+Rex is 3
+missing field: nil
+bound: Rex makes a sound — woof!
