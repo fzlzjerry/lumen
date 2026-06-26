@@ -1,0 +1,23 @@
+Architectures: amd64 arm64
+Codename: stable
+Components: main
+Date: Fri, 26 Jun 2026 07:40:22 +0000
+Label: lumen
+Origin: lumen
+Suite: stable
+MD5Sum:
+ 5d85dac8fdd1f5457daf1387d14010c5             2069 Packages
+ 24cc3a7086514c4c4ea7033104d941b7              903 Packages.gz
+ 66b22a3ea6c48a7bbbe872f987f809cb              140 Release
+SHA1:
+ 95920c17f3135df28c7513cad1e2a031a473f482             2069 Packages
+ 488393ce0f03a67e8a553d39ae472937e86a389e              903 Packages.gz
+ 2535e235eb5a89b14c102548a02496b2a01c2bc8              140 Release
+SHA256:
+ 5b9296d07468d0e3fc62032a87801241cff0d70ceffb750a26e3fc45c448138b             2069 Packages
+ 46a0d8109cd6cfd0a97d27c844112a75ca478c344717463f75af758308911f09              903 Packages.gz
+ f65ccdc0a09db0dc152697ad70a8a1154d3fd56b39f69f214c880d45cb3007de              140 Release
+SHA512:
+ ca6ebbff00b1250a32f1da902a3086ec35aed0772150b5f399afd6fc5d3cb457963cb892b6383a91e338da7634841116c0a4697195f297b1267e4dccc2b1937a             2069 Packages
+ 219f4d9642ae5e149413e2745ed9cfa2288741a97e40da89c76fb88a56fe5c52debfec3b04b96ae26f9d121087eb95c2c5f6a03a0c0acae74869bbd0606cce58              903 Packages.gz
+ ce9b4b1dda3cc8f64a36af2e7ce178cce7aa867bd0e590b033957255e21cba88b23c60037a29c61138e810b3408f9100c19241258b665468434775752ba70b5e              140 Release

@@ -1,0 +1,44 @@
+Package: lumen
+Architecture: amd64
+Version: 0.1.0-1
+Priority: optional
+Section: devel
+Maintainer: fzlzjerry <fzlzjerry@users.noreply.github.com>
+Installed-Size: 1072
+Depends: libc6 (>= 2.35)
+Filename: ./lumen_0.1.0-1_amd64.deb
+Size: 418268
+MD5sum: 00515abc52b0b314e243d659f8af8dee
+SHA1: 71805376cf5a2dba4014175b6571c3ce5de74a89
+SHA256: dcbabf84c4871d07008703d5fb11b9ecd6b1daf085c72d3849212c186efbc8d4
+SHA512: 28a4f8507d63602ad56cdd16c9182d4ea8e2f40030b4c33c357b540dc561102df8c9f8e8a4f01db5040066cf01c2c1baabd3d6f51737cd4ea2f87246384126b7
+Homepage: https://github.com/fzlzjerry/lumen
+Description: Lumen — a dynamic, bytecode-compiled programming language with a bytecode VM,
+ generational GC, and a full toolchain
+ Lumen is a dynamic, bytecode-compiled programming language implemented in Rust:
+ a stack VM, a generational mark-and-sweep garbage collector, closures, classes
+ with single inheritance, modules, exceptions, and pattern matching, plus a full
+ toolchain (REPL, source-level debugger, language server, and formatter).
+
+Package: lumen
+Architecture: arm64
+Version: 0.1.0-1
+Priority: optional
+Section: devel
+Maintainer: fzlzjerry <fzlzjerry@users.noreply.github.com>
+Installed-Size: 978
+Depends: libc6:arm64 (>= 2.39)
+Filename: ./lumen_0.1.0-1_arm64.deb
+Size: 361940
+MD5sum: bc2773fa57b9430db7a6663b2cf99b6d
+SHA1: b422bedfbc581f9592a55c1b497c5e3d49179b81
+SHA256: 9ab9e201f2d3b3d23332d6a9e70bdb9f722023a9bfbe977e6454a03ea0ef4357
+SHA512: 6ee6cb0454ac7d48602cbe0bb11e448d7b09bccc2db92d1d4ddb958213520d18a9ca13a4c62e55eb1271b1a90a772bbe7d35b2778284f1cffcad2b83712616ef
+Homepage: https://github.com/fzlzjerry/lumen
+Description: Lumen — a dynamic, bytecode-compiled programming language with a bytecode VM,
+ generational GC, and a full toolchain
+ Lumen is a dynamic, bytecode-compiled programming language implemented in Rust:
+ a stack VM, a generational mark-and-sweep garbage collector, closures, classes
+ with single inheritance, modules, exceptions, and pattern matching, plus a full
+ toolchain (REPL, source-level debugger, language server, and formatter).
+
