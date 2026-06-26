@@ -62,23 +62,33 @@ models), and [`DESIGN.md`](DESIGN.md) for the rationale behind the design.
 
 ## Install
 
-Pre-built binaries for macOS (arm64/x86_64) and Linux (x86_64/arm64) ship on
-every [release](https://github.com/fzlzjerry/lumen/releases).
+Lumen ships through several channels — the command is always `lumen`.
 
 ```sh
 # Homebrew (macOS / Linux)
 brew install fzlzjerry/lumen/lumen
 
-# Debian / Ubuntu (.deb from the latest release)
-curl -LO https://github.com/fzlzjerry/lumen/releases/latest/download/lumen_amd64.deb
-sudo apt install ./lumen_*.deb
+# crates.io (any platform with a Rust toolchain) — installs the `lumen` binary
+cargo install lumen-lang
 
 # From source (stable Rust 1.82+, no dependencies)
 cargo install --git https://github.com/fzlzjerry/lumen
 ```
 
-An `apt` repository and crates.io publishing are also wired up — see
-[`docs/RELEASING.md`](docs/RELEASING.md).
+**Debian / Ubuntu** — add the signed apt repository:
+
+```sh
+curl -fsSL https://lumen.moraxcheng.me/lumen-archive-keyring.gpg \
+  | sudo tee /usr/share/keyrings/lumen.gpg > /dev/null
+echo "deb [signed-by=/usr/share/keyrings/lumen.gpg] https://lumen.moraxcheng.me ./" \
+  | sudo tee /etc/apt/sources.list.d/lumen.list
+sudo apt update && sudo apt install lumen
+```
+
+Or download a pre-built binary — `.tar.gz` for macOS/Linux (arm64/x86_64) or a
+`.deb` — straight from the
+[latest release](https://github.com/fzlzjerry/lumen/releases/latest). Maintainers:
+see [`docs/RELEASING.md`](docs/RELEASING.md) for how releases are cut.
 
 ## Quick start
 
