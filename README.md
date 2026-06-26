@@ -1,5 +1,10 @@
 # Lumen
 
+[![CI](https://github.com/fzlzjerry/lumen/actions/workflows/ci.yml/badge.svg)](https://github.com/fzlzjerry/lumen/actions/workflows/ci.yml)
+[![crates.io](https://img.shields.io/crates/v/lumen-lang.svg)](https://crates.io/crates/lumen-lang)
+[![Homebrew](https://img.shields.io/badge/homebrew-fzlzjerry%2Flumen-orange)](https://github.com/fzlzjerry/homebrew-lumen)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 **Lumen** is a small, dynamically-typed programming language with a hand-written
 compiler, a bytecode virtual machine, and a tracing garbage collector — all
 implemented from scratch in **Rust**, using only the standard library (no
