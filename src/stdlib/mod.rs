@@ -12,6 +12,7 @@ use crate::value::{error_kind, Value};
 use crate::vm::Vm;
 
 mod array;
+mod datetime;
 mod hash;
 mod io;
 mod json;
@@ -19,6 +20,7 @@ mod map;
 mod math;
 mod os;
 mod random;
+mod regex;
 mod string;
 mod time;
 
@@ -47,6 +49,8 @@ fn load(vm: &mut Vm, name: &str) -> Option<Result<Value, Value>> {
         "json" => Ok(json::build(vm)),
         "random" => Ok(random::build(vm)),
         "hash" => Ok(hash::build(vm)),
+        "datetime" => Ok(datetime::build(vm)),
+        "regex" => Ok(regex::build(vm)),
         "seq" => vm.load_source_module("seq", SEQ_SRC),
         "set" => vm.load_source_module("set", SET_SRC),
         "functional" => vm.load_source_module("functional", FUNCTIONAL_SRC),

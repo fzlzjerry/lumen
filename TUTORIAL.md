@@ -383,8 +383,8 @@ println(json.stringify({x: 1, y: 2}));                   // {"x":1,"y":2}
 ```
 
 The full set — `math`, `string`, `array`, `map`, `io`, `os`, `time`, `json`,
-`random`, `hash`, and the self-hosted `seq` and `path` — is documented in
-[`API.md`](API.md).
+`random`, `hash`, `datetime`, `regex`, and the self-hosted `seq` and `path` — is
+documented in [`API.md`](API.md).
 
 ## 12. The toolchain
 

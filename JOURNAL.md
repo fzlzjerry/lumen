@@ -1040,4 +1040,47 @@ transitive dependencies are deliberately out of scope for this model.
 **Net.** `cargo build`/`clippy` clean; `cargo test` green at **251** (+9 project
 test fns), nothing skipped; validated end-to-end (`new` → `add --git` → `run`
 importing a module from the git checkout). Docs (README, project.rs) synced.
-Remaining roadmap items: `datetime` and a basic `regex` module.
+
+## Tier 4 — `datetime` and `regex` (and an adversarial regex review)
+
+**`datetime`** (native) — UTC calendar math over epoch seconds, using Hinnant's
+`days_from_civil`/`civil_from_days` (correct for any timestamp, including negative
+ones via `div_euclid`/`rem_euclid`). `from_epoch`/`to_epoch`/`iso`/`format`/
+`weekday`/`is_leap_year`/`days_in_month`. Verified against known timestamps and a
+negative epoch; `from_epoch` (which builds a map) is exercised under GC stress.
+
+**`regex`** (native) — a from-scratch engine: parse → AST → flat instruction
+program → **recursive backtracking** matcher with capture groups. Supports
+literals, `.`, classes with ranges and `\d\w\s` (+ negations), anchors, groups,
+alternation, and `* + ? {n,m}` (greedy/lazy). `test/find/find_all/captures/
+replace/split`; positions are character indices.
+
+Then an **adversarial review** (a 5-agent fan-out probing distinct feature areas
+against Python's `re` as ground truth, each finding independently verified) — 16
+candidate discrepancies, narrowed to **3 real bugs**, all fixed:
+- **Process crash (critical):** a quantifier over an empty-matchable body
+  (`(a*)*`, `(a|)*b`, `(.*)*`) recursed forever and **aborted the host process**
+  (uncatchable) — the step budget couldn't help because the C stack blew first.
+  Fixed with a `Mark`/`AssertProgress` instruction pair that stops a `*`/`+` body
+  from looping without consuming input (with the same save/restore discipline as
+  capture `Save`, so backtracking sees the right mark), plus a recursion-depth
+  backstop. The depth guard alone wasn't enough — verifying it surfaced that a
+  deep match still overflows a *small* caller stack (e.g. a 2 MB test thread)
+  before the limit trips, so the matcher now runs on a dedicated 64 MB thread and
+  the parser caps group nesting; both turn deep recursion into a catchable
+  `ValueError` regardless of who calls. Now `(a*)*` *matches* correctly, `(a|)*b`
+  returns the right boolean, and no pattern can crash the host.
+- **Class ranges with an escaped lower bound** (`[\t-~]`, `[\.-9]`): range
+  detection lived only in the unescaped-literal arm, so these degraded to separate
+  literals. Refactored to a shared `read_class_atom`, so a range forms after any
+  single-character element.
+- **`$` before a trailing newline:** diverges from Python's default mode but
+  matches Go's `regexp` — kept as end-of-string-only and **documented** rather
+  than changed. (Other reported "discrepancies" — Python-specific `split` capture
+  interleaving, `\d` on non-ASCII digits, `{,3}` — were verified as defensible
+  cross-engine variations and left as-is, also documented.)
+
+**Net.** `cargo build`/`clippy` clean; `cargo test` green at **265** (+11 test
+fns: 2 datetime, 9 regex incl. the regression tests for every fix), nothing
+skipped. Docs (API, README, TUTORIAL) synced. 12 native + 5 self-hosted modules.
+This completes the Tier 0–4 improvement roadmap.

@@ -181,8 +181,9 @@ source ─▶ Lexer ─▶ Parser ─▶ Resolver ─▶ Compiler ─▶ Chunk(b
   a handle-indexed heap; no `unsafe`, collects cycles, interns strings.
 
 The standard library ([`src/stdlib/`](src/stdlib/)) provides native `math`,
-`string`, `array`, `map`, `io`, `os`, `time`, `json`, `random`, and `hash`
-(non-cryptographic hashing + hex/base64) modules, plus five self-hosted modules
+`string`, `array`, `map`, `io`, `os`, `time`, `json`, `random`, `hash`
+(non-cryptographic hashing + hex/base64), `datetime` (UTC calendar math), and
+`regex` (a small from-scratch engine) modules, plus five self-hosted modules
 written in Lumen itself ([`std/`](std/)): `seq` (sequence utilities), `set` (a
 hash set), `functional` (closures: compose, curry, memoize), `path` (POSIX path
 manipulation), and `testing` (a unit-test harness). Full reference:
@@ -192,7 +193,7 @@ manipulation), and `testing` (a unit-test harness). Full reference:
 
 ```sh
 cargo build            # debug build (zero warnings)
-cargo test             # all 254 tests: unit + e2e snapshots + errors + fuzz + GC stress
+cargo test             # all 265 tests: unit + e2e snapshots + errors + fuzz + GC stress
 cargo build --release  # optimized build
 cargo llvm-cov --summary-only   # coverage (core components are ≥90%)
 ```

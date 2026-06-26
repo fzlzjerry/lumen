@@ -338,6 +338,165 @@ fn hash_module() {
 }
 
 #[test]
+fn regex_test_and_anchors() {
+    assert_eq!(out("import \"regex\" as re; println(re.test(\"\\\\d+\", \"abc123\"));"), "true\n");
+    assert_eq!(out("import \"regex\" as re; println(re.test(\"^\\\\d+$\", \"abc123\"));"), "false\n");
+    assert_eq!(out("import \"regex\" as re; println(re.test(\"^[a-z]+$\", \"hello\"));"), "true\n");
+    assert_eq!(out("import \"regex\" as re; println(re.test(\"^[a-z]+$\", \"Hello\"));"), "false\n");
+    assert_eq!(out("import \"regex\" as re; println(re.test(\"colou?r\", \"color\"));"), "true\n");
+    assert_eq!(out("import \"regex\" as re; println(re.test(\"colou?r\", \"colour\"));"), "true\n");
+    assert_eq!(out("import \"regex\" as re; println(re.test(\"cat|dog\", \"i have a dog\"));"), "true\n");
+    assert_eq!(out("import \"regex\" as re; println(re.test(\"^a{2,3}$\", \"aaa\"));"), "true\n");
+    assert_eq!(out("import \"regex\" as re; println(re.test(\"^a{2,3}$\", \"aaaa\"));"), "false\n");
+    assert_eq!(out("import \"regex\" as re; println(re.test(\"[^0-9]+\", \"123\"));"), "false\n");
+}
+
+#[test]
+fn regex_find_and_captures() {
+    let m = "import \"regex\" as re; let m = re.find(\"\\\\d+\", \"abc123def\");
+             println(m[\"text\"]); println(m[\"start\"]); println(m[\"end\"]);";
+    assert_eq!(out(m), "123\n3\n6\n");
+    assert_eq!(out("import \"regex\" as re; println(re.find(\"xyz\", \"abc\"));"), "nil\n");
+    let c = "import \"regex\" as re; let c = re.captures(\"(\\\\d+)-(\\\\d+)\", \"12-34\");
+             println(c[0]); println(c[1]); println(c[2]);";
+    assert_eq!(out(c), "12-34\n12\n34\n");
+    let all = "import \"regex\" as re; let a = re.find_all(\"\\\\d+\", \"a1b22c333\");
+               println(len(a)); println(a[0][\"text\"]); println(a[2][\"text\"]);";
+    assert_eq!(out(all), "3\n1\n333\n");
+}
+
+#[test]
+fn regex_replace_and_split() {
+    assert_eq!(
+        out("import \"regex\" as re; println(re.replace(\"(\\\\w+)@(\\\\w+)\", \"ab@cd\", \"$2.$1\"));"),
+        "cd.ab\n"
+    );
+    assert_eq!(out("import \"regex\" as re; println(re.replace(\"\\\\s+\", \"a  b   c\", \"_\"));"), "a_b_c\n");
+    assert_eq!(out("import \"regex\" as re; println(re.split(\",\", \"a,b,c\"));"), "[\"a\", \"b\", \"c\"]\n");
+    assert_eq!(out("import \"regex\" as re; println(re.split(\"\\\\s+\", \"a  b c\"));"), "[\"a\", \"b\", \"c\"]\n");
+}
+
+#[test]
+fn regex_backtracking_and_quantifiers() {
+    // Greedy vs lazy `.*`.
+    assert_eq!(out("import \"regex\" as re; println(re.find(\"a.*b\", \"axbxb\")[\"text\"]);"), "axbxb\n");
+    assert_eq!(out("import \"regex\" as re; println(re.find(\"a.*?b\", \"axbxb\")[\"text\"]);"), "axb\n");
+    // Greedy `a*` must give back one `a` so the trailing `a` can match.
+    assert_eq!(out("import \"regex\" as re; println(re.test(\"^a*a$\", \"aaa\"));"), "true\n");
+    // Nested capture groups, left-to-right index assignment.
+    let nest = "import \"regex\" as re; let c = re.captures(\"((a+)(b+))\", \"aaabb\");
+                println(c[0]); println(c[1]); println(c[2]); println(c[3]);";
+    assert_eq!(out(nest), "aaabb\naaabb\naaa\nbb\n");
+    // Alternation in a group + an outer quantifier.
+    assert_eq!(out("import \"regex\" as re; println(re.test(\"^(cat|dog)s?$\", \"dogs\"));"), "true\n");
+    assert_eq!(out("import \"regex\" as re; println(re.test(\"^(ab)+$\", \"ababab\"));"), "true\n");
+    assert_eq!(out("import \"regex\" as re; println(re.test(\"^(ab)+$\", \"aba\"));"), "false\n");
+    // `.` does not cross a newline.
+    assert_eq!(out("import \"regex\" as re; println(re.test(\"a.b\", \"a\\nb\"));"), "false\n");
+}
+
+#[test]
+fn regex_nullable_loops_terminate() {
+    // A quantifier over an empty-matchable body must terminate and match —
+    // previously these recursed infinitely and crashed the process.
+    assert_eq!(out("import \"regex\" as re; println(re.test(\"(a*)*\", \"aaa\"));"), "true\n");
+    assert_eq!(out("import \"regex\" as re; println(re.find(\"(a*)*\", \"aaa\")[\"text\"]);"), "aaa\n");
+    assert_eq!(out("import \"regex\" as re; println(re.test(\"(a?)*b\", \"aab\"));"), "true\n");
+    assert_eq!(out("import \"regex\" as re; println(re.test(\"(.*)*\", \"xyz\"));"), "true\n");
+    assert_eq!(out("import \"regex\" as re; println(re.test(\"(a|)*b\", \"aab\"));"), "true\n");
+    // Negative case: must converge to a clean `false`, not loop/error (this is
+    // what exposes a stale empty-loop mark under backtracking).
+    assert_eq!(out("import \"regex\" as re; println(re.test(\"(a|)*b\", \"aaa\"));"), "false\n");
+}
+
+#[test]
+fn regex_class_ranges_with_escaped_bounds() {
+    // A class range whose lower bound is an escaped char must still form a range.
+    assert_eq!(out("import \"regex\" as re; println(re.test(\"[\\\\t-~]\", \"A\"));"), "true\n");
+    assert_eq!(out("import \"regex\" as re; println(re.test(\"[\\\\t-~]\", \"5\"));"), "true\n");
+    let fa = "import \"regex\" as re; let a = re.find_all(\"[\\\\.-9]\", \"./5a\");
+              println(len(a)); println(a[0][\"text\"]); println(a[1][\"text\"]); println(a[2][\"text\"]);";
+    assert_eq!(out(fa), "3\n.\n/\n5\n");
+}
+
+#[test]
+fn regex_long_match_is_bounded_not_crashed() {
+    // A single greedy match longer than the recursion limit must raise a
+    // *catchable* ValueError — never crash the host (a SIGABRT would abort this
+    // whole test binary). Runs in a cargo-test worker thread (smaller stack), so
+    // this also guards the depth limit against the tightest real stack.
+    let big = "import \"regex\" as re; import \"string\" as s;
+               let a = s.repeat(\"a\", 30000);
+               try { re.test(\"a*\", a); println(\"ok\"); } catch (e) { println(e.kind); }";
+    assert_eq!(out(big), "ValueError\n");
+    // Deeply-nested groups are bounded at parse time (same crash class), catchable.
+    let nested = "import \"regex\" as re; import \"string\" as s;
+                  let p = s.repeat(\"(\", 3000) + \"a\" + s.repeat(\")\", 3000);
+                  try { re.test(p, \"a\"); println(\"ok\"); } catch (e) { println(e.kind); }";
+    assert_eq!(out(nested), "ValueError\n");
+}
+
+#[test]
+fn regex_bounds_pathological_backtracking() {
+    // Catastrophic backtracking must hit the step budget and raise an error
+    // rather than hang the interpreter.
+    let src = "import \"regex\" as re;
+               try { re.test(\"(a+)+$\", \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa!\"); println(\"finished\"); }
+               catch (e) { println(e.kind); }";
+    assert_eq!(out(src), "ValueError\n");
+}
+
+#[test]
+fn regex_invalid_pattern_throws() {
+    assert_eq!(
+        out("import \"regex\" as re; try { re.test(\"(unclosed\", \"x\"); } catch (e) { println(e.kind); }"),
+        "ValueError\n"
+    );
+    assert_eq!(
+        out("import \"regex\" as re; try { re.test(\"[a-\", \"x\"); } catch (e) { println(e.kind); }"),
+        "ValueError\n"
+    );
+}
+
+#[test]
+fn datetime_module() {
+    assert_eq!(out("import \"datetime\" as dt; println(dt.is_leap_year(2024));"), "true\n");
+    assert_eq!(out("import \"datetime\" as dt; println(dt.is_leap_year(1900));"), "false\n");
+    assert_eq!(out("import \"datetime\" as dt; println(dt.is_leap_year(2000));"), "true\n");
+    assert_eq!(out("import \"datetime\" as dt; println(dt.days_in_month(2024, 2));"), "29\n");
+    assert_eq!(out("import \"datetime\" as dt; println(dt.days_in_month(2023, 2));"), "28\n");
+    assert_eq!(out("import \"datetime\" as dt; println(dt.days_in_month(2024, 4));"), "30\n");
+    // Epoch 0 is 1970-01-01T00:00:00Z, a Thursday (weekday 4, Sunday = 0).
+    let comp = "import \"datetime\" as dt; let c = dt.from_epoch(0);
+                println(c[\"year\"]); println(c[\"month\"]); println(c[\"day\"]);
+                println(c[\"hour\"]); println(c[\"weekday\"]); println(c[\"yearday\"]);";
+    assert_eq!(out(comp), "1970\n1\n1\n0\n4\n1\n");
+    // Round-trips against known timestamps.
+    assert_eq!(out("import \"datetime\" as dt; println(dt.to_epoch(1970, 1, 1, 0, 0, 0));"), "0\n");
+    assert_eq!(out("import \"datetime\" as dt; println(dt.to_epoch(2000, 1, 1, 0, 0, 0));"), "946684800\n");
+    assert_eq!(out("import \"datetime\" as dt; println(dt.from_epoch(946684800)[\"weekday\"]);"), "6\n");
+    assert_eq!(out("import \"datetime\" as dt; println(dt.iso(0));"), "1970-01-01T00:00:00Z\n");
+    assert_eq!(out("import \"datetime\" as dt; println(dt.iso(1609459200));"), "2021-01-01T00:00:00Z\n");
+    // Negative epoch (before 1970) is handled by Euclidean division.
+    assert_eq!(out("import \"datetime\" as dt; println(dt.iso(-1));"), "1969-12-31T23:59:59Z\n");
+    assert_eq!(
+        out("import \"datetime\" as dt; println(dt.format(0, \"%Y/%m/%d %H:%M:%S\"));"),
+        "1970/01/01 00:00:00\n"
+    );
+}
+
+#[test]
+fn datetime_from_epoch_is_gc_safe_under_stress() {
+    // Each from_epoch allocates a map + string keys; under stress GC the rooted
+    // map-building discipline must keep the result (and its keys) live.
+    let src = "import \"datetime\" as dt;
+               let last = nil;
+               for let i = 0; i < 50; i = i + 1 { last = dt.from_epoch(i * 86400); }
+               println(last[\"month\"]); println(last[\"day\"]);";
+    assert_eq!(run_with(src, true), "2\n19\n");
+}
+
+#[test]
 fn path_module() {
     // `path` is self-hosted (std/path.lum) and uses POSIX `/` separators.
     assert_eq!(out("import \"path\" as p; println(p.join([\"a\", \"b\", \"c\"]));"), "a/b/c\n");

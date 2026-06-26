@@ -296,6 +296,61 @@ println(h.base64_decode("TWFu"));    // "Man"
 | `now_millis` | `() -> int` | Milliseconds since the Unix epoch. |
 | `sleep` | `(seconds) -> nil` | Block for `seconds` (a float). |
 
+### `datetime` — UTC calendar math
+
+Operates on Unix epoch **seconds** (`int`), in UTC. Correct for any timestamp,
+including negative (pre-1970) ones.
+
+| Function | Signature | Description |
+|---|---|---|
+| `now` | `() -> int` | Current epoch seconds. |
+| `is_leap_year` | `(year) -> bool` | Gregorian leap-year test. |
+| `days_in_month` | `(year, month) -> int` | Days in `month` (1–12). **Throws** `ValueError` on a bad month. |
+| `from_epoch` | `(secs) -> map` | `{year, month, day, hour, minute, second, weekday, yearday}` (weekday 0 = Sunday; yearday 1-based). |
+| `to_epoch` | `(y, mo, d, h, mi, s) -> int` | Epoch seconds for a UTC date-time. |
+| `weekday` | `(secs) -> int` | Day of week, 0 = Sunday. |
+| `iso` | `(secs) -> string` | `"YYYY-MM-DDTHH:MM:SSZ"`. |
+| `format` | `(secs, template) -> string` | strftime subset: `%Y %m %d %H %M %S %j %w %%`. |
+
+```lumen
+import "datetime" as dt;
+println(dt.iso(0));                       // "1970-01-01T00:00:00Z"
+println(dt.from_epoch(946684800)["year"]); // 2000
+println(dt.format(0, "%Y/%m/%d"));        // "1970/01/01"
+```
+
+### `regex` — regular expressions
+
+A small dependency-free engine: literals, `.`, classes `[...]`/`[^...]` with
+ranges and `\d \w \s \D \W \S`, anchors `^ $`, capturing groups `(...)`,
+alternation `|`, and quantifiers `* + ?` / `{n}` `{n,}` `{n,m}` (greedy, or lazy
+with a trailing `?`). Indices are character offsets. Anchors match the start/end
+of the whole string only (no multiline; `$` does not match before a trailing
+newline — like Go's `regexp`); `\d`/`\w` are ASCII. Word boundaries (`\b`) and
+backreferences are not supported. Pathological backtracking **throws**
+`ValueError` rather than hanging or crashing; for the same reason a *single*
+match spanning more than a few thousand characters also throws (matching many
+short spans in a long string is unaffected).
+
+| Function | Signature | Description |
+|---|---|---|
+| `test` | `(pattern, s) -> bool` | Whether `pattern` matches anywhere in `s`. |
+| `find` | `(pattern, s) -> map \| nil` | First match as `{start, end, text}`, or `nil`. |
+| `find_all` | `(pattern, s) -> array` | All non-overlapping matches (each a match map). |
+| `captures` | `(pattern, s) -> array \| nil` | `[whole, group1, …]` for the first match (unmatched groups are `nil`), or `nil`. |
+| `replace` | `(pattern, s, repl) -> string` | Replace all matches; `repl` may use `$0`…`$9` and `$$`. |
+| `split` | `(pattern, s) -> array` | Split `s` on matches of `pattern`. |
+| An invalid pattern | | **Throws** `ValueError`. |
+
+```lumen
+import "regex" as re;
+println(re.test("^\\d{4}-\\d{2}$", "2026-06"));        // true
+println(re.find("\\d+", "abc123")["text"]);            // "123"
+println(re.captures("(\\w+)@(\\w+)", "ada@lumen"));    // ["ada@lumen", "ada", "lumen"]
+println(re.replace("(\\w+)@(\\w+)", "ada@lumen", "$2.$1")); // "lumen.ada"
+println(re.split("\\s+", "a  b   c"));                 // ["a", "b", "c"]
+```
+
 ---
 
 ## `seq` — self-hosted sequence utilities
