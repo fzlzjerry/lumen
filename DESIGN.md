@@ -298,6 +298,38 @@ module rather than erroring, matching Python's pragmatic behavior.
 
 ---
 
+## D26 — Operator overloading via dunder methods
+
+Built-in operators dispatch to specially named instance methods ("dunders") when
+an operand is a class instance, reusing the same re-entrant `call_and_run` + rooted
+bound-method machinery as the existing `str()` hook. When the relevant operand is
+**not** an instance, or the instance's class does not define the dunder, the
+operator keeps its built-in behavior and throws `TypeError` exactly as before — so
+overloading is purely additive. Dispatch is on the **left** operand for the
+arithmetic dunders (no reflected `__radd__` in v1); comparisons are all expressed
+through `__lt__` (see table). The table:
+
+| Operator | Method | Receiver / call |
+|---|---|---|
+| `a + b` | `__add__` | `a.__add__(b)` |
+| `a - b` | `__sub__` | `a.__sub__(b)` |
+| `a * b` | `__mul__` | `a.__mul__(b)` |
+| `a / b` | `__div__` | `a.__div__(b)` |
+| `a % b` | `__mod__` | `a.__mod__(b)` |
+| `a == b` | `__eq__` | `a.__eq__(b)` → truthiness; `!=` negates |
+| `a < b` | `__lt__` | `a.__lt__(b)` |
+| `a > b` | `__lt__` | `b.__lt__(a)` |
+| `a <= b` | `__lt__` | `!(b.__lt__(a))` |
+| `a >= b` | `__lt__` | `!(a.__lt__(b))` |
+| `a[i]` | `__index__` | `a.__index__(i)` |
+| `a[i] = v` | `__set_index__` | `a.__set_index__(i, v)` |
+| `-a` | `__neg__` | `a.__neg__()` |
+
+GC safety: the receiver is rooted by the heap-allocated bound method and the
+arguments by `call_and_run`'s stack pushes, so a collection during the nested call
+cannot free them (DESIGN D18). `__eq__`/`__lt__` results are interpreted by
+truthiness, so a dunder may return any value.
+
 ## D25 — `match` OR-patterns forbid bindings (v1)
 
 A pattern may be a `|`-separated alternation, `1 | 2 | 3 => "small"`, matching if

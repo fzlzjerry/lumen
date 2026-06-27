@@ -815,25 +815,21 @@ impl Vm {
                 match v {
                     Value::Int(n) => self.push(Value::Int(n.wrapping_neg())),
                     Value::Float(f) => self.push(Value::Float(-f)),
-                    _ => return Err(self.throw(error_kind::TYPE, "cannot negate a non-number")),
+                    _ => match self.dispatch_dunder(v, "__neg__", &[]) {
+                        Some(r) => {
+                            let res = r?;
+                            self.push(res);
+                        }
+                        None => return Err(self.throw(error_kind::TYPE, "cannot negate a non-number")),
+                    },
                 }
             }
             OpCode::Not => {
                 let v = self.pop();
                 self.push(Value::Bool(!v.is_truthy()));
             }
-            OpCode::Eq => {
-                let b = self.pop();
-                let a = self.pop();
-                let eq = self.values_equal(a, b);
-                self.push(Value::Bool(eq));
-            }
-            OpCode::Ne => {
-                let b = self.pop();
-                let a = self.pop();
-                let eq = self.values_equal(a, b);
-                self.push(Value::Bool(!eq));
-            }
+            OpCode::Eq => self.op_equal(false)?,
+            OpCode::Ne => self.op_equal(true)?,
             OpCode::Lt | OpCode::Le | OpCode::Gt | OpCode::Ge => self.binary_compare(op)?,
             OpCode::Is => {
                 let class = self.pop();
@@ -1133,36 +1129,72 @@ impl Vm {
 
     // ---- arithmetic & comparison ------------------------------------------
 
+    /// The class of `v` if it is a class instance (for operator-overload dispatch).
+    fn instance_class_of(&self, v: Value) -> Option<GcRef> {
+        match v.as_obj() {
+            Some(r) => match self.heap.get(r) {
+                Obj::Instance(inst) => Some(inst.class),
+                _ => None,
+            },
+            None => None,
+        }
+    }
+
+    /// If `recv` is an instance whose class defines the dunder `method`, invoke
+    /// `recv.method(args)` and return `Some(result)`; otherwise `None` so the
+    /// caller can keep its built-in behavior / `TypeError` (DESIGN D26). The
+    /// receiver is rooted by the heap bound method and the args by `call_and_run`,
+    /// so a GC during the re-entrant call cannot free them (DESIGN D18).
+    fn dispatch_dunder(
+        &mut self,
+        recv: Value,
+        method: &str,
+        args: &[Value],
+    ) -> Option<Result<Value, Value>> {
+        let class = self.instance_class_of(recv)?;
+        let m = self.find_method(class, method)?;
+        let bound = self.heap.alloc(Obj::Bound(BoundMethod { receiver: recv, method: m }));
+        Some(self.call_and_run(Value::Obj(bound), args))
+    }
+
     fn binary_add(&mut self) -> Result<(), Value> {
         let b = self.pop();
         let a = self.pop();
-        let result = match (a, b) {
+        let fast: Option<Value> = match (a, b) {
             (Value::Int(x), Value::Int(y)) => match x.checked_add(y) {
-                Some(r) => Value::Int(r),
+                Some(r) => Some(Value::Int(r)),
                 None => return Err(self.throw(error_kind::VALUE, "integer overflow in addition")),
             },
-            (Value::Float(_), _) | (_, Value::Float(_)) if a.as_f64().is_some() && b.as_f64().is_some() => {
-                Value::Float(a.as_f64().unwrap() + b.as_f64().unwrap())
+            _ if a.as_f64().is_some() && b.as_f64().is_some() => {
+                Some(Value::Float(a.as_f64().unwrap() + b.as_f64().unwrap()))
             }
             (Value::Obj(ra), Value::Obj(rb)) => match (self.heap.get(ra), self.heap.get(rb)) {
                 (Obj::Str(sa), Obj::Str(sb)) => {
                     let mut s = sa.clone();
                     s.push_str(sb);
-                    let r = self.heap.intern(&s);
-                    Value::Obj(r)
+                    Some(Value::Obj(self.heap.intern(&s)))
                 }
                 (Obj::Array(aa), Obj::Array(ab)) => {
                     let mut v = aa.clone();
                     v.extend_from_slice(ab);
-                    let r = self.heap.alloc_array(v);
-                    Value::Obj(r)
+                    Some(Value::Obj(self.heap.alloc_array(v)))
                 }
-                _ => return Err(self.type_error_binary("+", a, b)),
+                _ => None,
             },
-            _ => return Err(self.type_error_binary("+", a, b)),
+            _ => None,
         };
-        self.push(result);
-        Ok(())
+        if let Some(v) = fast {
+            self.push(v);
+            return Ok(());
+        }
+        match self.dispatch_dunder(a, "__add__", &[b]) {
+            Some(r) => {
+                let v = r?;
+                self.push(v);
+                Ok(())
+            }
+            None => Err(self.type_error_binary("+", a, b)),
+        }
     }
 
     fn binary_num(&mut self, op: OpCode) -> Result<(), Value> {
@@ -1171,8 +1203,22 @@ impl Vm {
         let (x, y) = match (a.as_f64(), b.as_f64()) {
             (Some(x), Some(y)) => (x, y),
             _ => {
-                let sym = op_symbol(op);
-                return Err(self.type_error_binary(sym, a, b));
+                // Operator overloading: a.__sub__/__mul__/__div__/__mod__(b).
+                let method = match op {
+                    OpCode::Sub => "__sub__",
+                    OpCode::Mul => "__mul__",
+                    OpCode::Div => "__div__",
+                    OpCode::Rem => "__mod__",
+                    _ => unreachable!("binary_num only handles - * / %"),
+                };
+                return match self.dispatch_dunder(a, method, &[b]) {
+                    Some(r) => {
+                        let v = r?;
+                        self.push(v);
+                        Ok(())
+                    }
+                    None => Err(self.type_error_binary(op_symbol(op), a, b)),
+                };
             }
         };
         let both_int = matches!((a, b), (Value::Int(_), Value::Int(_)));
@@ -1286,9 +1332,37 @@ impl Vm {
         Ok(false)
     }
 
+    /// `==` / `!=`, honoring an `__eq__` dunder on the left operand (DESIGN D26).
+    fn op_equal(&mut self, negate: bool) -> Result<(), Value> {
+        let b = self.pop();
+        let a = self.pop();
+        let eq = match self.dispatch_dunder(a, "__eq__", &[b]) {
+            Some(r) => r?.is_truthy(),
+            None => self.values_equal(a, b),
+        };
+        self.push(Value::Bool(eq ^ negate));
+        Ok(())
+    }
+
     fn binary_compare(&mut self, op: OpCode) -> Result<(), Value> {
         let b = self.pop();
         let a = self.pop();
+        // Operator overloading: all four orderings go through `__lt__` by
+        // swapping operands and/or negating (DESIGN D26).
+        if self.instance_class_of(a).is_some() || self.instance_class_of(b).is_some() {
+            let (recv, arg, negate) = match op {
+                OpCode::Lt => (a, b, false),
+                OpCode::Gt => (b, a, false),
+                OpCode::Le => (b, a, true),
+                OpCode::Ge => (a, b, true),
+                _ => unreachable!("binary_compare only handles < <= > >="),
+            };
+            if let Some(r) = self.dispatch_dunder(recv, "__lt__", &[arg]) {
+                let v = r?;
+                self.push(Value::Bool(v.is_truthy() ^ negate));
+                return Ok(());
+            }
+        }
         let ord = if let (Some(x), Some(y)) = (a.as_f64(), b.as_f64()) {
             x.partial_cmp(&y)
         } else if let (Value::Obj(ra), Value::Obj(rb)) = (a, b) {
@@ -1383,7 +1457,17 @@ impl Vm {
                     Value::Nil
                 }
             }
-            Kind::Bad => return Err(self.throw(error_kind::TYPE, "value is not indexable")),
+            Kind::Bad => {
+                // Operator overloading: obj.__index__(index).
+                return match self.dispatch_dunder(obj, "__index__", &[index]) {
+                    Some(r) => {
+                        let v = r?;
+                        self.push(v);
+                        Ok(())
+                    }
+                    None => Err(self.throw(error_kind::TYPE, "value is not indexable")),
+                };
+            }
         };
         self.push(result);
         Ok(())
@@ -1397,6 +1481,14 @@ impl Vm {
             Value::Obj(r) => r,
             _ => return Err(self.throw(error_kind::TYPE, "cannot index-assign a non-collection")),
         };
+        // Operator overloading: obj.__set_index__(index, value).
+        if self.instance_class_of(obj).is_some() {
+            if let Some(res) = self.dispatch_dunder(obj, "__set_index__", &[index, value]) {
+                res?;
+                self.push(value);
+                return Ok(());
+            }
+        }
         match self.heap.get(r) {
             Obj::Array(a) => {
                 let len = a.len();

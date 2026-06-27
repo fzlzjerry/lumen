@@ -419,6 +419,15 @@ Let `n` denote a number (int or float).
   runtime type error.
 - `a is C`: `true` iff `a` is an instance whose class is `C` or a subclass of it;
   `false` for any non-instance. `C` must be a class, else a runtime type error.
+
+**Operator overloading.** When an operand is a class instance, the arithmetic,
+comparison, indexing, and unary-minus operators dispatch to "dunder" methods on
+its class if present (`__add__`, `__sub__`, `__mul__`, `__div__`, `__mod__`,
+`__eq__`, `__lt__`, `__index__`, `__set_index__`, `__neg__`); the comparisons
+`<`/`>`/`<=`/`>=` are all derived from `__lt__`, and `==`/`!=` from `__eq__`. If
+the method is absent the operator keeps its built-in behavior and throws
+`TypeError` as usual. The full table and dispatch rules are in DESIGN D26 and
+[`API.md`](API.md).
 - `a && b` / `a and b`: evaluate `a`; if falsy, result is `a`; else result is
   `b` (short-circuit, value-preserving like Lua/Python).
 - `a || b` / `a or b`: evaluate `a`; if truthy, result is `a`; else `b`.

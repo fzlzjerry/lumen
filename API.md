@@ -36,7 +36,7 @@ global of the same name).
 | `print` | `print(x...) -> nil` | Write the arguments (space-separated, no newline) to stdout. |
 | `println` | `println(x...) -> nil` | Like `print`, with a trailing newline. |
 | `str` | `str(x) -> string` | Convert any value to its string form (strings inside collections are quoted). |
-| `type` | `type(x) -> string` | The value's type name: `nil`, `bool`, `int`, `float`, `string`, `array`, `map`, `function`, `class`, `instance`, `module`, `error`. |
+| `type` | `type(x) -> string` | The value's type name: `nil`, `bool`, `int`, `float`, `string`, `array`, `map`, `function`, `class`, `module`, `error` — or, for a class **instance**, its class name (e.g. `"Point"`). |
 | `len` | `len(x) -> int` | Length of a string (in characters), array, or map. **Throws** `TypeError` otherwise. |
 | `int` | `int(x) -> int` | Convert: float→truncated toward zero, bool→`0`/`1`, numeric string→int. **Throws** `ValueError` (bad string) or `TypeError` (nil). |
 | `float` | `float(x) -> float` | Convert int/bool/numeric-string to float. **Throws** `ValueError`/`TypeError`. |
@@ -62,6 +62,39 @@ println(range(0, 10, 3));       // [0, 3, 6, 9]
 let m = {x: 1, y: 2};
 del(m, "x");
 println(keys(m));               // ["y"]
+```
+
+### Operator overloading (dunder methods)
+
+A class can customize the built-in operators by defining specially named
+methods. When an operand is an instance whose class defines the relevant method,
+the operator calls it; otherwise the operator keeps its built-in behavior and
+throws `TypeError` as usual (overloading is purely additive). Dispatch is on the
+left operand for the arithmetic hooks; the comparisons are all derived from
+`__lt__`. `__eq__`/`__lt__` results are interpreted by truthiness.
+
+| Operator | Method | Call |
+|---|---|---|
+| `a + b` | `__add__` | `a.__add__(b)` |
+| `a - b` | `__sub__` | `a.__sub__(b)` |
+| `a * b` | `__mul__` | `a.__mul__(b)` |
+| `a / b` | `__div__` | `a.__div__(b)` |
+| `a % b` | `__mod__` | `a.__mod__(b)` |
+| `a == b` / `a != b` | `__eq__` | `a.__eq__(b)` (negated for `!=`) |
+| `a < b` / `a > b` / `a <= b` / `a >= b` | `__lt__` | via `__lt__` with swapped operands / negation |
+| `a[i]` | `__index__` | `a.__index__(i)` |
+| `a[i] = v` | `__set_index__` | `a.__set_index__(i, v)` |
+| `-a` | `__neg__` | `a.__neg__()` |
+
+```lumen
+class Vec2 {
+    init(x, y) { this.x = x; this.y = y; }
+    __add__(o) { return Vec2(this.x + o.x, this.y + o.y); }
+    __index__(i) { if i == 0 { return this.x; } return this.y; }
+    str() { return "(${this.x}, ${this.y})"; }
+}
+println(Vec2(1, 2) + Vec2(3, 4));   // (4, 6)
+println(Vec2(7, 8)[0]);             // 7
 ```
 
 ---

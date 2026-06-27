@@ -95,6 +95,14 @@ fn correctness_under_stress() {
              let t = 0; for let i = 0; i < 20; i = i + 1 { t = t + h([i, 1, 2, 3]); } println(t);",
             "250\n",
         ),
+        // operator overloading: re-entrant dunder calls must keep operands rooted
+        (
+            "class V { init(n) { this.n = n; } __add__(o) { return V(this.n + o.n); } }
+             let acc = V(0);
+             for let i = 0; i < 30; i = i + 1 { acc = acc + V(i); }
+             println(acc.n);",
+            "435\n",
+        ),
         // exceptions unwinding across allocations
         (
             "let caught = 0;

@@ -213,6 +213,39 @@ fn or_patterns() {
 }
 
 #[test]
+fn operator_overloading() {
+    let vec2 = "class V {
+        init(x, y) { this.x = x; this.y = y; }
+        __add__(o) { return V(this.x + o.x, this.y + o.y); }
+        __sub__(o) { return V(this.x - o.x, this.y - o.y); }
+        __mul__(k) { return V(this.x * k, this.y * k); }
+        __neg__() { return V(-this.x, -this.y); }
+        __eq__(o) { return this.x == o.x and this.y == o.y; }
+        __lt__(o) { return this.x * this.x + this.y * this.y < o.x * o.x + o.y * o.y; }
+        __index__(i) { if i == 0 { return this.x; } return this.y; }
+        __set_index__(i, v) { if i == 0 { this.x = v; } else { this.y = v; } }
+        str() { return \"(${this.x},${this.y})\"; }
+    } ";
+    let p = |body: &str| format!("{vec2} {body}");
+    assert_eq!(out(&p("println(V(1, 2) + V(3, 4));")), "(4,6)\n");
+    assert_eq!(out(&p("println(V(3, 4) - V(1, 1));")), "(2,3)\n");
+    assert_eq!(out(&p("println(V(1, 2) * 3);")), "(3,6)\n");
+    assert_eq!(out(&p("println(-V(1, 2));")), "(-1,-2)\n");
+    assert_eq!(out(&p("println(V(1, 2) == V(1, 2));")), "true\n");
+    assert_eq!(out(&p("println(V(1, 2) == V(9, 9));")), "false\n");
+    assert_eq!(out(&p("println(V(1, 2) != V(9, 9));")), "true\n");
+    assert_eq!(out(&p("println(V(1, 1) < V(3, 3));")), "true\n");
+    assert_eq!(out(&p("println(V(3, 3) < V(1, 1));")), "false\n");
+    assert_eq!(out(&p("println(V(3, 3) > V(1, 1));")), "true\n");
+    assert_eq!(out(&p("println(V(1, 1) <= V(1, 1));")), "true\n");
+    assert_eq!(out(&p("let v = V(7, 8); println(\"${v[0]} ${v[1]}\");")), "7 8\n");
+    assert_eq!(out(&p("let v = V(0, 0); v[0] = 5; v[1] = 6; println(v);")), "(5,6)\n");
+    // Absent dunder keeps the built-in TypeError.
+    let e = run(&p("V(1, 2) / 2;")).unwrap_err();
+    assert!(e.contains("TypeError") || e.contains("'/'"), "got: {e}");
+}
+
+#[test]
 fn higher_order_native_callback() {
     // `sort`/comparators arrive in Phase 7; here verify a closure passed to a
     // user function and invoked works (the call_and_run path is exercised by

@@ -1,0 +1,69 @@
+// Operator overloading: a class can define "dunder" methods that the built-in
+// operators dispatch to when an operand is an instance. When the method is
+// absent the operator keeps its built-in behavior (and TypeErrors as usual).
+//
+// The hooks: __add__ __sub__ __mul__ __div__ __mod__ (arithmetic), __neg__
+// (unary minus), __eq__ (==/!=), __lt__ (drives < > <= >=), and
+// __index__/__set_index__ (v[i] and v[i] = x).
+
+class Vec2 {
+    init(x, y) {
+        this.x = x;
+        this.y = y;
+    }
+    __add__(o) {
+        return Vec2(this.x + o.x, this.y + o.y);
+    }
+    __sub__(o) {
+        return Vec2(this.x - o.x, this.y - o.y);
+    }
+    __mul__(k) {
+        return Vec2(this.x * k, this.y * k);
+    }
+    __neg__() {
+        return Vec2(-this.x, -this.y);
+    }
+    __eq__(o) {
+        return this.x == o.x and this.y == o.y;
+    }
+    // Compare by magnitude squared; __lt__ alone gives <, >, <=, and >=.
+    __lt__(o) {
+        return this.mag2() < o.mag2();
+    }
+    __index__(i) {
+        if i == 0 {
+            return this.x;
+        }
+        return this.y;
+    }
+    __set_index__(i, v) {
+        if i == 0 {
+            this.x = v;
+        } else {
+            this.y = v;
+        }
+    }
+    mag2() {
+        return this.x * this.x + this.y * this.y;
+    }
+    str() {
+        return "(${this.x}, ${this.y})";
+    }
+}
+
+let a = Vec2(1, 2);
+let b = Vec2(3, 4);
+
+println("a + b   = ${a + b}");
+println("b - a   = ${b - a}");
+println("a * 3   = ${a * 3}");
+println("-a      = ${-a}");
+println("a == a  = ${a == Vec2(1, 2)}");
+println("a == b  = ${a == b}");
+println("a < b   = ${a < b}");
+println("b > a   = ${b > a}");
+println("a[0]    = ${a[0]}");
+println("a[1]    = ${a[1]}");
+
+a[0] = 10;
+println("a now   = ${a}");

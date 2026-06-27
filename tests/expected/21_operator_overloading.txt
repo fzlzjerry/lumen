@@ -1,0 +1,11 @@
+a + b   = (4, 6)
+b - a   = (2, 2)
+a * 3   = (3, 6)
+-a      = (-1, -2)
+a == a  = true
+a == b  = false
+a < b   = true
+b > a   = true
+a[0]    = 1
+a[1]    = 2
+a now   = (10, 2)
