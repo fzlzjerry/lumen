@@ -1170,4 +1170,4 @@ only genuinely-nested matches pay for the IIFE. The resolver needed no change
 (the two paths differ only in local-vs-upvalue classification, which gates no
 static check on an arm's expression body). Verified with `match` in every nested
 position (call arg, operand, array element, interpolation, comprehension,
-upvalue-capturing) and under stress GC; suite green at **286** test functions.
+upvalue-capturing) and under stress GC; suite green at **285** test functions.
