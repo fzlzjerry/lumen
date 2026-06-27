@@ -95,6 +95,16 @@ fn correctness_under_stress() {
              let t = 0; for let i = 0; i < 20; i = i + 1 { t = t + h([i, 1, 2, 3]); } println(t);",
             "250\n",
         ),
+        // match as a sub-expression compiles to an IIFE (DESIGN D34): its closure
+        // and nested frame must stay rooted through collections
+        (
+            "let t = 0;
+             for let i = 0; i < 40; i = i + 1 {
+                 t = t + match i % 3 { 0 => 10, 1 => 1, _ => match i { x => x } };
+             }
+             println(t);",
+            "413\n",
+        ),
         // generators: a suspended generator's saved context (and the caller's, while
         // it runs) must stay rooted through collections (DESIGN D29)
         (

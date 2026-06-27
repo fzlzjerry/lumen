@@ -298,6 +298,31 @@ module rather than erroring, matching Python's pragmatic behavior.
 
 ---
 
+## D34 — `match` as a sub-expression: in-place when clean, IIFE otherwise
+
+`match` is an expression, but its compiler stores the subject and pattern bindings
+in **local slots** computed from the count of named locals — which equals the real
+stack height only when the operand stack is *clean* (no in-flight temporaries). At
+a statement-value position (`let r = match …`, `return match …`, `match …;`) that
+holds, and the in-place compilation is correct and cheap. As a *nested*
+sub-expression, though — `println(match x { … })`, `a + match …` — operand
+temporaries already sit on the stack, the slot arithmetic is off, and the original
+code miscompiled (it could even read the loop index as a non-int and **panic**).
+
+The fix mirrors comprehensions (D31): when `match` is *not* at a clean
+statement-value position it compiles itself as an immediately-invoked function (its
+own frame ⇒ clean slots), with the subject evaluated in the enclosing scope and
+passed as the sole argument and the body capturing outer variables (and `this`) as
+upvalues. To keep the common case allocation-free, the compiler sets a
+`stmt_value_pos` flag just before compiling each statement's value expression;
+`compile_expr` reads and clears it (so nested sub-expressions see `false`), and only
+`match` consults it. A clean `match` keeps the fast in-place path; everything else
+takes the IIFE. The flag is **conservative** — it is only set for unambiguously
+clean positions, so a `match` the heuristic isn't sure about takes the (correct)
+IIFE path. The resolver needs no change: for valid programs the only difference
+between the two paths is local-vs-upvalue *classification* of outer names, which
+affects no static check on an arm's (expression-only) body.
+
 ## D33 — Non-goals: single-threaded, no networking, no concurrency
 
 Lumen is intentionally scoped to **computation plus local file and process I/O**.

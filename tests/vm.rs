@@ -195,15 +195,9 @@ fn or_patterns() {
                }; }
                for x in [0, 2, 3, 5, 9] { println(size(x)); }";
     assert_eq!(out(src), "zero\nsmall\nsmall\nmedium\nlarge\n");
-    // Mixed literal types in one alternation.
-    assert_eq!(
-        out("let r = match nil { nil | false => \"falsy\", _ => \"other\" }; println(r);"),
-        "falsy\n"
-    );
-    assert_eq!(
-        out("let r = match false { nil | false => \"falsy\", _ => \"other\" }; println(r);"),
-        "falsy\n"
-    );
+    // Mixed literal types in one alternation (match used directly as a call arg).
+    assert_eq!(out("println(match nil { nil | false => \"falsy\", _ => \"other\" });"), "falsy\n");
+    assert_eq!(out("println(match false { nil | false => \"falsy\", _ => \"other\" });"), "falsy\n");
     // A binding inside an alternation is a static (resolver) error.
     let (_p, errs) = lumen::check_source("let r = match 5 { a | 2 => a, _ => 0 };");
     assert!(
@@ -358,6 +352,25 @@ fn operator_overloading() {
     // Absent dunder keeps the built-in TypeError.
     let e = run(&p("V(1, 2) / 2;")).unwrap_err();
     assert!(e.contains("TypeError") || e.contains("'/'"), "got: {e}");
+}
+
+#[test]
+fn match_as_subexpression() {
+    // `match` works as a nested sub-expression, not just at statement value
+    // position — previously these miscompiled / panicked (DESIGN D34).
+    assert_eq!(out("println(match 2 { 1 => \"a\", 2 => \"two\", _ => \"x\" });"), "two\n"); // call arg
+    assert_eq!(out("println(10 + match 3 { 3 => 5, _ => 0 });"), "15\n"); // binary operand
+    assert_eq!(out("println([match 1 { 1 => \"a\", _ => \"b\" }]);"), "[\"a\"]\n"); // array element
+    assert_eq!(out("println(len(match [1,2,3] { [a, ..r] => r, _ => [] }));"), "2\n"); // bindings nested
+    assert_eq!(out("println(\"v=${match 9 { 9 => \"nine\", _ => \"x\" }}\");"), "v=nine\n"); // interpolation
+    // A match capturing an outer variable as a sub-expression (upvalue path).
+    assert_eq!(out("let b = 100; println(b + match 5 { 5 => 5, _ => 0 });"), "105\n");
+    // The clean statement-value positions still produce correct results.
+    assert_eq!(out("let r = match 2 { 1 | 2 => \"lo\", _ => \"hi\" }; println(r);"), "lo\n");
+    assert_eq!(out("fn f(n) { return match n { 0 => \"z\", _ => \"n\" }; } println(f(0));"), "z\n");
+    // No matching arm still throws, even nested.
+    let e = run("println(match 9 { 1 => \"a\" });").unwrap_err();
+    assert!(e.contains("no matching pattern") || e.contains("ValueError"), "got: {e}");
 }
 
 #[test]

@@ -1156,3 +1156,18 @@ style by hand and is gated on `clippy -D warnings` (CI's actual bar) plus
 test functions, none skipped. 27 numbered examples, all fmt-idempotent and
 snapshot-checked (e2e + under minor-stress GC). SPEC/API/TUTORIAL/README synced;
 DESIGN D24–D33 record every design call.
+
+### Follow-up: `match` as a sub-expression
+
+The comprehension work flagged a latent bug that `match` shared: storing the
+subject and bindings in local slots computed from `locals.len()` is only correct
+when the operand stack is clean, so `println(match x { … })` (match as a call
+argument) and `a + match …` miscompiled — one path even read the loop index as a
+non-int and **panicked**. Fixed by the same in-place-when-clean / IIFE-otherwise
+split as comprehensions (D34), but with a `stmt_value_pos` flag so the common
+`let r = match …` / `return match …` keep the allocation-free in-place path and
+only genuinely-nested matches pay for the IIFE. The resolver needed no change
+(the two paths differ only in local-vs-upvalue classification, which gates no
+static check on an arm's expression body). Verified with `match` in every nested
+position (call arg, operand, array element, interpolation, comprehension,
+upvalue-capturing) and under stress GC; suite green at **286** test functions.

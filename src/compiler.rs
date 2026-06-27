@@ -111,11 +111,22 @@ impl FnState {
 struct Compiler {
     funcs: Vec<FnState>,
     errors: Vec<Diagnostic>,
+    /// Set just before compiling a statement's *value* expression (where the
+    /// operand stack is clean). A `match` reads and clears it: at a clean position
+    /// it compiles in place; otherwise it wraps itself in an IIFE so its temp slots
+    /// are correct regardless of the surrounding operand stack (DESIGN D34).
+    stmt_value_pos: bool,
 }
 
 impl Compiler {
     fn new() -> Self {
-        Compiler { funcs: Vec::new(), errors: Vec::new() }
+        Compiler { funcs: Vec::new(), errors: Vec::new(), stmt_value_pos: false }
+    }
+
+    /// Compile an expression in statement-value position (a clean operand stack).
+    fn compile_value_expr(&mut self, e: &Expr) {
+        self.stmt_value_pos = true;
+        self.compile_expr(e);
     }
 
     fn compile_script(
@@ -131,7 +142,7 @@ impl Compiler {
         for (i, item) in program.items.iter().enumerate() {
             if repl && i == last {
                 if let Stmt::Expr { expr, .. } = item {
-                    self.compile_expr(expr); // leave the value on the stack
+                    self.compile_value_expr(expr); // leave the value on the stack
                     let line = expr.span.line;
                     self.emit_op(OpCode::Return, line); // and return it
                     returns_expr = true;
@@ -363,13 +374,13 @@ impl Compiler {
         match stmt {
             Stmt::Let { name, init, span, .. } => {
                 match init {
-                    Some(e) => self.compile_expr(e),
+                    Some(e) => self.compile_value_expr(e),
                     None => self.emit_op(OpCode::Nil, span.line),
                 }
                 self.define_variable(name, *span);
             }
             Stmt::Const { name, init, span, .. } => {
-                self.compile_expr(init);
+                self.compile_value_expr(init);
                 self.define_variable(name, *span);
             }
             Stmt::Destructure { pattern, init, span } => {
@@ -398,7 +409,7 @@ impl Compiler {
                 self.compile_stmt(decl);
             }
             Stmt::Expr { expr, span } => {
-                self.compile_expr(expr);
+                self.compile_value_expr(expr);
                 self.emit_op(OpCode::Pop, span.line);
             }
             Stmt::Block(b) => {
@@ -422,11 +433,11 @@ impl Compiler {
             Stmt::Break { span } => self.compile_break(true, *span),
             Stmt::Continue { span } => self.compile_break(false, *span),
             Stmt::Throw { value, span } => {
-                self.compile_expr(value);
+                self.compile_value_expr(value);
                 self.emit_op(OpCode::Throw, span.line);
             }
             Stmt::Yield { value, span } => {
-                self.compile_expr(value);
+                self.compile_value_expr(value);
                 self.emit_op(OpCode::Yield, span.line);
             }
             Stmt::Try { body, catches, finally, span } => {
@@ -762,7 +773,7 @@ impl Compiler {
             }
         }
         match value {
-            Some(e) => self.compile_expr(e),
+            Some(e) => self.compile_value_expr(e),
             None => {
                 if matches!(self.cur_ref().kind, FnKind::Initializer) {
                     self.emit_op_u8(OpCode::GetLocal, 0, span.line); // return `this`
@@ -1183,6 +1194,9 @@ impl Compiler {
     fn compile_expr(&mut self, expr: &Expr) {
         let span = expr.span;
         let line = span.line;
+        // Whether this is the value of a statement (clean operand stack). Read and
+        // cleared here so nested sub-expressions see `false`; only `match` uses it.
+        let clean = std::mem::take(&mut self.stmt_value_pos);
         match &expr.kind {
             ExprKind::Int(n) => self.emit_load_const(Constant::Int(*n), span),
             ExprKind::Float(f) => self.emit_load_const(Constant::Float(*f), span),
@@ -1275,7 +1289,7 @@ impl Compiler {
                 self.emit_op_u16(OpCode::GetProp, idx, line);
             }
             ExprKind::Lambda(f) => self.compile_function(f, FnKind::Function, line),
-            ExprKind::Match { subject, arms } => self.compile_match(subject, arms, span),
+            ExprKind::Match { subject, arms } => self.compile_match(subject, arms, span, clean),
             ExprKind::ArrayComp { element, var, var_span, iter, cond } => {
                 self.compile_comprehension(Comp::Array(element), var, *var_span, iter, cond.as_deref(), span)
             }
@@ -1506,13 +1520,71 @@ impl Compiler {
 
     // ---- pattern matching --------------------------------------------------
 
-    fn compile_match(&mut self, subject: &Expr, arms: &[MatchArm], span: Span) {
-        let line = span.line;
+    /// Compile a `match` expression. At a statement-value position (a clean
+    /// operand stack) it compiles in place; otherwise it wraps itself in an
+    /// immediately-invoked function so its `@subj` and binding slots are correct
+    /// regardless of any operand temporaries already on the stack (DESIGN D34).
+    fn compile_match(&mut self, subject: &Expr, arms: &[MatchArm], span: Span, clean: bool) {
+        if clean {
+            self.compile_match_inplace(subject, arms, span);
+        } else {
+            self.compile_match_iife(subject, arms, span);
+        }
+    }
+
+    fn compile_match_inplace(&mut self, subject: &Expr, arms: &[MatchArm], span: Span) {
         self.begin_scope();
         self.compile_expr(subject);
         self.add_local("@subj", span);
         let subj_slot = (self.cur_ref().locals.len() - 1) as u8;
+        self.compile_match_dispatch(arms, subj_slot, span);
+        // The match value sits in @subj's slot; detach the temp without emitting
+        // a pop so the value remains as this expression's result.
+        self.cur().locals.pop();
+        self.cur().scope_depth -= 1;
+    }
 
+    /// Compile the match as an IIFE: the subject is evaluated in the enclosing
+    /// scope and passed as the single argument (slot 1), so the dispatch's slots
+    /// are clean; the result is returned (DESIGN D34).
+    fn compile_match_iife(&mut self, subject: &Expr, arms: &[MatchArm], span: Span) {
+        let line = span.line;
+        self.funcs.push(FnState::new(FnKind::Function, None, ""));
+        self.cur().arity = 1;
+        self.begin_scope();
+        self.add_local("@subj", span); // the subject parameter
+        let subj_slot = (self.cur_ref().locals.len() - 1) as u8;
+        self.compile_match_dispatch(arms, subj_slot, span);
+        self.emit_op_u8(OpCode::GetLocal, subj_slot, line); // the result, left in @subj
+        self.emit_op(OpCode::Return, line);
+        let state = self.funcs.pop().unwrap();
+        let upvalues = state.upvalues;
+        let proto = Rc::new(FnProto {
+            name: None,
+            arity: 1,
+            required_arity: 1,
+            has_rest: false,
+            upvalue_count: upvalues.len(),
+            is_generator: false,
+            chunk: state.chunk,
+            kind: FnKind::Function,
+            exports: Vec::new(),
+            local_names: state.local_names,
+        });
+        let idx = self.make_const(Constant::Fn(proto), span);
+        self.emit_op_u16(OpCode::Closure, idx, line);
+        for up in &upvalues {
+            self.emit_byte(u8::from(up.is_local), line);
+            self.emit_byte(up.index, line);
+        }
+        self.compile_expr(subject); // the argument, in the enclosing scope
+        self.emit_op_u8(OpCode::Call, 1, line);
+    }
+
+    /// The arm dispatch shared by both match paths: the subject is in slot
+    /// `subj_slot`, and the matching arm's value is left in that same slot.
+    fn compile_match_dispatch(&mut self, arms: &[MatchArm], subj_slot: u8, span: Span) {
+        let line = span.line;
         let mut end_jumps = Vec::new();
         for arm in arms {
             // Phase 1: a side-effect-free test leaving exactly one bool.
@@ -1559,10 +1631,8 @@ impl Compiler {
         for j in end_jumps {
             self.patch_jump(j, span);
         }
-        // The match value sits in @subj's slot; detach the temp without emitting
-        // a pop so the value remains as this expression's result.
-        self.cur().locals.pop();
-        self.cur().scope_depth -= 1;
+        // The matching arm's value is left in @subj's slot; the caller decides
+        // how to surface it (detach in place, or `RETURN` from the IIFE).
     }
 
     /// Emit cleanup for an arm's binding locals (between `base` and the top),
