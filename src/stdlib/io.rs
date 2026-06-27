@@ -1,8 +1,8 @@
 //! The `io` module: file and stream I/O.
 
-use super::{err, string_of, Vm};
+use super::{array_of, err, string_of, Vm};
 use crate::object::Arity::{self, Exact};
-use crate::object::{FileHandle, Obj};
+use crate::object::{FileHandle, LumMap, Obj};
 use crate::value::{error_kind, Value};
 
 pub fn build(vm: &mut Vm) -> Value {
@@ -22,6 +22,12 @@ pub fn build(vm: &mut Vm) -> Value {
         f(vm, "rmdir", Exact(1), rmdir),
         f(vm, "is_dir", Exact(1), is_dir),
         f(vm, "is_file", Exact(1), is_file),
+        f(vm, "read_bytes", Exact(1), read_bytes),
+        f(vm, "write_bytes", Exact(2), write_bytes),
+        f(vm, "stat", Exact(1), stat),
+        f(vm, "walk", Exact(1), walk),
+        f(vm, "copy", Exact(2), copy),
+        f(vm, "rename", Exact(2), rename),
         f(vm, "eprint", Exact(1), eprint),
         f(vm, "eprintln", Exact(1), eprintln),
     ];
@@ -202,6 +208,167 @@ fn lines(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
             format!("cannot read '{path}': {e}"),
         )),
     }
+}
+
+/// Read a file's raw bytes as an array of ints in `0..=255`.
+fn read_bytes(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    let path = string_of(vm, a[0])?;
+    match std::fs::read(&path) {
+        Ok(bytes) => {
+            let vals: Vec<Value> = bytes.iter().map(|&b| Value::Int(b as i64)).collect();
+            Ok(vm.new_array(vals))
+        }
+        Err(e) => Err(err(
+            vm,
+            error_kind::VALUE,
+            format!("cannot read '{path}': {e}"),
+        )),
+    }
+}
+
+/// Write an array of ints (each in `0..=255`) to a file as raw bytes. Throws
+/// `ValueError` if any element is not an integer in range.
+fn write_bytes(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    let path = string_of(vm, a[0])?;
+    let items = array_of(vm, a[1])?;
+    let mut bytes = Vec::with_capacity(items.len());
+    for it in items {
+        match it {
+            Value::Int(n) if (0..=255).contains(&n) => bytes.push(n as u8),
+            _ => {
+                return Err(err(
+                    vm,
+                    error_kind::VALUE,
+                    "write_bytes: every element must be an integer in 0..=255",
+                ))
+            }
+        }
+    }
+    match std::fs::write(&path, bytes) {
+        Ok(()) => Ok(Value::Nil),
+        Err(e) => Err(err(
+            vm,
+            error_kind::VALUE,
+            format!("cannot write '{path}': {e}"),
+        )),
+    }
+}
+
+/// File metadata: `{size, is_dir, is_file, modified}` where `modified` is Unix
+/// epoch seconds (an int) or `nil` if the platform does not report it.
+fn stat(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    let path = string_of(vm, a[0])?;
+    let meta = match std::fs::metadata(&path) {
+        Ok(m) => m,
+        Err(e) => {
+            return Err(err(
+                vm,
+                error_kind::VALUE,
+                format!("cannot stat '{path}': {e}"),
+            ))
+        }
+    };
+    let modified = match meta
+        .modified()
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+    {
+        Some(d) => Value::Int(d.as_secs() as i64),
+        None => Value::Nil,
+    };
+    let entries = [
+        ("size", Value::Int(meta.len() as i64)),
+        ("is_dir", Value::Bool(meta.is_dir())),
+        ("is_file", Value::Bool(meta.is_file())),
+        ("modified", modified),
+    ];
+    make_map(vm, &entries)
+}
+
+/// Recursively list every path under `dir` (files and subdirectories), depth-first.
+/// Each directory's entries are sorted by name for deterministic output.
+fn walk(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    let path = string_of(vm, a[0])?;
+    let mut out: Vec<String> = Vec::new();
+    if let Err(e) = walk_into(std::path::Path::new(&path), &mut out) {
+        return Err(err(
+            vm,
+            error_kind::VALUE,
+            format!("cannot walk '{path}': {e}"),
+        ));
+    }
+    let vals: Vec<Value> = out.iter().map(|p| vm.new_string(p)).collect();
+    Ok(vm.new_array(vals))
+}
+
+/// Pre-order DFS helper for `walk`: a subdirectory's own path is emitted before
+/// its contents.
+fn walk_into(dir: &std::path::Path, out: &mut Vec<String>) -> std::io::Result<()> {
+    let mut entries: Vec<std::path::PathBuf> = std::fs::read_dir(dir)?
+        .map(|entry| entry.map(|e| e.path()))
+        .collect::<std::io::Result<_>>()?;
+    entries.sort();
+    for entry in entries {
+        out.push(entry.to_string_lossy().into_owned());
+        if entry.is_dir() {
+            walk_into(&entry, out)?;
+        }
+    }
+    Ok(())
+}
+
+/// Copy a file from `src` to `dst` (overwriting `dst`).
+fn copy(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    let src = string_of(vm, a[0])?;
+    let dst = string_of(vm, a[1])?;
+    match std::fs::copy(&src, &dst) {
+        Ok(_) => Ok(Value::Nil),
+        Err(e) => Err(err(
+            vm,
+            error_kind::VALUE,
+            format!("cannot copy '{src}' to '{dst}': {e}"),
+        )),
+    }
+}
+
+/// Rename/move a file or directory from `src` to `dst`.
+fn rename(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    let src = string_of(vm, a[0])?;
+    let dst = string_of(vm, a[1])?;
+    match std::fs::rename(&src, &dst) {
+        Ok(()) => Ok(Value::Nil),
+        Err(e) => Err(err(
+            vm,
+            error_kind::VALUE,
+            format!("cannot rename '{src}' to '{dst}': {e}"),
+        )),
+    }
+}
+
+/// Build a map from `(key, value)` pairs, GC-safely (mirrors `datetime::make_map`):
+/// the result is pinned as a temp root and each freshly-interned key is inserted
+/// immediately, so no allocating call runs between creating a key and storing it.
+fn make_map(vm: &mut Vm, entries: &[(&str, Value)]) -> Result<Value, Value> {
+    let result = Value::Obj(vm.heap.alloc_map(LumMap::new()));
+    vm.push_temp_root(result);
+    let rr = result.as_obj().unwrap();
+    for &(name, val) in entries {
+        let key = vm.new_string(name);
+        let norm = match vm.map_key(key) {
+            Ok(n) => n,
+            Err(e) => {
+                vm.pop_temp_root();
+                return Err(e);
+            }
+        };
+        if let Obj::Map(m) = vm.heap.get_mut(rr) {
+            m.insert(norm, key, val);
+        }
+        vm.write_barrier(rr, key);
+        vm.write_barrier(rr, val);
+    }
+    vm.pop_temp_root();
+    Ok(result)
 }
 
 fn eprint(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {

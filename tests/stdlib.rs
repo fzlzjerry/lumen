@@ -550,6 +550,39 @@ fn io_directory_ops() {
 }
 
 #[test]
+fn io_bytes_stat_walk() {
+    // Byte I/O, stat, recursive walk, copy, and rename against a real temp tree.
+    let dir = std::env::temp_dir().join("lumen_test_io_bytes_stat_walk");
+    let _ = std::fs::remove_dir_all(&dir);
+    let p = dir.to_str().unwrap().replace('\\', "/");
+    let src = format!(
+        "import \"io\" as io;\n\
+         io.mkdir(\"{p}/sub\");\n\
+         io.write_bytes(\"{p}/raw.bin\", [104, 105]);\n\
+         println(io.read_bytes(\"{p}/raw.bin\"));\n\
+         try {{ io.write_bytes(\"{p}/bad.bin\", [256]); }} catch (e) {{ println(e.kind); }}\n\
+         let st = io.stat(\"{p}/raw.bin\");\n\
+         println(st[\"is_file\"]);\n\
+         println(st[\"size\"]);\n\
+         println(st[\"is_dir\"]);\n\
+         io.write_file(\"{p}/sub/c.txt\", \"C\");\n\
+         println(io.walk(\"{p}\"));\n\
+         io.copy(\"{p}/raw.bin\", \"{p}/copy.bin\");\n\
+         println(io.exists(\"{p}/copy.bin\"));\n\
+         io.rename(\"{p}/copy.bin\", \"{p}/moved.bin\");\n\
+         println(io.exists(\"{p}/copy.bin\"));\n\
+         println(io.exists(\"{p}/moved.bin\"));"
+    );
+    let result = out(&src);
+    let _ = std::fs::remove_dir_all(&dir);
+    let expected = format!(
+        "[104, 105]\nValueError\ntrue\n2\nfalse\n\
+         [\"{p}/raw.bin\", \"{p}/sub\", \"{p}/sub/c.txt\"]\ntrue\nfalse\ntrue\n"
+    );
+    assert_eq!(result, expected);
+}
+
+#[test]
 fn string_format() {
     // `{}` consumes the next positional argument; `{N}` is indexed; `{{`/`}}` are
     // literal braces.

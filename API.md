@@ -303,6 +303,12 @@ println(r.shuffle([1, 2, 3, 4, 5]));
 | `remove` | `(path) -> nil` | Delete a file. **Throws** `ValueError` on error (use `rmdir` for directories). |
 | `rmdir` | `(path) -> nil` | Delete an **empty** directory (never recursive). |
 | `is_dir` `is_file` | `(path) -> bool` | Whether `path` is a directory / regular file. |
+| `read_bytes` | `(path) -> array` | The file's raw bytes as an array of ints in `0..=255`. **Throws** `ValueError` on I/O error. |
+| `write_bytes` | `(path, arr) -> nil` | Write `arr` (each element an int in `0..=255`) to `path` as raw bytes. **Throws** `ValueError` on a bad element or I/O error. |
+| `stat` | `(path) -> map` | Metadata `{size: int, is_dir: bool, is_file: bool, modified: int\|nil}` (`modified` is Unix epoch seconds, or `nil`). **Throws** `ValueError` if `path` is missing. |
+| `walk` | `(dir) -> array` | Every path under `dir` (files and subdirectories), recursive depth-first, sorted per directory. **Throws** `ValueError` on I/O error. |
+| `copy` | `(src, dst) -> nil` | Copy a file from `src` to `dst` (overwriting `dst`). **Throws** `ValueError` on error. |
+| `rename` | `(src, dst) -> nil` | Rename/move `src` to `dst`. **Throws** `ValueError` on error. |
 | `eprint` `eprintln` | `(x) -> nil` | Like `print`/`println`, but to stderr. |
 
 A **file handle** (from `io.open`) has these methods, and a read handle is
