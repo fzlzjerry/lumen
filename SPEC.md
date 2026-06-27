@@ -60,10 +60,11 @@ shadowed.
 ### 2.3 Literals
 
 ```
-intLit    = decInt | hexInt | binInt ;
+intLit    = decInt | hexInt | binInt | octInt ;
 decInt    = digit { digit | "_" } ;
 hexInt    = "0x" hexDigit { hexDigit | "_" } ;
 binInt    = "0b" ("0"|"1") { "0" | "1" | "_" } ;
+octInt    = "0o" ("0".."7") { "0".."7" | "_" } ;
 floatLit  = digit { digit | "_" } "." digit { digit | "_" } [ exponent ]
           | digit { digit | "_" } exponent ;
 exponent  = ("e"|"E") [ "+" | "-" ] digit { digit } ;
@@ -71,7 +72,9 @@ digit     = "0".."9" ;
 hexDigit  = digit | "a".."f" | "A".."F" ;
 ```
 
-Underscores are digit-group separators and carry no meaning (`1_000_000`). A
+Integer literals may be written in decimal, hexadecimal (`0xFF`), binary
+(`0b1010`), or octal (`0o17` = 15). Underscores are digit-group separators and
+carry no meaning (`1_000_000`). A
 float requires digits on **both** sides of the `.` (`1.5`, not `1.`); this keeps
 `1.method()` and the array rest token `..` unambiguous. Integer literals are
 64-bit signed; a literal that does not fit is a lexical error. `1e9` is a float.

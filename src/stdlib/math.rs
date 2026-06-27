@@ -1,7 +1,7 @@
 //! The `math` module: numeric constants and functions.
 
-use super::{num, Vm};
-use crate::object::Arity::{self, Exact};
+use super::{int, num, Vm};
+use crate::object::Arity::{self, Exact, Range};
 use crate::value::Value;
 
 pub fn build(vm: &mut Vm) -> Value {
@@ -31,7 +31,7 @@ pub fn build(vm: &mut Vm) -> Value {
         f(vm, "abs", Exact(1), abs),
         f(vm, "floor", Exact(1), floor),
         f(vm, "ceil", Exact(1), ceil),
-        f(vm, "round", Exact(1), round),
+        f(vm, "round", Range(1, 2), round),
         f(vm, "trunc", Exact(1), trunc),
         f(vm, "sign", Exact(1), sign),
         f(vm, "min", Exact(2), min),
@@ -99,7 +99,17 @@ fn to_int(vm: &mut Vm, args: &[Value], op: fn(f64) -> f64) -> Result<Value, Valu
 }
 fn floor(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> { to_int(vm, a, f64::floor) }
 fn ceil(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> { to_int(vm, a, f64::ceil) }
-fn round(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> { to_int(vm, a, f64::round) }
+/// `round(x)` rounds to the nearest integer; `round(x, ndigits)` rounds to
+/// `ndigits` decimal places and returns a float (`round(3.14159, 2) == 3.14`).
+fn round(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    if a.len() == 1 {
+        return to_int(vm, a, f64::round);
+    }
+    let x = num(vm, a[0])?;
+    let ndigits = int(vm, a[1])?;
+    let factor = 10f64.powi(ndigits as i32);
+    Ok(Value::Float((x * factor).round() / factor))
+}
 fn trunc(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> { to_int(vm, a, f64::trunc) }
 
 fn sign(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {

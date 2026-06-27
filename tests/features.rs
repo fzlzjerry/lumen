@@ -325,6 +325,28 @@ fn instance_reflection_and_is_operator() {
 }
 
 #[test]
+fn round_radix_and_octal() {
+    // math.round(x, ndigits) rounds to decimals (float); round(x) -> int.
+    assert_eq!(out("import \"math\" as m; println(m.round(3.14159, 2));"), "3.14\n");
+    assert_eq!(out("import \"math\" as m; println(m.round(123.456, 1));"), "123.5\n");
+    assert_eq!(out("import \"math\" as m; println(m.round(3.7));"), "4\n");
+    // int(s, base) parses in radix 2..=36.
+    assert_eq!(out("println(int(\"FF\", 16));"), "255\n");
+    assert_eq!(out("println(int(\"101\", 2));"), "5\n");
+    assert_eq!(out("println(int(\"zz\", 36));"), "1295\n");
+    assert_eq!(out("println(int(\"-1a\", 16));"), "-26\n");
+    assert_eq!(out("println(int(\"42\"));"), "42\n"); // 1-arg still works
+    let e = run("int(\"xyz\", 16);").unwrap_err();
+    assert!(e.contains("ValueError"), "got: {e}");
+    let e2 = run("int(\"10\", 99);").unwrap_err();
+    assert!(e2.contains("ValueError"), "got: {e2}");
+    // 0o octal literals.
+    assert_eq!(out("println(0o17);"), "15\n");
+    assert_eq!(out("println(0o755);"), "493\n");
+    assert_eq!(out("println(0O10);"), "8\n");
+}
+
+#[test]
 fn string_repeat() {
     assert_eq!(out("println(\"ab\" * 3);"), "ababab\n");
     assert_eq!(out("println(3 * \"ab\");"), "ababab\n"); // commutative

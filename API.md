@@ -38,7 +38,7 @@ global of the same name).
 | `str` | `str(x) -> string` | Convert any value to its string form (strings inside collections are quoted). |
 | `type` | `type(x) -> string` | The value's type name: `nil`, `bool`, `int`, `float`, `string`, `array`, `map`, `function`, `class`, `module`, `error` — or, for a class **instance**, its class name (e.g. `"Point"`). |
 | `len` | `len(x) -> int` | Length of a string (in characters), array, or map. **Throws** `TypeError` otherwise. |
-| `int` | `int(x) -> int` | Convert: float→truncated toward zero, bool→`0`/`1`, numeric string→int. **Throws** `ValueError` (bad string) or `TypeError` (nil). |
+| `int` | `int(x) -> int` / `int(s, base) -> int` | Convert: float→truncated toward zero, bool→`0`/`1`, numeric string→int. With a second argument, parse the string `s` in radix `base` (2..=36), e.g. `int("FF", 16) == 255`. **Throws** `ValueError` (bad string / base) or `TypeError` (nil / non-string with base). |
 | `float` | `float(x) -> float` | Convert int/bool/numeric-string to float. **Throws** `ValueError`/`TypeError`. |
 | `bool` | `bool(x) -> bool` | The truthiness of `x` (only `nil` and `false` are falsy). |
 | `range` | `range(end)` / `range(start, end)` / `range(start, end, step) -> array` | Array of ints from `start` (default 0) up to but excluding `end`, stepping by `step` (default 1; may be negative). **Throws** `TypeError` (non-int args) or `ValueError` (zero step). |
@@ -124,7 +124,8 @@ import "math".{sqrt, pi};  // selected exports directly:     sqrt(2), pi
 | `atan2` | `(y, x) -> float` | Two-argument arctangent. |
 | `hypot` | `(x, y) -> float` | √(x²+y²). |
 | `abs` | `(x) -> int\|float` | Absolute value; **preserves** int/float-ness. |
-| `floor` `ceil` `round` `trunc` | `(x) -> int` | Rounding; **return ints**. |
+| `floor` `ceil` `trunc` | `(x) -> int` | Rounding; **return ints**. |
+| `round` | `(x) -> int` / `(x, ndigits) -> float` | Round to the nearest integer, or — with `ndigits` — to that many decimal places (`round(3.14159, 2) == 3.14`). |
 | `sign` | `(x) -> int` | `-1`, `0`, or `1`. |
 | `min` `max` | `(a, b) -> int\|float` | Smaller/larger argument, unchanged (type preserved). |
 | `gcd` | `(a, b) -> int` | Greatest common divisor (operands must be ints). |

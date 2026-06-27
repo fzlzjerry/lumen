@@ -332,6 +332,12 @@ impl<'src> Lexer<'src> {
             let digits = self.collect_while(|c| c == '0' || c == '1' || c == '_');
             return self.finish_radix(&digits, 2, "binary", start, line, col);
         }
+        if self.peek() == Some('0') && matches!(self.peek2(), Some('o') | Some('O')) {
+            self.advance();
+            self.advance();
+            let digits = self.collect_while(|c| matches!(c, '0'..='7' | '_'));
+            return self.finish_radix(&digits, 8, "octal", start, line, col);
+        }
 
         let mut lexeme = self.collect_while(|c| c.is_ascii_digit() || c == '_');
         let mut is_float = false;
@@ -626,6 +632,7 @@ mod tests {
         assert_eq!(kinds("0 42 1_000_000"), vec![Int(0), Int(42), Int(1_000_000)]);
         assert_eq!(kinds("0xFF 0x10 0xde_ad"), vec![Int(255), Int(16), Int(0xdead)]);
         assert_eq!(kinds("0b1010 0b1111_0000"), vec![Int(10), Int(0xF0)]);
+        assert_eq!(kinds("0o17 0o755 0O10"), vec![Int(15), Int(493), Int(8)]);
     }
 
     #[test]

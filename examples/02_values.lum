@@ -9,6 +9,7 @@ let ratio = 3.0;       // float
 let big = 1_000_000;
 let hex = 0xFF;
 let bin = 0b1010;
+let oct = 0o17;        // octal: 15
 let sci = 1.5e3;
 
 println("PI       = ${PI}        (${type(PI)})");
@@ -16,6 +17,7 @@ println("count    = ${count}     (${type(count)})");
 println("big      = ${big}");
 println("hex 0xFF = ${hex}");
 println("bin 1010 = ${bin}");
+println("oct 0o17 = ${oct}");
 println("sci      = ${sci}");
 
 // Integer division truncates; float division does not.

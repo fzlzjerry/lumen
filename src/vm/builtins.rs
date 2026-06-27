@@ -19,7 +19,7 @@ pub fn register(vm: &mut Vm) {
     vm.define_native("str", Exact(1), str_fn);
     vm.define_native("type", Exact(1), type_fn);
     vm.define_native("len", Exact(1), len);
-    vm.define_native("int", Exact(1), int_fn);
+    vm.define_native("int", Range(1, 2), int_fn);
     vm.define_native("float", Exact(1), float_fn);
     vm.define_native("bool", Exact(1), bool_fn);
     vm.define_native("range", Range(1, 3), range);
@@ -112,6 +112,22 @@ fn len(vm: &mut Vm, args: &[Value]) -> Result<Value, Value> {
 }
 
 fn int_fn(vm: &mut Vm, args: &[Value]) -> Result<Value, Value> {
+    // `int(s, base)` parses a string in the given radix (2..=36).
+    if args.len() == 2 {
+        let base = match args[1] {
+            Value::Int(n) if (2..=36).contains(&n) => n as u32,
+            Value::Int(_) => return Err(vm.make_error(error_kind::VALUE, "int() base must be in 2..=36")),
+            _ => return Err(vm.make_error(error_kind::TYPE, "int() base must be an integer")),
+        };
+        let s = match args[0].as_obj().map(|r| vm.heap.get(r)) {
+            Some(Obj::Str(s)) => s.trim().to_string(),
+            _ => return Err(vm.make_error(error_kind::TYPE, "int(s, base) expects a string")),
+        };
+        return match i64::from_str_radix(&s, base) {
+            Ok(n) => Ok(Value::Int(n)),
+            Err(_) => Err(vm.make_error(error_kind::VALUE, format!("int() could not parse '{s}' in base {base}"))),
+        };
+    }
     match args[0] {
         Value::Int(n) => Ok(Value::Int(n)),
         Value::Float(f) => Ok(Value::Int(f.trunc() as i64)),
