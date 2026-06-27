@@ -771,7 +771,11 @@ impl Parser {
         let mut args = Vec::new();
         if !self.check(&K::RParen) {
             loop {
-                args.push(self.expression()?);
+                if self.match_kind(&K::DotDot) {
+                    args.push(CallArg::Spread(self.expression()?));
+                } else {
+                    args.push(CallArg::Item(self.expression()?));
+                }
                 if !self.match_kind(&K::Comma) {
                     break;
                 }

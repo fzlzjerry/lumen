@@ -228,6 +228,14 @@ pub enum ArrayElem {
     Spread(Expr),
 }
 
+/// An argument in a call: a plain value or an `..spread` that unpacks an
+/// iterable into the argument list (mirror of [`ArrayElem`]).
+#[derive(Clone, Debug, PartialEq)]
+pub enum CallArg {
+    Item(Expr),
+    Spread(Expr),
+}
+
 /// A key in a map literal.
 #[derive(Clone, Debug, PartialEq)]
 pub enum MapKey {
@@ -323,7 +331,7 @@ pub enum ExprKind {
     },
     Call {
         callee: Box<Expr>,
-        args: Vec<Expr>,
+        args: Vec<CallArg>,
         /// Span of the closing paren, for "wrong number of args" diagnostics.
         paren_span: Span,
     },

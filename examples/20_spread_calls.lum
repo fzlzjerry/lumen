@@ -1,0 +1,54 @@
+// Spread arguments: `..expr` unpacks an iterable into a call's argument list,
+// mirroring the spread that already works in array literals. It composes with
+// fixed, default, and rest parameters, and with method calls.
+
+fn add3(a, b, c) {
+    return a + b + c;
+}
+let nums = [1, 2, 3];
+println("add3(..nums)      = ${add3(..nums)}");
+
+// Mix spread with ordinary positional arguments.
+fn total(..xs) {
+    let t = 0;
+    for x in xs {
+        t = t + x;
+    }
+    return t;
+}
+println("total(1, ..nums)  = ${total(1, ..nums)}");
+println("total(..nums, 10) = ${total(..nums, 10)}");
+
+// Spread fills in defaulted parameters by position.
+fn greet(name, greeting = "Hello", punct = "!") {
+    return "${greeting}, ${name}${punct}";
+}
+println(greet(..["Ada"]));
+println(greet(..["Bo", "Hi", "?"]));
+
+// Forward a function's own arguments to another function.
+fn maximum(..xs) {
+    let m = xs[0];
+    for x in xs {
+        if x > m {
+            m = x;
+        }
+    }
+    return m;
+}
+fn report(..xs) {
+    return "max of ${xs} is ${maximum(..xs)}";
+}
+println(report(3, 9, 2, 7, 5));
+
+// Spread on a method call.
+class Adder {
+    init(base) {
+        this.base = base;
+    }
+    sum(..xs) {
+        return this.base + total(..xs);
+    }
+}
+let a = Adder(100);
+println("Adder(100).sum(..nums) = ${a.sum(..nums)}");

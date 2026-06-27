@@ -252,10 +252,35 @@ fn super_invoke() {
 }
 
 #[test]
+fn spread_call_arguments() {
+    // Spread an array into a fixed-arity function.
+    assert_eq!(out("fn add(a, b, c) { return a + b + c; } println(add(..[1, 2, 3]));"), "6\n");
+    // Spread into a rest parameter, and mix spread with positional args.
+    let rest = "fn total(..ns) { let t = 0; for n in ns { t = t + n; } return t; }";
+    assert_eq!(out(&format!("{rest} println(total(..[1, 2, 3, 4]));")), "10\n");
+    assert_eq!(out(&format!("{rest} println(total(1, ..[2, 3], 4));")), "10\n");
+    // Spread cooperates with default parameters.
+    let greet = "fn greet(name, g = \"Hello\") { return \"${g}, ${name}\"; }";
+    assert_eq!(out(&format!("{greet} println(greet(..[\"Ada\"]));")), "Hello, Ada\n");
+    assert_eq!(out(&format!("{greet} println(greet(..[\"Bob\", \"Hi\"]));")), "Hi, Bob\n");
+    // Spread on a method call.
+    let cls = "class S { init(b) { this.b = b; } of(a, c) { return this.b + a + c; } }";
+    assert_eq!(out(&format!("{cls} let s = S(10); println(s.of(..[2, 3]));")), "15\n");
+    // Empty spread of an empty array calls with no args.
+    assert_eq!(out("fn z() { return 7; } println(z(..[]));"), "7\n");
+    // A wrong runtime arity still throws ArityError.
+    let e = run("fn two(a, b) { return a; } two(..[1, 2, 3]);").unwrap_err();
+    assert!(e.contains("argument") || e.to_lowercase().contains("arity"), "got: {e}");
+}
+
+#[test]
 fn formatter_roundtrips_new_features() {
     // Parse -> print -> parse must be stable for the new syntax.
     let srcs = [
         "fn f(a, b = 10, ..rest) { return a; }",
+        "f(..xs);",
+        "f(1, ..xs, 2);",
+        "obj.m(..args);",
         "let [a, b, ..rest] = xs;",
         "let {x, y} = m;",
         "let g = fn(n = 5) { return n; };",

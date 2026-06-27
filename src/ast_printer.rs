@@ -405,7 +405,13 @@ impl Printer {
                 )
             }
             ExprKind::Call { callee, args, .. } => {
-                let a: Vec<String> = args.iter().map(|x| self.expr(x, 0)).collect();
+                let a: Vec<String> = args
+                    .iter()
+                    .map(|arg| match arg {
+                        CallArg::Item(e) => self.expr(e, 0),
+                        CallArg::Spread(e) => format!("..{}", self.expr(e, 0)),
+                    })
+                    .collect();
                 format!("{}({})", self.expr(callee, 13), a.join(", "))
             }
             ExprKind::Index { object, index } => {

@@ -192,6 +192,13 @@ pub enum OpCode {
     /// was supplied by the caller, jump forward by the offset (skipping the
     /// default-value expression); otherwise fall through to evaluate it.
     DefaultArg,
+
+    /// `CallSpread` — call with a spread argument list. The stack holds
+    /// `[…, callee, argv]` where `argv` is a freshly built array; the array's
+    /// elements become the call arguments (count checked at runtime). Used for
+    /// `f(..xs)` / `obj.m(..xs)`, where the argument count is not known
+    /// statically.
+    CallSpread,
 }
 
 impl OpCode {
@@ -199,7 +206,7 @@ impl OpCode {
     pub fn from_u8(b: u8) -> Option<OpCode> {
         // Safe because the range check guarantees `b` is a valid discriminant of
         // this contiguous `#[repr(u8)]` enum.
-        if b <= OpCode::DefaultArg as u8 {
+        if b <= OpCode::CallSpread as u8 {
             Some(unsafe { std::mem::transmute::<u8, OpCode>(b) })
         } else {
             None
@@ -276,6 +283,7 @@ impl OpCode {
             OpCode::CloseUpvalueSlot => "CLOSE_UPVALUE_SLOT",
             OpCode::Invoke => "INVOKE",
             OpCode::DefaultArg => "DEFAULT_ARG",
+            OpCode::CallSpread => "CALL_SPREAD",
         }
     }
 }
@@ -286,8 +294,8 @@ mod tests {
 
     #[test]
     fn roundtrip_all_opcodes() {
-        // Every discriminant from 0..=IterNext must decode back to itself.
-        for b in 0..=(OpCode::DefaultArg as u8) {
+        // Every discriminant from 0..=CallSpread must decode back to itself.
+        for b in 0..=(OpCode::CallSpread as u8) {
             let op = OpCode::from_u8(b).expect("valid opcode");
             assert_eq!(op as u8, b);
         }
@@ -295,7 +303,7 @@ mod tests {
 
     #[test]
     fn invalid_byte_is_none() {
-        assert!(OpCode::from_u8(OpCode::DefaultArg as u8 + 1).is_none());
+        assert!(OpCode::from_u8(OpCode::CallSpread as u8 + 1).is_none());
         assert!(OpCode::from_u8(255).is_none());
     }
 }

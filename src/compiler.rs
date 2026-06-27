@@ -1025,38 +1025,7 @@ impl Compiler {
                 self.compile_ternary(cond, then_branch, else_branch, span)
             }
             ExprKind::Call { callee, args, paren_span } => {
-                if args.len() > 255 {
-                    self.error(*paren_span, "too many call arguments (max 255)");
-                }
-                // `obj.method(args)` fuses to a single INVOKE and `super.m(args)`
-                // to SUPER_INVOKE — both skip the bound-method allocation of the
-                // generic GET_PROP/GET_SUPER + CALL path.
-                if let ExprKind::Get { object, name, name_span } = &callee.kind {
-                    self.compile_expr(object);
-                    for a in args {
-                        self.compile_expr(a);
-                    }
-                    let idx = self.string_const(name, *name_span);
-                    self.emit_op_u16(OpCode::Invoke, idx, line);
-                    self.emit_byte(args.len() as u8, line);
-                } else if let ExprKind::Super { method, method_span } = &callee.kind {
-                    // Layout: [this, args…, superclass]. SUPER_INVOKE pops the
-                    // superclass and calls with `this` already in the receiver slot.
-                    self.named_variable_get("this", span);
-                    for a in args {
-                        self.compile_expr(a);
-                    }
-                    self.named_variable_get("super", span);
-                    let idx = self.string_const(method, *method_span);
-                    self.emit_op_u16(OpCode::SuperInvoke, idx, line);
-                    self.emit_byte(args.len() as u8, line);
-                } else {
-                    self.compile_expr(callee);
-                    for a in args {
-                        self.compile_expr(a);
-                    }
-                    self.emit_op_u8(OpCode::Call, args.len() as u8, line);
-                }
+                self.compile_call(callee, args, *paren_span, line, span)
             }
             ExprKind::Index { object, index } => {
                 self.compile_expr(object);
@@ -1070,6 +1039,92 @@ impl Compiler {
             }
             ExprKind::Lambda(f) => self.compile_function(f, FnKind::Function, line),
             ExprKind::Match { subject, arms } => self.compile_match(subject, arms, span),
+        }
+    }
+
+    fn compile_call(
+        &mut self,
+        callee: &Expr,
+        args: &[CallArg],
+        paren_span: Span,
+        line: u32,
+        span: Span,
+    ) {
+        let has_spread = args.iter().any(|a| matches!(a, CallArg::Spread(_)));
+        if has_spread {
+            // Build the argument list as an array (reusing the array-literal
+            // spread machinery), then apply it with CALL_SPREAD. This path also
+            // handles method/super calls without the INVOKE fusion: the callee is
+            // first materialized as a (possibly bound) value on the stack.
+            if let ExprKind::Get { object, name, name_span } = &callee.kind {
+                self.compile_expr(object);
+                let idx = self.string_const(name, *name_span);
+                self.emit_op_u16(OpCode::GetProp, idx, line);
+            } else if let ExprKind::Super { method, method_span } = &callee.kind {
+                self.named_variable_get("this", span);
+                self.named_variable_get("super", span);
+                let idx = self.string_const(method, *method_span);
+                self.emit_op_u16(OpCode::GetSuper, idx, line);
+            } else {
+                self.compile_expr(callee);
+            }
+            self.emit_op(OpCode::NewArray, line);
+            for a in args {
+                match a {
+                    CallArg::Item(e) => {
+                        self.compile_expr(e);
+                        self.emit_op(OpCode::ArrayPush, line);
+                    }
+                    CallArg::Spread(e) => {
+                        self.compile_expr(e);
+                        self.emit_op(OpCode::ArrayExtend, line);
+                    }
+                }
+            }
+            self.emit_op(OpCode::CallSpread, line);
+            return;
+        }
+
+        if args.len() > 255 {
+            self.error(paren_span, "too many call arguments (max 255)");
+        }
+        // `obj.method(args)` fuses to a single INVOKE and `super.m(args)`
+        // to SUPER_INVOKE — both skip the bound-method allocation of the
+        // generic GET_PROP/GET_SUPER + CALL path.
+        if let ExprKind::Get { object, name, name_span } = &callee.kind {
+            self.compile_expr(object);
+            for a in args {
+                self.compile_call_arg(a);
+            }
+            let idx = self.string_const(name, *name_span);
+            self.emit_op_u16(OpCode::Invoke, idx, line);
+            self.emit_byte(args.len() as u8, line);
+        } else if let ExprKind::Super { method, method_span } = &callee.kind {
+            // Layout: [this, args…, superclass]. SUPER_INVOKE pops the
+            // superclass and calls with `this` already in the receiver slot.
+            self.named_variable_get("this", span);
+            for a in args {
+                self.compile_call_arg(a);
+            }
+            self.named_variable_get("super", span);
+            let idx = self.string_const(method, *method_span);
+            self.emit_op_u16(OpCode::SuperInvoke, idx, line);
+            self.emit_byte(args.len() as u8, line);
+        } else {
+            self.compile_expr(callee);
+            for a in args {
+                self.compile_call_arg(a);
+            }
+            self.emit_op_u8(OpCode::Call, args.len() as u8, line);
+        }
+    }
+
+    /// Compile a non-spread call argument (the spread path is handled inline in
+    /// `compile_call`).
+    fn compile_call_arg(&mut self, arg: &CallArg) {
+        match arg {
+            CallArg::Item(e) => self.compile_expr(e),
+            CallArg::Spread(_) => unreachable!("spread args use the CALL_SPREAD path"),
         }
     }
 

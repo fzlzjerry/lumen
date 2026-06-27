@@ -215,6 +215,17 @@ for let i = 0; i < 3; i = i + 1 { push(fs, fn() { return i; }); }
 println("${fs[0]()} ${fs[1]()} ${fs[2]()}");   // "0 1 2"
 ```
 
+A function can collect extra arguments with a **rest parameter** (`..name`), and
+a caller can **spread** an iterable into the argument list with `..expr` — the
+mirror of array-literal spread. They compose with each other and with defaults:
+
+```lumen
+fn total(..xs) { let t = 0; for x in xs { t = t + x; } return t; }
+let nums = [1, 2, 3];
+println(total(..nums));        // 6
+println(total(1, ..nums, 4));  // 11  (mix spread with positional args)
+```
+
 ## 6. Collections
 
 **Arrays** are mutable, ordered, and heterogeneous:

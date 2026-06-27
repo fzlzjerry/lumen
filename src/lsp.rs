@@ -483,8 +483,8 @@ fn describe_token(kind: &TokenKind) -> String {
 // ---- declarations: goto-definition, symbols, completion --------------------
 
 use crate::ast::{
-    ArrayElem, Block, ClassDecl, Expr, ExprKind, Function, MapKey, Pattern, PatternKind, Program,
-    Stmt, StrSegment,
+    ArrayElem, Block, CallArg, ClassDecl, Expr, ExprKind, Function, MapKey, Pattern, PatternKind,
+    Program, Stmt, StrSegment,
 };
 use crate::span::Span;
 
@@ -644,7 +644,9 @@ fn lambdas_in_expr(e: &Expr, out: &mut Vec<Def>) {
         ExprKind::Call { callee, args, .. } => {
             lambdas_in_expr(callee, out);
             for a in args {
-                lambdas_in_expr(a, out);
+                match a {
+                    CallArg::Item(x) | CallArg::Spread(x) => lambdas_in_expr(x, out),
+                }
             }
         }
         ExprKind::Index { object, index } => {

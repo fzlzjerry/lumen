@@ -867,6 +867,24 @@ impl Vm {
                 let callee = self.stack[callee_idx];
                 self.call_value(callee, argc, callee_idx)?;
             }
+            OpCode::CallSpread => {
+                // Stack: [..., callee, argv]. `argv` is a freshly built array;
+                // splice its elements in as the arguments, then call. No GC can
+                // run between popping `argv` and `call_value` (single instruction),
+                // and `call_value`'s own collection sees the args rooted on stack.
+                let argv = self.pop();
+                let elems = match argv.as_obj().map(|r| self.heap.get(r)) {
+                    Some(Obj::Array(a)) => a.clone(),
+                    _ => unreachable!("CALL_SPREAD argv is always an array"),
+                };
+                let callee_idx = self.stack.len() - 1;
+                let callee = self.stack[callee_idx];
+                let argc = elems.len();
+                for e in elems {
+                    self.push(e);
+                }
+                self.call_value(callee, argc, callee_idx)?;
+            }
             OpCode::Closure => self.op_closure()?,
             OpCode::Return => {
                 let result = self.pop();

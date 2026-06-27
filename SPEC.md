@@ -245,7 +245,8 @@ factor     = unary { ("*"|"/"|"%") unary } ;
 unary      = ("!"|"not"|"-"|"~") unary | postfix ;
 postfix    = primary { call | index | member } ;
 call       = "(" [ argList ] ")" ;
-argList    = expression { "," expression } [ "," ] ;
+argList    = arg { "," arg } [ "," ] ;
+arg        = [ ".." ] expression ;     (* ".." spreads an iterable into the args *)
 index      = "[" expression "]" ;
 member     = "." identifier ;
 primary    = intLit | floatLit | string | boolLit | nilLit
@@ -407,9 +408,14 @@ Let `n` denote a number (int or float).
 
 ### 6.5 Calls
 
-`f(a, b)` evaluates `f` then the arguments left to right, then invokes. Arity is
-checked: calling with the wrong number of arguments throws `ArityError`. Calling
-a non-callable throws `TypeError`. A class call `C(args)` allocates an instance,
+`f(a, b)` evaluates `f` then the arguments left to right, then invokes. An
+argument prefixed with `..` is a **spread**: its value must be an iterable
+(array, string, map, or `range`), and its elements are unpacked in order into the
+argument list. Spread arguments may be mixed freely with ordinary ones
+(`f(1, ..xs, 2)`) and compose with default and rest parameters; the effective
+argument count is determined at run time. Arity is checked: calling with the
+wrong number of arguments throws `ArityError`. Calling a non-callable throws
+`TypeError`. A class call `C(args)` allocates an instance,
 runs `init` (if any) with the arguments, and yields the instance; if there is no
 `init`, the call takes no arguments. Methods are looked up on the instance's
 class then its superclasses; a bound method captures the receiver.

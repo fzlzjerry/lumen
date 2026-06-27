@@ -679,7 +679,9 @@ impl Resolver {
             ExprKind::Call { callee, args, paren_span } => {
                 self.resolve_expr(callee);
                 for a in args {
-                    self.resolve_expr(a);
+                    match a {
+                        CallArg::Item(e) | CallArg::Spread(e) => self.resolve_expr(e),
+                    }
                 }
                 self.check_call_arity(callee, args, *paren_span);
             }
@@ -712,7 +714,11 @@ impl Resolver {
     /// the wrong number of arguments. Deliberately conservative: it only fires
     /// for a bare `name(...)` callee where `name` is a top-level `fn` **not**
     /// shadowed by any local/upvalue (which could be a value of unknown arity).
-    fn check_call_arity(&mut self, callee: &Expr, args: &[Expr], paren_span: Span) {
+    fn check_call_arity(&mut self, callee: &Expr, args: &[CallArg], paren_span: Span) {
+        // A spread makes the argument count dynamic — no static arity check.
+        if args.iter().any(|a| matches!(a, CallArg::Spread(_))) {
+            return;
+        }
         let ExprKind::Var(name) = &callee.kind else {
             return;
         };

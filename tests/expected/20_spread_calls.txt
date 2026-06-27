@@ -1,0 +1,7 @@
+add3(..nums)      = 6
+total(1, ..nums)  = 7
+total(..nums, 10) = 16
+Hello, Ada!
+Hi, Bo?
+max of [3, 9, 2, 7, 5] is 9
+Adder(100).sum(..nums) = 106
