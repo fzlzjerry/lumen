@@ -1,0 +1,6 @@
+Ada: 0
+Ada: 150
+Bo: 500
+type(b) = Account
+Cy: 1000 @ 2
+Account

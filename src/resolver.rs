@@ -532,13 +532,20 @@ impl Resolver {
                 self.resolve_read(&sc.value, sc.span);
             }
         }
+        // Instance methods other than `init` (the effective `init` below folds in
+        // field initializers — DESIGN D27).
         for m in &c.methods {
-            let kind = if m.name.as_deref() == Some("init") {
-                FuncKind::Initializer
-            } else {
-                FuncKind::Method
-            };
-            self.resolve_function(m, kind, true, has_super);
+            if m.name.as_deref() == Some("init") {
+                continue;
+            }
+            self.resolve_function(m, FuncKind::Method, true, has_super);
+        }
+        if let Some(init) = c.effective_init() {
+            self.resolve_function(&init, FuncKind::Initializer, true, has_super);
+        }
+        // Static methods have no receiver: `this`/`super` inside one are errors.
+        for s in &c.statics {
+            self.resolve_function(s, FuncKind::Function, false, false);
         }
     }
 

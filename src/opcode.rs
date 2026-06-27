@@ -204,6 +204,11 @@ pub enum OpCode {
     /// whose class is that class or a subclass of it (`x is Class`). The right
     /// operand must be a class (else `TypeError`).
     Is,
+
+    /// `StaticMethod u16` — pop a closure and add it as the named **static** method
+    /// to the class now on top (which stays). Like `Method` but for the class's
+    /// separate static table (DESIGN D27).
+    StaticMethod,
 }
 
 impl OpCode {
@@ -211,7 +216,7 @@ impl OpCode {
     pub fn from_u8(b: u8) -> Option<OpCode> {
         // Safe because the range check guarantees `b` is a valid discriminant of
         // this contiguous `#[repr(u8)]` enum.
-        if b <= OpCode::Is as u8 {
+        if b <= OpCode::StaticMethod as u8 {
             Some(unsafe { std::mem::transmute::<u8, OpCode>(b) })
         } else {
             None
@@ -290,6 +295,7 @@ impl OpCode {
             OpCode::DefaultArg => "DEFAULT_ARG",
             OpCode::CallSpread => "CALL_SPREAD",
             OpCode::Is => "IS",
+            OpCode::StaticMethod => "STATIC_METHOD",
         }
     }
 }
@@ -301,7 +307,7 @@ mod tests {
     #[test]
     fn roundtrip_all_opcodes() {
         // Every discriminant from 0..=Is must decode back to itself.
-        for b in 0..=(OpCode::Is as u8) {
+        for b in 0..=(OpCode::StaticMethod as u8) {
             let op = OpCode::from_u8(b).expect("valid opcode");
             assert_eq!(op as u8, b);
         }
@@ -309,7 +315,7 @@ mod tests {
 
     #[test]
     fn invalid_byte_is_none() {
-        assert!(OpCode::from_u8(OpCode::Is as u8 + 1).is_none());
+        assert!(OpCode::from_u8(OpCode::StaticMethod as u8 + 1).is_none());
         assert!(OpCode::from_u8(255).is_none());
     }
 }

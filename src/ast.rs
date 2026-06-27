@@ -42,14 +42,80 @@ pub struct Param {
     pub is_rest: bool,
 }
 
-/// A class declaration with an optional single superclass and its methods.
+/// A field declaration in a class body: `name = init;` (or `name;` → `nil`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Field {
+    pub name: String,
+    pub name_span: Span,
+    pub init: Option<Expr>,
+    pub span: Span,
+}
+
+impl Field {
+    /// The `this.name = init;` statement this field desugars to (run at the top of
+    /// the constructor — DESIGN D27).
+    fn to_assign_stmt(&self) -> Stmt {
+        let this = Expr::new(ExprKind::This, self.name_span);
+        let target = Expr::new(
+            ExprKind::Get {
+                object: Box::new(this),
+                name: self.name.clone(),
+                name_span: self.name_span,
+            },
+            self.span,
+        );
+        let value = self
+            .init
+            .clone()
+            .unwrap_or_else(|| Expr::new(ExprKind::Nil, self.span));
+        let assign = Expr::new(
+            ExprKind::Assign { target: Box::new(target), value: Box::new(value) },
+            self.span,
+        );
+        Stmt::Expr { expr: assign, span: self.span }
+    }
+}
+
+/// A class declaration with an optional single superclass, its instance methods,
+/// static methods, and field declarations.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ClassDecl {
     pub name: String,
     pub name_span: Span,
     pub superclass: Option<Spanned<String>>,
     pub methods: Vec<Function>,
+    pub statics: Vec<Function>,
+    pub fields: Vec<Field>,
     pub span: Span,
+}
+
+impl ClassDecl {
+    /// The constructor to resolve/compile: the user `init` (if any) with the field
+    /// initializers prepended, or a synthesized `init` when the class has fields
+    /// but no `init`, or `None` when there are neither (DESIGN D27). Computed once
+    /// and used by both the resolver and the compiler so they never diverge.
+    pub fn effective_init(&self) -> Option<Function> {
+        let user_init = self.methods.iter().find(|m| m.name.as_deref() == Some("init"));
+        if self.fields.is_empty() {
+            return user_init.cloned();
+        }
+        let mut stmts: Vec<Stmt> = self.fields.iter().map(Field::to_assign_stmt).collect();
+        match user_init {
+            Some(init) => {
+                let mut init = init.clone();
+                stmts.extend(std::mem::take(&mut init.body.stmts));
+                init.body.stmts = stmts;
+                Some(init)
+            }
+            None => Some(Function {
+                name: Some("init".to_string()),
+                name_span: self.name_span,
+                params: Vec::new(),
+                body: Block { stmts, span: self.span },
+                span: self.span,
+            }),
+        }
+    }
 }
 
 /// How an `import` binds names into the current scope.

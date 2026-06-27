@@ -71,6 +71,7 @@ pub fn disassemble_instruction(chunk: &Chunk, offset: usize, out: &mut String) -
         | OpCode::SetProp
         | OpCode::Class
         | OpCode::Method
+        | OpCode::StaticMethod
         | OpCode::GetSuper
         | OpCode::Import
         | OpCode::MatchMapHas => {

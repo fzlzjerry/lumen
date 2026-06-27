@@ -1,0 +1,59 @@
+// Class field declarations and static methods.
+//
+// A field declaration `name = expr;` runs per-instance at the top of the
+// constructor (before the rest of `init`). A `static name(...)` method belongs
+// to the class itself — it has no `this` and is called as `Class.name(...)`.
+
+class Account {
+    // Fields with per-instance initializers.
+    balance = 0;
+    owner = "unknown";
+
+    init(owner) {
+        // Field inits have already run, so `balance` is 0 here.
+        this.owner = owner;
+    }
+
+    deposit(amount) {
+        this.balance = this.balance + amount;
+        return this.balance;
+    }
+
+    // A static factory method.
+    static opening(owner, amount) {
+        let a = Account(owner);
+        a.deposit(amount);
+        return a;
+    }
+
+    str() {
+        return "${this.owner}: ${this.balance}";
+    }
+}
+
+let a = Account("Ada");
+println(a);                 // Ada: 0  (balance defaulted to 0)
+a.deposit(100);
+a.deposit(50);
+println(a);                 // Ada: 150
+
+// Build via the static factory.
+let b = Account.opening("Bo", 500);
+println(b);                 // Bo: 500
+println("type(b) = ${type(b)}");
+
+// Statics are inherited by subclasses.
+class Savings < Account {
+    rate = 0;
+    init(owner, rate) {
+        super.init(owner); // runs Account's field inits (balance = 0) + init
+        this.rate = rate;
+    }
+    str() {
+        return "${this.owner}: ${this.balance} @ ${this.rate}";
+    }
+}
+let s = Savings("Cy", 2);
+s.deposit(1000);
+println(s);                 // Cy: 1000 @ 2
+println(type(Savings.opening("Di", 10)));  // inherited static -> Account

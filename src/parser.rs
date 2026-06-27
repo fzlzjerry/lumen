@@ -265,17 +265,16 @@ impl Parser {
         };
         self.consume(&K::LBrace, "expected '{' to begin the class body")?;
         let mut methods = Vec::new();
+        let mut statics = Vec::new();
+        let mut fields = Vec::new();
         while !self.check(&K::RBrace) && !self.is_at_end() {
             let start = self.pos;
-            match self.method() {
-                Ok(m) => methods.push(m),
+            match self.class_member(&mut methods, &mut statics, &mut fields) {
+                Ok(()) => {}
                 Err(_) => {
-                    // Recover to the next method or the closing brace.
+                    // Recover to the next member or the closing brace.
                     while !self.check(&K::RBrace) && !self.is_at_end() {
-                        // A method starts with an identifier followed by '('.
-                        if matches!(self.peek().kind, K::Ident(_))
-                            && matches!(self.peek2().kind, K::LParen)
-                        {
+                        if matches!(self.peek().kind, K::Ident(_)) {
                             break;
                         }
                         self.advance();
@@ -292,8 +291,42 @@ impl Parser {
             name_span,
             superclass,
             methods,
+            statics,
+            fields,
             span: kw.span.to(close.span),
         }))
+    }
+
+    /// Parse one class-body member: a `static` method, an instance method
+    /// (`name(...) { ... }`), or a field declaration (`name [= expr];`). `static`
+    /// is contextual (only special before a method name).
+    fn class_member(
+        &mut self,
+        methods: &mut Vec<Function>,
+        statics: &mut Vec<Function>,
+        fields: &mut Vec<Field>,
+    ) -> PResult<()> {
+        let is_static = matches!(&self.peek().kind, K::Ident(s) if s == "static")
+            && matches!(self.peek2().kind, K::Ident(_));
+        if is_static {
+            self.advance(); // consume the contextual `static`
+            statics.push(self.method()?);
+            return Ok(());
+        }
+        if matches!(self.peek().kind, K::Ident(_)) && matches!(self.peek2().kind, K::LParen) {
+            methods.push(self.method()?);
+            return Ok(());
+        }
+        // Field declaration: `name [= expr] ;`.
+        let (name, name_span) = self.consume_ident("expected a method or field name")?;
+        let init = if self.match_kind(&K::Eq) {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+        let semi = self.consume(&K::Semicolon, "expected ';' after the field declaration")?;
+        fields.push(Field { name, name_span, init, span: name_span.to(semi.span) });
+        Ok(())
     }
 
     fn method(&mut self) -> PResult<Function> {

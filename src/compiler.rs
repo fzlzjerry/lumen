@@ -952,18 +952,29 @@ impl Compiler {
         if c.superclass.is_some() {
             self.emit_op(OpCode::Inherit, line); // copy-down inheritance
         }
-        // 3. Methods (each a closure that may capture "super").
+        // 3. Instance methods other than `init` (each a closure that may capture
+        //    "super"). `init` is compiled from `effective_init` so field
+        //    initializers run at the top of the constructor (DESIGN D27).
         for m in &c.methods {
-            let kind = if m.name.as_deref() == Some("init") {
-                FnKind::Initializer
-            } else {
-                FnKind::Method
-            };
-            self.compile_function(m, kind, m.span.line);
+            if m.name.as_deref() == Some("init") {
+                continue;
+            }
+            self.compile_function(m, FnKind::Method, m.span.line);
             let m_idx = self.string_const(m.name.as_deref().unwrap_or(""), m.name_span);
             self.emit_op_u16(OpCode::Method, m_idx, m.span.line);
         }
-        // 4. Pop the stack-top class reference; end the scope (closes "super").
+        if let Some(init) = c.effective_init() {
+            self.compile_function(&init, FnKind::Initializer, init.span.line);
+            let m_idx = self.string_const("init", init.name_span);
+            self.emit_op_u16(OpCode::Method, m_idx, init.span.line);
+        }
+        // 4. Static methods: ordinary functions stored in the class's static table.
+        for s in &c.statics {
+            self.compile_function(s, FnKind::Function, s.span.line);
+            let s_idx = self.string_const(s.name.as_deref().unwrap_or(""), s.name_span);
+            self.emit_op_u16(OpCode::StaticMethod, s_idx, s.span.line);
+        }
+        // 5. Pop the stack-top class reference; end the scope (closes "super").
         self.emit_op(OpCode::Pop, line);
         self.end_scope(line);
     }

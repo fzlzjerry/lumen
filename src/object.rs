@@ -63,6 +63,8 @@ pub struct Class {
     pub superclass: Option<GcRef>,
     /// method name -> `Closure` handle.
     pub methods: FxHashMap<String, GcRef>,
+    /// static method name -> `Closure` handle (no receiver; DESIGN D27).
+    pub statics: FxHashMap<String, GcRef>,
 }
 
 /// An instance: a class plus a bag of dynamically-added fields.

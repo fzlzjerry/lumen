@@ -404,6 +404,7 @@ fn outgoing_edges(obj: &Obj, values: &mut Vec<Value>, refs: &mut Vec<GcRef>) {
         Obj::Upvalue(Upvalue::Open(_)) => {}
         Obj::Class(c) => {
             refs.extend(c.methods.values().copied());
+            refs.extend(c.statics.values().copied());
             if let Some(s) = c.superclass {
                 refs.push(s);
             }

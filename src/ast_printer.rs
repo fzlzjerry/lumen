@@ -240,20 +240,46 @@ impl Printer {
             self.out.push_str(&sc.value);
         }
         self.out.push(' ');
-        if c.methods.is_empty() {
+        if c.fields.is_empty() && c.methods.is_empty() && c.statics.is_empty() {
             self.out.push_str("{}");
             return;
         }
         self.out.push_str("{\n");
         self.indent += 1;
-        for (i, m) in c.methods.iter().enumerate() {
-            if i > 0 {
+        let mut first = true;
+        // Fields, then instance methods, then static methods (a canonical order).
+        for fld in &c.fields {
+            let pad = self.pad();
+            self.out.push_str(&pad);
+            self.out.push_str(&fld.name);
+            if let Some(init) = &fld.init {
+                let v = self.expr(init, 0);
+                self.out.push_str(" = ");
+                self.out.push_str(&v);
+            }
+            self.out.push_str(";\n");
+            first = false;
+        }
+        for m in &c.methods {
+            if !first {
                 self.out.push('\n');
             }
             let pad = self.pad();
             self.out.push_str(&pad);
             self.append_function("", m); // methods have no `fn` keyword
             self.out.push('\n');
+            first = false;
+        }
+        for s in &c.statics {
+            if !first {
+                self.out.push('\n');
+            }
+            let pad = self.pad();
+            self.out.push_str(&pad);
+            self.out.push_str("static ");
+            self.append_function("", s);
+            self.out.push('\n');
+            first = false;
         }
         self.indent -= 1;
         let pad = self.pad();

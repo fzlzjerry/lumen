@@ -136,8 +136,11 @@ funDecl     = "fn" identifier "(" [ paramList ] ")" block ;
 paramList   = ( param { "," param } [ "," restParam ] | restParam ) [ "," ] ;
 param       = identifier [ "=" expression ] ;   (* a defaulted param must follow required ones *)
 restParam   = ".." identifier ;                 (* at most one, and last *)
-classDecl   = "class" identifier [ "<" identifier ] "{" { method } "}" ;
+classDecl   = "class" identifier [ "<" identifier ] "{" { classMember } "}" ;
+classMember = method | staticMethod | field ;
 method      = identifier "(" [ paramList ] ")" block ;
+staticMethod = "static" method ;            (* "static" is a contextual keyword *)
+field       = identifier [ "=" expression ] ";" ;
 importDecl  = "import" string [ "as" identifier ] ";"
             | "import" string "." "{" identifier { "," identifier } "}" ";" ;
 exportDecl  = "export" ( letDecl | constDecl | funDecl | classDecl ) ;
@@ -147,6 +150,16 @@ A `let` with no initializer binds `nil`. A `const` must be initialized and may
 not be reassigned (a static error). Functions and classes are values bound to a
 name in the enclosing scope. A class may name at most one superclass after `<`
 (single inheritance). The method named `init` is the constructor.
+
+A class body may also contain **static methods** (`static name(params) { ... }`)
+and **field declarations** (`name = expr;`, or `name;` for a `nil` default).
+A static method belongs to the class itself — it is read as `Class.name` and
+called as `Class.name(args)`, has no `this`/`super` (using either is a static
+error), and is inherited by subclasses. Field initializers run per-instance at
+the **top of the constructor**, in declaration order, before the rest of `init`
+(so they may reference `this` and the constructor's parameters); a class with
+fields but no `init` accepts no constructor arguments. A subclass initializes its
+parent's fields by calling `super.init(...)`. (DESIGN D27.)
 
 A **parameter** may have a default value (`fn f(x = 10)`), used when the caller
 omits that argument; the default expression is evaluated at call time in the

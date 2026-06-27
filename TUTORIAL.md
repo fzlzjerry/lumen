@@ -294,6 +294,22 @@ println(d is Animal);    // true — Dog inherits Animal
 println(d is Cat);       // false
 ```
 
+A class body may also declare **fields** (initialized per-instance at the top of
+the constructor) and **static methods** (called on the class, with no `this`).
+Operators can be **overloaded** with dunder methods (`__add__`, `__eq__`,
+`__index__`, …):
+
+```lumen
+class Counter {
+    count = 0;                                    // field, defaults to 0
+    static start() { return Counter(); }          // static factory
+    bump() { this.count = this.count + 1; }
+}
+let c = Counter.start();
+c.bump();
+println(c.count);        // 1
+```
+
 ## 8. Exceptions
 
 `throw` any value; catch it with `try`/`catch`. `finally` always runs. The

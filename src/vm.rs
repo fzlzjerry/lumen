@@ -955,6 +955,7 @@ impl Vm {
                     name,
                     superclass: None,
                     methods: FxHashMap::default(),
+                    statics: FxHashMap::default(),
                 }));
                 self.push(Value::Obj(r));
             }
@@ -965,6 +966,15 @@ impl Vm {
                 let class = self.peek(0).as_obj().unwrap();
                 if let Obj::Class(c) = self.heap.get_mut(class) {
                     c.methods.insert(name, method);
+                }
+                self.write_barrier(class, Value::Obj(method));
+            }
+            OpCode::StaticMethod => {
+                let name = self.read_string();
+                let method = self.pop().as_obj().unwrap();
+                let class = self.peek(0).as_obj().unwrap();
+                if let Obj::Class(c) = self.heap.get_mut(class) {
+                    c.statics.insert(name, method);
                 }
                 self.write_barrier(class, Value::Obj(method));
             }
@@ -1562,6 +1572,13 @@ impl Vm {
                 }
                 Ok(Value::Nil) // missing field reads as nil
             }
+            Obj::Class(c) => match c.statics.get(name) {
+                Some(m) => Ok(Value::Obj(*m)), // static methods have no receiver
+                None => {
+                    let cn = c.name.clone();
+                    Err(self.throw(error_kind::NAME, format!("class '{cn}' has no static '{name}'")))
+                }
+            },
             Obj::Module(m) => match m.exports.get(name) {
                 Some(v) => Ok(*v),
                 None => {
@@ -1625,18 +1642,19 @@ impl Vm {
             Value::Obj(r) if matches!(self.heap.get(r), Obj::Class(_)) => r,
             _ => return Err(self.throw(error_kind::TYPE, "a superclass must be a class")),
         };
-        let methods = if let Obj::Class(sc) = self.heap.get(super_ref) {
-            sc.methods.clone()
+        let (methods, statics) = if let Obj::Class(sc) = self.heap.get(super_ref) {
+            (sc.methods.clone(), sc.statics.clone())
         } else {
-            FxHashMap::default()
+            (FxHashMap::default(), FxHashMap::default())
         };
-        let method_refs: Vec<GcRef> = methods.values().copied().collect();
+        let inherited: Vec<GcRef> = methods.values().chain(statics.values()).copied().collect();
         if let Obj::Class(c) = self.heap.get_mut(class) {
-            c.methods = methods; // copy-down; own methods override later
+            c.methods = methods; // copy-down; own methods/statics override later
+            c.statics = statics;
             c.superclass = Some(super_ref);
         }
         self.write_barrier(class, Value::Obj(super_ref));
-        for m in method_refs {
+        for m in inherited {
             self.write_barrier(class, Value::Obj(m));
         }
         Ok(())

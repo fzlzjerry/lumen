@@ -298,6 +298,32 @@ module rather than erroring, matching Python's pragmatic behavior.
 
 ---
 
+## D27 — Static methods and field declarations
+
+A class body may now contain `static name(params) { ... }` static methods and
+`name = expr;` (or `name;`) field declarations alongside instance methods.
+
+**Static methods** live in a second per-class table (`Class::statics`, separate
+from `methods`), are read by `Class.name` / called by `Class.name(args)`, and
+have **no receiver** — they compile as ordinary functions (slot 0 is the closure,
+not `this`), so using `this`/`super` inside one is a static error. Statics are
+copied down to subclasses like methods (a subclass's static of the same name
+overrides). `static` is a **contextual** keyword (only special before a method
+name in a class body), so it remains usable as an ordinary identifier elsewhere.
+
+**Field declarations** are sugar for assignments at the **top of the constructor**.
+Rather than carry a separate runtime "field init" phase, the compiler and resolver
+both build one *effective* `init`: the field initializers (`this.f = expr;` in
+declaration order, `nil` when omitted) are **prepended** to the user `init`'s body
+(a bare `init` is synthesized when the class has fields but no `init`). Computing
+this `effective_init` once (`ClassDecl::effective_init`) and feeding it to *both*
+the resolver and the compiler keeps the two passes in lockstep (D17) with no
+side-table. Consequences: field initializers run per-instance before the rest of
+`init`, may reference `this` and the constructor's parameters, and — in a subclass
+— its own fields are set before its `init` body (and thus before its
+`super.init()` call sets the parent's). A class with fields but no `init` accepts
+no constructor arguments, exactly like a class with no `init` today.
+
 ## D26 — Operator overloading via dunder methods
 
 Built-in operators dispatch to specially named instance methods ("dunders") when

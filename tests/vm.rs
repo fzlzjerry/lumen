@@ -213,6 +213,38 @@ fn or_patterns() {
 }
 
 #[test]
+fn static_methods_and_fields() {
+    // Field initializers run per-instance before init; C() == 0.
+    assert_eq!(out("class C { count = 0; } println(C().count);"), "0\n");
+    // Static method on the class itself.
+    assert_eq!(out("class C { static make() { return C(); } } println(type(C.make()));"), "C\n");
+    assert_eq!(out("class C { static answer() { return 42; } } println(C.answer());"), "42\n");
+    // Multiple fields, and a field default that is a string.
+    assert_eq!(
+        out("class P { x = 1; y = 2; } let p = P(); println(\"${p.x},${p.y}\");"),
+        "1,2\n"
+    );
+    // User init runs after field inits (and can override them).
+    assert_eq!(
+        out("class P { x = 0; init(v) { this.x = v; } } println(P(9).x);"),
+        "9\n"
+    );
+    // A field with no initializer defaults to nil.
+    assert_eq!(out("class C { v; } println(C().v);"), "nil\n");
+    // Static methods are inherited.
+    assert_eq!(
+        out("class A { static who() { return \"a\"; } } class B < A {} println(B.who());"),
+        "a\n"
+    );
+    // `this` in a static method is a resolver error.
+    let (_p, errs) = lumen::check_source("class C { static bad() { return this.x; } }");
+    assert!(errs.iter().any(|d| d.message.contains("this")), "got: {errs:?}");
+    // A missing static is a NameError at runtime.
+    let e = run("class C {} C.nope();").unwrap_err();
+    assert!(e.contains("static") || e.contains("NameError"), "got: {e}");
+}
+
+#[test]
 fn operator_overloading() {
     let vec2 = "class V {
         init(x, y) { this.x = x; this.y = y; }

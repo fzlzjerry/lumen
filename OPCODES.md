@@ -101,6 +101,7 @@ All pop two operands (one for `NEG`/`NOT`) and push one result, per SPEC §6.4.
 | `CLASS` | `u16` name | `… -> …, class` | Push a new empty class. |
 | `INHERIT` | — | `…, super, class -> …, super, class` | Copy `super`'s methods into `class` (copy-down inheritance). |
 | `METHOD` | `u16` name | `…, class, closure -> …, class` | Add a method to the class. |
+| `STATIC_METHOD` | `u16` name | `…, class, closure -> …, class` | Add a static method (no receiver) to the class's static table. |
 | `GET_SUPER` | `u16` name | `…, recv, super -> …, bound` | Resolve `name` in `super` and bind it to `recv`. |
 
 ## Exceptions
