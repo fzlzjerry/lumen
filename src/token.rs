@@ -74,6 +74,7 @@ pub enum TokenKind {
     True,
     Try,
     While,
+    Yield,
 
     // ---- Operators & punctuation ----
     Plus,       // +
@@ -154,6 +155,7 @@ impl TokenKind {
             "true" => TokenKind::True,
             "try" => TokenKind::Try,
             "while" => TokenKind::While,
+            "yield" => TokenKind::Yield,
             _ => return None,
         })
     }
@@ -207,6 +209,7 @@ impl TokenKind {
             TokenKind::True => "true",
             TokenKind::Try => "try",
             TokenKind::While => "while",
+            TokenKind::Yield => "yield",
             TokenKind::Plus => "+",
             TokenKind::Minus => "-",
             TokenKind::Star => "*",

@@ -51,7 +51,7 @@ names:
 ```
 and  break  catch  class  const  continue  else  export  false  finally
 fn   for    if     import in     is        let    match  nil    not
-or   return super  this   throw  true      try    while
+or   return super  this   throw  true      try    while  yield
 ```
 
 `print` is **not** a keyword; it is an ordinary built-in function and may be
@@ -187,7 +187,8 @@ is an array literal and the leading `{` opens a block (DESIGN D24).
 ```
 statement    = exprStmt | destructAssign | block | ifStmt | whileStmt | forStmt
              | returnStmt | breakStmt | continueStmt
-             | tryStmt | throwStmt ;
+             | tryStmt | throwStmt | yieldStmt ;
+yieldStmt    = "yield" expression ";" ;   (* only inside a generator function *)
 
 exprStmt     = expression ";" ;
 destructAssign = pattern "=" expression ";" ;  (* assign to existing variables *)
@@ -348,6 +349,7 @@ Lumen is dynamically typed. Every value has one of these runtime types:
 | `native`  | reference | a built-in function implemented in Rust                 |
 | `module`  | reference | an imported module's exported bindings                  |
 | `error`   | reference | a built-in error object (`.kind`, `.message`)           |
+| `generator`| reference | a parked coroutine produced by calling a `yield`-bearing function |
 
 `type(x)` returns the type name as a string; for a class **instance** it returns
 that instance's **class name** (so `type(Point(1, 2)) == "Point"`), and for every
@@ -494,6 +496,19 @@ Functions are first-class values and may be returned, stored, and passed.
 Closures capture upvalues by reference (§5). Classes support single inheritance;
 a method may call `super.m(...)` to invoke the superclass implementation.
 
+### 6.9 Generators
+
+A function whose body contains `yield` is a **generator function**; `yield` is
+valid only inside such a function (a static error elsewhere). Calling a generator
+function does **not** run its body — it returns a `generator` object. Each call to
+`next(gen)` runs the body until the next `yield expr;`, which produces `expr` as
+the result and suspends with all state (locals, loops, open `try` handlers)
+preserved; the following `next` resumes after the `yield`. When the body returns,
+the generator is exhausted and `next` yields `nil`. `for x in gen` iterates a
+generator lazily, one `yield` per step, ending when it is exhausted — so an
+infinite generator is consumed safely by stopping early (`break`). Generators are
+single-threaded coroutines (DESIGN D29), not OS threads.
+
 ---
 
 ## 7. Error model
@@ -558,6 +573,7 @@ collector. Programs never free memory explicitly.
 Always in scope (shadowable): `print(x...)`, `println(x...)`, `str(x)`,
 `type(x)`, `len(x)`, `int(x)`, `float(x)`, `bool(x)`, `range(...)`, `assert(c,
 msg?)`, `clock()`, `input(prompt?)`, `chr(i)`, `ord(s)`, `push(arr, x)`,
-`pop(arr)`, `keys(map)`, `values(map)`, `has(map, k)`, `del(map_or_arr, k)`. The
+`pop(arr)`, `keys(map)`, `values(map)`, `has(map, k)`, `del(map_or_arr, k)`,
+`next(gen)` (advance a generator; `nil` when exhausted). The
 native modules (`math`, `string`, `array`, `map`, `io`, `os`, `time`, `json`,
 `random`) are documented in [`API.md`](API.md).

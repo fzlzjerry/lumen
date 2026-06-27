@@ -34,6 +34,17 @@ pub fn register(vm: &mut Vm) {
     vm.define_native("values", Exact(1), values);
     vm.define_native("has", Exact(2), has);
     vm.define_native("del", Exact(2), del);
+    vm.define_native("next", Exact(1), next_fn);
+}
+
+/// `next(gen)` — advance a generator and return its next yielded value, or `nil`
+/// when it is exhausted (DESIGN D29).
+fn next_fn(vm: &mut Vm, args: &[Value]) -> Result<Value, Value> {
+    let r = match args[0].as_obj() {
+        Some(r) if matches!(vm.heap.get(r), Obj::Generator(_)) => r,
+        _ => return Err(vm.make_error(error_kind::TYPE, "next() expects a generator")),
+    };
+    Ok(vm.resume_generator(r)?.unwrap_or(Value::Nil))
 }
 
 fn join_display(vm: &mut Vm, args: &[Value]) -> Result<String, Value> {

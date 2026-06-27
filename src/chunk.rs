@@ -36,6 +36,9 @@ pub struct FnProto {
     /// Whether the last parameter is a rest parameter (`..name`).
     pub has_rest: bool,
     pub upvalue_count: usize,
+    /// Whether this function's body contains `yield` — a generator function whose
+    /// call returns a `Generator` rather than running its body (DESIGN D29).
+    pub is_generator: bool,
     pub chunk: Chunk,
     pub kind: FnKind,
     /// For a module/script prototype: the names declared with `export`, which

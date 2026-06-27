@@ -9,7 +9,7 @@
 pub const GLOBAL_BUILTINS: &[&str] = &[
     "print", "println", "str", "type", "len", "int", "float", "bool", "range",
     "assert", "clock", "input", "chr", "ord", "push", "pop", "keys", "values",
-    "has", "del",
+    "has", "del", "next",
 ];
 
 /// Is `name` a global built-in function?

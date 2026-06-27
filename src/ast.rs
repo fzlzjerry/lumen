@@ -230,6 +230,11 @@ pub enum Stmt {
         value: Expr,
         span: Span,
     },
+    /// `yield expr;` — produce a value from a generator function (DESIGN D29).
+    Yield {
+        value: Expr,
+        span: Span,
+    },
     Try {
         body: Block,
         /// The `catch (...) { ... }` clauses, tried top-to-bottom (DESIGN D28).
@@ -268,6 +273,7 @@ impl Stmt {
             | Stmt::Break { span }
             | Stmt::Continue { span }
             | Stmt::Throw { span, .. }
+            | Stmt::Yield { span, .. }
             | Stmt::Try { span, .. } => *span,
             Stmt::Function(f) => f.span,
             Stmt::Class(c) => c.span,

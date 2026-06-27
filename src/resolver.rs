@@ -507,6 +507,17 @@ impl Resolver {
                 }
             }
             Stmt::Throw { value, .. } => self.resolve_expr(value),
+            Stmt::Yield { value, span } => {
+                // `yield` makes the enclosing plain function a generator; it is not
+                // allowed at the top level or in a method/initializer (DESIGN D29).
+                if !matches!(self.current_ref().kind, FuncKind::Function) {
+                    self.error(
+                        *span,
+                        "'yield' can only be used inside a function (which makes it a generator)",
+                    );
+                }
+                self.resolve_expr(value);
+            }
             Stmt::Try { body, catches, finally, .. } => {
                 self.resolve_block(body);
                 let mut seen_bare = false;

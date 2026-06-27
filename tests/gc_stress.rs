@@ -95,6 +95,15 @@ fn correctness_under_stress() {
              let t = 0; for let i = 0; i < 20; i = i + 1 { t = t + h([i, 1, 2, 3]); } println(t);",
             "250\n",
         ),
+        // generators: a suspended generator's saved context (and the caller's, while
+        // it runs) must stay rooted through collections (DESIGN D29)
+        (
+            "fn pairs(n) { let i = 0; while i < n { yield [i, \"v${i}\"]; i = i + 1; } }
+             let total = 0;
+             for p in pairs(60) { total = total + p[0]; let junk = [p[1], p[1]]; }
+             println(total);",
+            "1770\n",
+        ),
         // operator overloading: re-entrant dunder calls must keep operands rooted
         (
             "class V { init(n) { this.n = n; } __add__(o) { return V(this.n + o.n); } }

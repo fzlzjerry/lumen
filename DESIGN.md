@@ -298,6 +298,42 @@ module rather than erroring, matching Python's pragmatic behavior.
 
 ---
 
+## D29 — Generators: stackful coroutines via a saved VM sub-context
+
+A function whose body contains `yield` is a **generator function**; calling it does
+not run the body but returns a `Generator` object, and `yield expr;` produces
+values lazily, consumed by `next(gen)` or `for x in gen`.
+
+**Why stackful, not a state machine.** The textbook alternative is to CPS- /
+state-machine-transform the generator body so `yield` becomes a `return` out of a
+resumable closure. Doing that correctly for *arbitrary* control flow — loops,
+`try/catch/finally`, nested calls, `break`/`continue` — means re-implementing the
+compiler's control flow as an explicit state graph, which is far more code and far
+more error-prone than the VM already is. Instead we snapshot the VM's *own*
+execution state, which it already knows how to run and the GC already knows how to
+trace. A generator owns its own `stack`, `frames`, `handlers`, and `open_upvalues`
+(an `ExecContext`) stored inside the `Generator` heap object; `next`/`for-in`
+**swaps** that context into the VM, runs until the body hits `Yield` (which records
+the value and unwinds the dispatch loop) or returns (state → `Done`), then swaps it
+back out. Because `yield` may not cross a function boundary (resolver-enforced,
+like `return`), any helper the generator calls has returned by the time it yields,
+so a suspended generator holds a self-consistent context.
+
+**GC.** Two roots matter. (1) A *suspended* generator's `ExecContext` lives in its
+heap object and is traced there. (2) While a generator is *running*, its context is
+in the live VM fields and the **caller's** context has been swapped out — so the VM
+keeps a stack of swapped-out contexts (`saved_contexts`) that the collector roots
+exactly like the live stack. Either way every value stays reachable across a
+collection (D18). When a generator finishes, its open upvalues are closed (its
+stack is discarded).
+
+**Known limitation.** Capture-by-reference (D11) across a suspension is sound as
+long as a closure that captures a generator's local is used *within* that generator;
+yielding/returning such a closure and calling it while the generator is suspended is
+not supported (its upvalue would point into the parked stack). This is an exotic
+pattern; ordinary generators (yielding computed values, loops, `for-in`, `next`,
+take-n) are fully supported and GC-safe.
+
 ## D28 — Typed catch clauses dispatch on `error.kind`
 
 `try` may now carry **multiple** catch clauses, each optionally typed:

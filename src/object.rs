@@ -100,6 +100,70 @@ pub struct LumError {
     pub message: String,
 }
 
+/// One active call. Lives here (rather than in `vm`) so a suspended generator can
+/// store its frames inside a heap object (DESIGN D29).
+pub struct CallFrame {
+    pub closure: GcRef,
+    pub proto: Rc<FnProto>,
+    pub ip: usize,
+    /// Index in the value stack of this frame's slot 0.
+    pub slot_base: usize,
+    /// Which module's globals this frame resolves against.
+    pub module: usize,
+    /// How many fixed parameters the caller actually supplied (for `DefaultArg`).
+    pub provided_argc: usize,
+}
+
+/// A registered `try` handler (no heap references, so the GC ignores it).
+pub struct Handler {
+    pub catch_ip: usize,
+    pub stack_len: usize,
+    pub frame: usize,
+}
+
+/// A swappable VM execution context — everything that is stack-relative. Swapped
+/// in/out to run a generator (DESIGN D29).
+pub struct ExecContext {
+    pub stack: Vec<Value>,
+    pub frames: Vec<CallFrame>,
+    pub handlers: Vec<Handler>,
+    pub open_upvalues: Vec<GcRef>,
+}
+
+impl ExecContext {
+    pub fn new() -> Self {
+        ExecContext { stack: Vec::new(), frames: Vec::new(), handlers: Vec::new(), open_upvalues: Vec::new() }
+    }
+}
+
+impl Default for ExecContext {
+    fn default() -> Self {
+        ExecContext::new()
+    }
+}
+
+/// Lifecycle of a generator.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum GenState {
+    /// Created but not yet started (its context holds `[closure, args…]`).
+    Start,
+    /// Parked at a `yield`, ready to resume.
+    Suspended,
+    /// Currently running (its context is live in the VM; guards re-entrancy).
+    Running,
+    /// Finished (returned or errored).
+    Done,
+}
+
+/// A generator: a parked coroutine that yields values lazily (DESIGN D29).
+pub struct Generator {
+    pub closure: GcRef,
+    pub state: GenState,
+    /// The generator's own execution context (empty while it is running, because
+    /// the context is then live in the VM).
+    pub ctx: ExecContext,
+}
+
 /// One map entry: the original key value (for ordered iteration and `keys()`)
 /// and the value. The normalized hashable key lives in the side `index`.
 struct Entry {
@@ -201,6 +265,7 @@ pub enum Obj {
     Native(Native),
     Module(Module),
     Error(LumError),
+    Generator(Generator),
 }
 
 impl Obj {
@@ -217,6 +282,7 @@ impl Obj {
             Obj::Module(_) => "module",
             Obj::Error(_) => "error",
             Obj::Upvalue(_) => "upvalue",
+            Obj::Generator(_) => "generator",
         }
     }
 }

@@ -410,6 +410,7 @@ impl Parser {
                 Ok(Stmt::Continue { span: kw.span.to(semi.span) })
             }
             K::Throw => self.throw_stmt(),
+            K::Yield => self.yield_stmt(),
             K::Try => self.try_stmt(),
             _ => self.expr_stmt(),
         }
@@ -510,6 +511,13 @@ impl Parser {
         let value = self.expression()?;
         let semi = self.consume(&K::Semicolon, "expected ';' after the thrown value")?;
         Ok(Stmt::Throw { value, span: kw.span.to(semi.span) })
+    }
+
+    fn yield_stmt(&mut self) -> PResult<Stmt> {
+        let kw = self.consume(&K::Yield, "expected 'yield'")?;
+        let value = self.expression()?;
+        let semi = self.consume(&K::Semicolon, "expected ';' after the yielded value")?;
+        Ok(Stmt::Yield { value, span: kw.span.to(semi.span) })
     }
 
     fn try_stmt(&mut self) -> PResult<Stmt> {

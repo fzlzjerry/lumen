@@ -123,6 +123,7 @@ All pop two operands (one for `NEG`/`NOT`) and push one result, per SPEC §6.4.
 | `MATCH_MAP_HAS` | `u16` key | `…, v -> …, b` | Push `true` iff `v` is a map containing `key`. |
 | `MATCH_ERROR` | `u16` kind | `…, v -> …, b` | Push `true` iff `v` is a built-in error whose `.kind` equals the string constant (typed `catch` dispatch). |
 | `ARRAY_REST` | `u8` front, `u8` back | `…, arr -> …, sub` | Push `arr[front .. len-back]` (binds an array pattern's `..rest`). |
+| `YIELD` | — | `…, v -> …` | Suspend the running generator, handing `v` to `next`/`for-in`; resume at the next instruction (DESIGN D29). |
 
 ## Worked example
 

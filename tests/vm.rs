@@ -213,6 +213,30 @@ fn or_patterns() {
 }
 
 #[test]
+fn generators() {
+    // for-in drives a finite generator lazily.
+    let g = "fn up(n) { let i = 0; while i < n { yield i; i = i + 1; } } ";
+    assert_eq!(
+        out(&format!("{g} let s = \"\"; for x in up(4) {{ s = s + \"${{x}}\"; }} println(s);")),
+        "0123\n"
+    );
+    // next() steps manually and returns nil when exhausted.
+    assert_eq!(out(&format!("{g} let it = up(2); println(\"${{next(it)}} ${{next(it)}} ${{next(it)}}\");")), "0 1 nil\n");
+    // type() of a generator.
+    assert_eq!(out(&format!("{g} println(type(up(1)));")), "generator\n");
+    // An infinite generator, consumed with a break — must not loop forever / OOM.
+    let inf = "fn nats() { let i = 0; while true { yield i; i = i + 1; } } ";
+    let take5 = "let c = 0; let acc = 0; for x in nats() { acc = acc + x; c = c + 1; if c == 5 { break; } } println(acc);";
+    assert_eq!(out(&format!("{inf} {take5}")), "10\n"); // 0+1+2+3+4
+    // try/catch and finally survive a yield (handlers travel with the context).
+    let tc = "fn gv() { try { yield 1; throw \"x\"; } catch (e) { yield 2; } } let r = []; for v in gv() { push(r, v); } println(r);";
+    assert_eq!(out(tc), "[1, 2]\n");
+    // yield outside a function is a static error.
+    let (_p, errs) = lumen::check_source("yield 1;");
+    assert!(errs.iter().any(|d| d.message.contains("yield")), "got: {errs:?}");
+}
+
+#[test]
 fn typed_catch() {
     // A typed clause matches by e.kind; a later bare clause catches the rest.
     let prog = |body: &str| {

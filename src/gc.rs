@@ -418,6 +418,13 @@ fn outgoing_edges(obj: &Obj, values: &mut Vec<Value>, refs: &mut Vec<GcRef>) {
             refs.push(b.method);
         }
         Obj::Module(m) => values.extend(m.exports.values().copied()),
+        Obj::Generator(g) => {
+            // A suspended generator's whole saved context is reachable through it.
+            refs.push(g.closure);
+            values.extend(g.ctx.stack.iter().copied());
+            refs.extend(g.ctx.frames.iter().map(|f| f.closure));
+            refs.extend(g.ctx.open_upvalues.iter().copied());
+        }
         // Strings, natives, and errors hold no heap references.
         Obj::Str(_) | Obj::Native(_) | Obj::Error(_) => {}
     }

@@ -1,0 +1,5 @@
+count_up(5): 0 1 2 3 4 
+next: 0, 1, then nil
+squares(6): 0 1 4 9 16 25 
+first 10 Fibonacci: 0 1 1 2 3 5 8 13 21 34 
+take(fibonacci(), 7) = [0, 1, 1, 2, 3, 5, 8]

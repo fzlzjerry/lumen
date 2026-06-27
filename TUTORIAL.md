@@ -226,6 +226,21 @@ println(total(..nums));        // 6
 println(total(1, ..nums, 4));  // 11  (mix spread with positional args)
 ```
 
+A function that contains `yield` is a **generator**: calling it returns a lazy
+sequence that produces one value per `yield`, driven by `for x in gen` or
+`next(gen)`. State is preserved between yields, so even an infinite generator is
+fine as long as you stop early:
+
+```lumen
+fn naturals() { let i = 0; while true { yield i; i = i + 1; } }
+let count = 0;
+for n in naturals() {
+    print("${n} ");
+    count = count + 1;
+    if count == 5 { break; }   // 0 1 2 3 4
+}
+```
+
 ## 6. Collections
 
 **Arrays** are mutable, ordered, and heterogeneous:

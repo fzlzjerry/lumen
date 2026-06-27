@@ -477,6 +477,7 @@ fn describe_token(kind: &TokenKind) -> String {
         This => "`this` — the method receiver".to_string(),
         Super => "`super` — the superclass".to_string(),
         Is => "`is` — instance-of test (`x is Class`)".to_string(),
+        Yield => "`yield` — produce a value from a generator".to_string(),
         other => format!("`{}`", other.lexeme()),
     }
 }

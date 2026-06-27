@@ -15,7 +15,8 @@
 use crate::chunk::{Constant, FnProto};
 use crate::gc::Heap;
 use crate::object::{
-    Arity, BoundMethod, Class, Closure, Instance, LumError, LumMap, Module, Native, Obj, Upvalue,
+    Arity, BoundMethod, CallFrame, Class, Closure, ExecContext, GenState, Generator, Handler,
+    Instance, LumError, LumMap, Module, Native, Obj, Upvalue,
 };
 use crate::opcode::OpCode;
 use crate::util::{escape_string, format_float};
@@ -26,26 +27,6 @@ use std::path::PathBuf;
 use std::rc::Rc;
 
 mod builtins;
-
-/// One active call.
-struct CallFrame {
-    closure: GcRef,
-    proto: Rc<FnProto>,
-    ip: usize,
-    /// Index in the value stack of this frame's slot 0.
-    slot_base: usize,
-    /// Which module's globals this frame resolves against.
-    module: usize,
-    /// How many fixed parameters the caller actually supplied (for `DefaultArg`).
-    provided_argc: usize,
-}
-
-/// A registered `try` handler.
-struct Handler {
-    catch_ip: usize,
-    stack_len: usize,
-    frame: usize,
-}
 
 /// How a module is loaded if it is not a `.lum` file (set by the stdlib, Phase 7).
 pub type NativeModuleLoader = fn(&mut Vm, &str) -> Option<Result<Value, Value>>;
@@ -96,6 +77,12 @@ pub struct Vm {
     /// at zero the VM throws. `u64::MAX` means unlimited (the default). Used by
     /// the VM fuzzer to bound otherwise-unbounded programs.
     budget: u64,
+    /// Set by `Yield` to suspend a running generator and carry the yielded value
+    /// out of the dispatch loop (DESIGN D29).
+    pending_yield: Option<Value>,
+    /// Execution contexts swapped out while a generator runs (the callers'). The
+    /// GC roots these exactly like the live stack so nothing is freed mid-resume.
+    saved_contexts: Vec<ExecContext>,
 }
 
 impl Default for Vm {
@@ -133,6 +120,8 @@ impl Vm {
             script_args: Vec::new(),
             search_paths: Vec::new(),
             budget: u64::MAX,
+            pending_yield: None,
+            saved_contexts: Vec::new(),
         };
         builtins::register(&mut vm);
         vm
@@ -261,6 +250,24 @@ impl Vm {
         for i in 0..self.temp_roots.len() {
             let v = self.temp_roots[i];
             self.heap.mark_value(v, young_only);
+        }
+        if let Some(v) = self.pending_yield {
+            self.heap.mark_value(v, young_only);
+        }
+        // Contexts of callers swapped out while a generator runs (DESIGN D29).
+        for ci in 0..self.saved_contexts.len() {
+            for vi in 0..self.saved_contexts[ci].stack.len() {
+                let v = self.saved_contexts[ci].stack[vi];
+                self.heap.mark_value(v, young_only);
+            }
+            for fi in 0..self.saved_contexts[ci].frames.len() {
+                let c = self.saved_contexts[ci].frames[fi].closure;
+                self.heap.mark_ref(c, young_only);
+            }
+            for ui in 0..self.saved_contexts[ci].open_upvalues.len() {
+                let uv = self.saved_contexts[ci].open_upvalues[ui];
+                self.heap.mark_ref(uv, young_only);
+            }
         }
     }
 
@@ -587,6 +594,7 @@ impl Vm {
                     };
                     format!("<{cname} instance>")
                 }
+                Obj::Generator(_) => "<generator>".to_string(),
             },
         }
     }
@@ -667,6 +675,11 @@ impl Vm {
                         return Err(self.pending_throw.take().unwrap());
                     }
                 }
+            }
+            // A `Yield` suspends the running generator: unwind the dispatch loop
+            // so `resume_generator` can hand the value back (DESIGN D29).
+            if self.pending_yield.is_some() {
+                return Ok(());
             }
         }
     }
@@ -997,6 +1010,13 @@ impl Vm {
             OpCode::Throw => {
                 let v = self.pop();
                 return Err(v);
+            }
+            OpCode::Yield => {
+                // Suspend: record the yielded value; `run_until` returns to
+                // `resume_generator`, and execution resumes at the next
+                // instruction on the next call (DESIGN D29).
+                let v = self.pop();
+                self.pending_yield = Some(v);
             }
             OpCode::Interpolate => {
                 let n = self.read_byte() as usize;
@@ -1815,6 +1835,25 @@ impl Vm {
                 format!("'{name}' expects {expected} argument(s), got {argc}"),
             ));
         }
+        // Calling a generator function does not run it: package the call into a
+        // suspended Generator and yield that as the result (DESIGN D29).
+        if proto.is_generator {
+            return self.make_generator(closure, argc, callee_idx);
+        }
+        self.enter_frame(closure, proto, argc, callee_idx)
+    }
+
+    /// Lay out a closure's parameter slots and push its call frame. Shared by the
+    /// normal call path and a generator's first resume.
+    fn enter_frame(
+        &mut self,
+        closure: GcRef,
+        proto: Rc<FnProto>,
+        argc: usize,
+        callee_idx: usize,
+    ) -> Result<(), Value> {
+        let fixed = proto.arity;
+        let has_rest = proto.has_rest;
         if self.frames.len() >= MAX_FRAMES {
             return Err(self.throw(error_kind::STACK_OVERFLOW, "call stack overflow (recursion too deep)"));
         }
@@ -1852,6 +1891,84 @@ impl Vm {
         });
         self.maybe_collect(); // a call is a GC safe point
         Ok(())
+    }
+
+    /// Build a suspended generator from a generator-function call. Its initial
+    /// context stack is `[closure, args…]`; the parameter layout and first frame
+    /// are deferred to the first resume (DESIGN D29).
+    fn make_generator(&mut self, closure: GcRef, argc: usize, callee_idx: usize) -> Result<(), Value> {
+        let gen_stack: Vec<Value> = self.stack[callee_idx..callee_idx + 1 + argc].to_vec();
+        self.stack.truncate(callee_idx);
+        let mut ctx = ExecContext::new();
+        ctx.stack = gen_stack;
+        let r = self.heap.alloc(Obj::Generator(Generator { closure, state: GenState::Start, ctx }));
+        self.push(Value::Obj(r));
+        Ok(())
+    }
+
+    /// Resume a generator until it `yield`s (returns `Some(value)`) or finishes
+    /// (returns `None`). Swaps the generator's saved execution context into the VM
+    /// for the duration, keeping the caller's context GC-rooted (DESIGN D29).
+    fn resume_generator(&mut self, gen_ref: GcRef) -> Result<Option<Value>, Value> {
+        let (state, closure) = match self.heap.get(gen_ref) {
+            Obj::Generator(g) => (g.state, g.closure),
+            _ => return Err(self.throw(error_kind::TYPE, "next() expects a generator")),
+        };
+        match state {
+            GenState::Done => return Ok(None),
+            GenState::Running => {
+                return Err(self.throw(error_kind::VALUE, "generator is already running"))
+            }
+            GenState::Start | GenState::Suspended => {}
+        }
+        // Take the generator's context and swap it in, saving the caller's.
+        let gen_ctx = match self.heap.get_mut(gen_ref) {
+            Obj::Generator(g) => {
+                g.state = GenState::Running;
+                std::mem::take(&mut g.ctx)
+            }
+            _ => unreachable!(),
+        };
+        let saved = ExecContext {
+            stack: std::mem::replace(&mut self.stack, gen_ctx.stack),
+            frames: std::mem::replace(&mut self.frames, gen_ctx.frames),
+            handlers: std::mem::replace(&mut self.handlers, gen_ctx.handlers),
+            open_upvalues: std::mem::replace(&mut self.open_upvalues, gen_ctx.open_upvalues),
+        };
+        self.saved_contexts.push(saved);
+
+        // On the first resume the frame still has to be established.
+        let run = if state == GenState::Start {
+            let argc = self.stack.len() - 1;
+            let proto = self.closure_proto(closure);
+            match self.enter_frame(closure, proto, argc, 0) {
+                Ok(()) => self.run_until(0),
+                Err(e) => Err(e),
+            }
+        } else {
+            self.run_until(0)
+        };
+
+        // Determine the outcome, then swap the caller's context back in.
+        let yielded = self.pending_yield.take();
+        let outcome = match run {
+            Ok(()) if yielded.is_some() => Ok(Some(yielded.unwrap())),
+            Ok(()) => Ok(None),  // the generator returned
+            Err(e) => Err(e),
+        };
+        let saved = self.saved_contexts.pop().unwrap();
+        let gen_ctx_back = ExecContext {
+            stack: std::mem::replace(&mut self.stack, saved.stack),
+            frames: std::mem::replace(&mut self.frames, saved.frames),
+            handlers: std::mem::replace(&mut self.handlers, saved.handlers),
+            open_upvalues: std::mem::replace(&mut self.open_upvalues, saved.open_upvalues),
+        };
+        let done = !matches!(outcome, Ok(Some(_)));
+        if let Obj::Generator(g) = self.heap.get_mut(gen_ref) {
+            g.ctx = gen_ctx_back;
+            g.state = if done { GenState::Done } else { GenState::Suspended };
+        }
+        outcome
     }
 
     fn instantiate(&mut self, class: GcRef, argc: usize, callee_idx: usize) -> Result<(), Value> {
@@ -1895,13 +2012,21 @@ impl Vm {
         let exit = self.read_u16() as usize;
         let base = self.frames.last().unwrap().slot_base;
         let iter_val = self.stack[base + iter_slot];
-        let idx = match self.stack[base + idx_slot] {
-            Value::Int(n) => n,
-            _ => unreachable!("for-in index is not an int"),
-        };
         let r = match iter_val {
             Value::Obj(r) => r,
             _ => return Err(self.throw(error_kind::TYPE, "value is not iterable")),
+        };
+        // A generator iterates lazily: resume it for the next value (DESIGN D29).
+        if matches!(self.heap.get(r), Obj::Generator(_)) {
+            match self.resume_generator(r)? {
+                Some(v) => self.push(v),
+                None => self.frames.last_mut().unwrap().ip += exit,
+            }
+            return Ok(());
+        }
+        let idx = match self.stack[base + idx_slot] {
+            Value::Int(n) => n,
+            _ => unreachable!("for-in index is not an int"),
         };
         // Determine the next element (or that we are done) with a single
         // immutable borrow, copying out what we need.
@@ -2062,6 +2187,7 @@ impl Vm {
                     }
                     format!("<{cname} instance>")
                 }
+                Obj::Generator(_) => "<generator>".to_string(),
             },
         })
     }

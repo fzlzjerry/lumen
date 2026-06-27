@@ -53,6 +53,7 @@ global of the same name).
 | `values` | `values(map) -> array` | The map's values, in insertion order. |
 | `has` | `has(map, key) -> bool` | Whether the map contains `key`. **Throws** `TypeError` if not a map. |
 | `del` | `del(coll, key) -> nil` | Remove `key` from a map, or the element at index `key` from an array (negative indices allowed). |
+| `next` | `next(gen) -> any` | Advance a generator to its next `yield` and return the value; returns `nil` once the generator is exhausted. **Throws** `TypeError` if not a generator. |
 
 ```lumen
 println(type([1, 2]));          // array

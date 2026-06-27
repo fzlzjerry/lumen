@@ -149,6 +149,7 @@ impl Compiler {
                 required_arity: 0,
                 has_rest: false,
                 upvalue_count: 0,
+                is_generator: false,
                 chunk: state.chunk,
                 kind: FnKind::Script,
                 exports: state.exports,
@@ -416,6 +417,10 @@ impl Compiler {
             Stmt::Throw { value, span } => {
                 self.compile_expr(value);
                 self.emit_op(OpCode::Throw, span.line);
+            }
+            Stmt::Yield { value, span } => {
+                self.compile_expr(value);
+                self.emit_op(OpCode::Yield, span.line);
             }
             Stmt::Try { body, catches, finally, span } => {
                 self.compile_try(body, catches, finally.as_ref(), *span)
@@ -848,6 +853,7 @@ impl Compiler {
             required_arity: required,
             has_rest,
             upvalue_count: upvalues.len(),
+            is_generator: stmts_contain_yield(&f.body.stmts),
             chunk: state.chunk,
             kind: state.kind,
             exports: Vec::new(),
@@ -1590,6 +1596,37 @@ fn clone_access(acc: &Access) -> Access {
         Access::Local(s) => Access::Local(*s),
         Access::Index(b, i) => Access::Index(Box::new(clone_access(b)), *i),
         Access::Key(b, k) => Access::Key(Box::new(clone_access(b)), k.clone()),
+    }
+}
+
+/// Whether a statement list contains a `yield` belonging to *this* function —
+/// i.e. not descending into nested function/lambda bodies (their `yield`s make
+/// them generators). Used to mark a function as a generator (DESIGN D29).
+fn stmts_contain_yield(stmts: &[Stmt]) -> bool {
+    stmts.iter().any(stmt_contains_yield)
+}
+
+fn stmt_contains_yield(s: &Stmt) -> bool {
+    match s {
+        Stmt::Yield { .. } => true,
+        Stmt::Block(b) => stmts_contain_yield(&b.stmts),
+        Stmt::If { then_block, else_branch, .. } => {
+            stmts_contain_yield(&then_block.stmts)
+                || else_branch.as_deref().is_some_and(stmt_contains_yield)
+        }
+        Stmt::While { body, .. } => stmts_contain_yield(&body.stmts),
+        Stmt::ForIn { body, .. } => stmts_contain_yield(&body.stmts),
+        Stmt::ForC { init, body, .. } => {
+            init.as_deref().is_some_and(stmt_contains_yield) || stmts_contain_yield(&body.stmts)
+        }
+        Stmt::Try { body, catches, finally, .. } => {
+            stmts_contain_yield(&body.stmts)
+                || catches.iter().any(|c| stmts_contain_yield(&c.body.stmts))
+                || finally.as_ref().is_some_and(|f| stmts_contain_yield(&f.stmts))
+        }
+        // Functions/classes (and lambdas inside expressions) start a new function
+        // scope, so their `yield`s belong to them, not here.
+        _ => false,
     }
 }
 

@@ -1,0 +1,74 @@
+// Generators: a function that contains `yield` is a generator. Calling it does
+// not run the body — it returns a generator object that produces values lazily,
+// one per `next(gen)` or `for x in gen`. State (locals, loops, even try/catch) is
+// preserved across each `yield`.
+
+// A finite generator.
+fn count_up(n) {
+    let i = 0;
+    while i < n {
+        yield i;
+        i = i + 1;
+    }
+}
+
+print("count_up(5): ");
+for x in count_up(5) {
+    print("${x} ");
+}
+println("");
+
+// Stepping manually with next(); it returns nil once exhausted.
+let g = count_up(2);
+println("next: ${next(g)}, ${next(g)}, then ${next(g)}");
+
+// Generators compose: this one transforms another's output.
+fn squares(n) {
+    for x in count_up(n) {
+        yield x * x;
+    }
+}
+print("squares(6): ");
+for s in squares(6) {
+    print("${s} ");
+}
+println("");
+
+// An INFINITE generator is fine because values are produced on demand. We take
+// just the first few with a `break` — it never runs out of memory.
+fn fibonacci() {
+    let a = 0;
+    let b = 1;
+    while true {
+        yield a;
+        let next_val = a + b;
+        a = b;
+        b = next_val;
+    }
+}
+
+print("first 10 Fibonacci: ");
+let count = 0;
+for f in fibonacci() {
+    print("${f} ");
+    count = count + 1;
+    if count == 10 {
+        break;
+    }
+}
+println("");
+
+// A take(gen, k) helper, written in Lumen, collects the first k values.
+fn take(gen, k) {
+    let out = [];
+    let taken = 0;
+    for v in gen {
+        if taken == k {
+            break;
+        }
+        push(out, v);
+        taken = taken + 1;
+    }
+    return out;
+}
+println("take(fibonacci(), 7) = ${take(fibonacci(), 7)}");

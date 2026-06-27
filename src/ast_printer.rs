@@ -186,6 +186,12 @@ impl Printer {
                 self.out.push_str(&v);
                 self.out.push(';');
             }
+            Stmt::Yield { value, .. } => {
+                let v = self.expr(value, 0);
+                self.out.push_str("yield ");
+                self.out.push_str(&v);
+                self.out.push(';');
+            }
             Stmt::Try { body, catches, finally, .. } => {
                 self.out.push_str("try ");
                 self.append_block(body);
