@@ -1084,3 +1084,75 @@ candidate discrepancies, narrowed to **3 real bugs**, all fixed:
 fns: 2 datetime, 9 regex incl. the regression tests for every fix), nothing
 skipped. Docs (API, README, TUTORIAL) synced. 12 native + 5 self-hosted modules.
 This completes the Tier 0–4 improvement roadmap.
+
+## Ergonomic completeness — 17 features across four phases
+
+Took Lumen from core-complete to ergonomically complete: 17 features, one per
+commit, each ending green with a test, an example, and synced docs. The shape of
+the work was "close the half-built things, then add the missing capabilities,
+then the small wins, then the boundary I/O." Decisions live in DESIGN D24–D33.
+
+**Phase 1 — closing inconsistencies.** Spread already worked in array literals;
+extending it to call arguments meant a `CallArg` mirror of `ArrayElem` and one new
+`CALL_SPREAD` opcode that splices a built argv array (so arity stays dynamic and
+mixes with default/rest params). Destructuring assignment (`[a, b] = [b, a]`)
+reused the `Pattern` grammar but needed a **bounded-lookahead** to tell `{k} = m`
+from a block at statement start (D24). Instance reflection added `is` and made
+`type(inst)` report the class name. `string.format` grew a full
+`[[fill]align][sign][#][0][width][.precision][type]]` mini-language. `match`
+OR-patterns (`1 | 2 | 3 =>`) forbid bindings in v1 (D25) to keep the lowering a
+plain short-circuit of per-alternative tests.
+
+**Phase 2 — the hard part.** Operator overloading (D26) reused the existing
+`str()` hook: a heap-allocated bound method called via `call_and_run`, which roots
+the operands across the re-entrant call. Static methods + field declarations (D27)
+fold field initializers into one `effective_init` computed once and fed to *both*
+resolver and compiler, so the two passes never diverge (D17). Typed catch (D28)
+compiles multiple `catch` clauses into a dispatch chain driven by a new
+`MATCH_ERROR` opcode, reusing the single-handler/finally machinery. **Generators**
+(D29) were the headline: rather than a state-machine transform, a generator owns
+its own `ExecContext` (stack/frames/handlers/upvalues) that `next`/`for-in` swaps
+into the VM — and the GC had to learn two new roots (the suspended generator's
+context, and the *caller's* swapped-out context while one runs), verified under
+stress GC. **TCO** (D30) emits `TAIL_CALL` + `RETURN`: the opcode reuses the frame
+for a closure callee (trailing `RETURN` becomes dead code) and falls back to a
+normal call otherwise — `loop(1000000)` now returns. That last one bit back: two
+old tests asserted that infinite *tail* recursion overflows the stack; it is now
+correctly an infinite *loop*, so they were rewritten to use non-tail recursion.
+
+**Phase 3 — small wins, one sharp edge.** `**` (right-assoc, above unary minus)
+forced a careful renumber of the ast-printer's precedence ranks. String repeat and
+`math.round(x, ndigits)` / `int(s, base)` / `0o` octal were quick. **Comprehensions**
+(D31) looked small but exposed the same latent bug `match` has — constructs that
+use internal local slots misbehave when compiled with operands already on the
+stack (e.g. as a call argument). For `match` that is rare; for comprehensions
+`println([x for x in xs])` is the *common* case and it **panicked**. The fix was to
+compile each comprehension as an immediately-invoked function: its build loop runs
+in its own frame (clean slots in every position), the iterable is evaluated in the
+enclosing scope and passed as the argument, and the body captures outer variables
+(and `this`) as upvalues. The resolver models the comprehension as a matching
+function scope so D17 holds.
+
+**Phase 4 — the boundary.** File handles (D32) needed a stateful native object
+(`Obj::FileHandle`) plus a second bound-callable, `Obj::BoundNative`, so
+`h.read_line()` dispatches to Rust; `for line in h` reuses the `ITER_NEXT`
+special-casing the generators introduced. `os.exec` is a thin `std::process`
+wrapper returning `{status, stdout, stderr}`. And networking/threads/async were
+**documented as explicit non-goals** (D33, README): the VM and GC are
+single-threaded and not thread-safe by design, so the supported surface is
+computation plus local file/process I/O.
+
+**A note on `cargo fmt`.** The repo at HEAD was not `cargo fmt --check`-clean under
+stable rustfmt 1.9.0 (the maintainer hand-writes a compact struct-literal style
+that current rustfmt expands), and CI does not run `cargo fmt`. Rather than bury
+each feature under a repo-wide reformat — which would fight the established style
+and the "match the surrounding code" rule — every change matches the existing
+style by hand and is gated on `clippy -D warnings` (CI's actual bar) plus
+`lumen fmt` round-trips for the new *language* syntax.
+
+**Net.** Seven new opcodes (`CALL_SPREAD`, `IS`, `STATIC_METHOD`, `MATCH_ERROR`,
+`YIELD`, `TAIL_CALL`, `POW`), all in OPCODES.md and the disassembler. `cargo build`
++ `--release` and `clippy` clean (zero warnings); `cargo test` green at **284**
+test functions, none skipped. 27 numbered examples, all fmt-idempotent and
+snapshot-checked (e2e + under minor-stress GC). SPEC/API/TUTORIAL/README synced;
+DESIGN D24–D33 record every design call.
