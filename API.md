@@ -282,6 +282,7 @@ println(r.shuffle([1, 2, 3, 4, 5]));
 
 | Function | Signature | Description |
 |---|---|---|
+| `open` | `(path, mode) -> file` | Open a buffered **file handle**. Modes: `"r"` (read), `"w"` (truncate-write), `"a"` (append). **Throws** `ValueError` on I/O error or a bad mode. |
 | `read_file` | `(path) -> string` | Read a file's contents. **Throws** `ValueError` on I/O error. |
 | `write_file` | `(path, content) -> nil` | Write (truncating) `content` to `path`. |
 | `append_file` | `(path, content) -> nil` | Append `content` to `path` (creating it if needed). |
@@ -293,6 +294,26 @@ println(r.shuffle([1, 2, 3, 4, 5]));
 | `rmdir` | `(path) -> nil` | Delete an **empty** directory (never recursive). |
 | `is_dir` `is_file` | `(path) -> bool` | Whether `path` is a directory / regular file. |
 | `eprint` `eprintln` | `(x) -> nil` | Like `print`/`println`, but to stderr. |
+
+A **file handle** (from `io.open`) has these methods, and a read handle is
+line-iterable with `for line in handle { ... }`:
+
+| Method | Signature | Description |
+|---|---|---|
+| `read_line` | `() -> string \| nil` | Read the next line (trailing newline stripped), or `nil` at end of file. |
+| `read` | `() -> string` | Read all remaining content. |
+| `write` | `(s) -> nil` | Write `s` to the file (write/append handles). |
+| `close` | `() -> nil` | Flush and close the handle. |
+
+```lumen
+import "io" as io;
+let h = io.open("notes.txt", "w");
+h.write("first\n"); h.write("second\n");
+h.close();
+for line in io.open("notes.txt", "r") {
+    println(line);
+}
+```
 
 ### `hash` — non-cryptographic hashing and encodings
 

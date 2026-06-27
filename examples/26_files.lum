@@ -1,0 +1,42 @@
+// File handles: io.open(path, mode) returns a handle with read_line() / read() /
+// write() / close(), and a handle opened for reading is line-iterable with
+// for-in. Reads are buffered/incremental — the whole file is never slurped.
+
+import "io" as io;
+
+let path = "/tmp/lumen_example_26.txt";
+
+// Write three lines through a buffered writer.
+let w = io.open(path, "w");
+w.write("alpha\n");
+w.write("beta\n");
+w.write("gamma\n");
+w.close();
+
+// Read the first line explicitly (the trailing newline is stripped).
+let r = io.open(path, "r");
+println("first line: ${r.read_line()}");
+r.close();
+
+// Iterate the remaining file line by line with for-in.
+println("--- all lines ---");
+let n = 0;
+for line in io.open(path, "r") {
+    n = n + 1;
+    println("${n}: ${line}");
+}
+
+// Append another line, then read the whole file back with read().
+let a = io.open(path, "a");
+a.write("delta\n");
+a.close();
+
+let full = io.open(path, "r");
+let contents = full.read();
+full.close();
+println("--- read() ---");
+print(contents);
+
+// Clean up the temp file.
+io.remove(path);
+println("done");

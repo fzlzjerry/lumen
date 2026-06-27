@@ -15,8 +15,8 @@
 use crate::chunk::{Constant, FnProto};
 use crate::gc::Heap;
 use crate::object::{
-    Arity, BoundMethod, CallFrame, Class, Closure, ExecContext, GenState, Generator, Handler,
-    Instance, LumError, LumMap, Module, Native, Obj, Upvalue,
+    Arity, BoundMethod, BoundNative, CallFrame, Class, Closure, ExecContext, FileHandle, GenState,
+    Generator, Handler, Instance, LumError, LumMap, Module, Native, NativeMethod, Obj, Upvalue,
 };
 use crate::opcode::OpCode;
 use crate::util::{escape_string, format_float};
@@ -595,6 +595,8 @@ impl Vm {
                     format!("<{cname} instance>")
                 }
                 Obj::Generator(_) => "<generator>".to_string(),
+                Obj::FileHandle(_) => "<file handle>".to_string(),
+                Obj::BoundNative(_) => "<bound method>".to_string(),
             },
         }
     }
@@ -1664,6 +1666,19 @@ impl Vm {
                     Err(self.throw(error_kind::NAME, format!("class '{cn}' has no static '{name}'")))
                 }
             },
+            Obj::FileHandle(_) => {
+                let method = match name {
+                    "read_line" => NativeMethod::FileReadLine,
+                    "read" => NativeMethod::FileRead,
+                    "write" => NativeMethod::FileWrite,
+                    "close" => NativeMethod::FileClose,
+                    _ => {
+                        return Err(self.throw(error_kind::NAME, format!("a file handle has no method '{name}'")))
+                    }
+                };
+                let bn = self.heap.alloc(Obj::BoundNative(BoundNative { receiver: r, method }));
+                Ok(Value::Obj(bn))
+            }
             Obj::Module(m) => match m.exports.get(name) {
                 Some(v) => Ok(*v),
                 None => {
@@ -1825,6 +1840,7 @@ impl Vm {
             Native(Native),
             Class,
             Bound(Value, GcRef),
+            BoundNative(GcRef, NativeMethod),
             Bad,
         }
         let kind = match self.heap.get(r) {
@@ -1832,6 +1848,7 @@ impl Vm {
             Obj::Native(n) => Kind::Native(Native { name: n.name.clone(), arity: n.arity, func: n.func }),
             Obj::Class(_) => Kind::Class,
             Obj::Bound(b) => Kind::Bound(b.receiver, b.method),
+            Obj::BoundNative(b) => Kind::BoundNative(b.receiver, b.method),
             _ => Kind::Bad,
         };
         match kind {
@@ -1855,7 +1872,131 @@ impl Vm {
                 let proto = self.closure_proto(method);
                 self.call_closure(method, proto, argc, callee_idx)
             }
+            Kind::BoundNative(receiver, method) => {
+                let args: Vec<Value> = self.stack[callee_idx + 1..].to_vec();
+                let result = self.call_file_method(receiver, method, &args)?;
+                self.stack.truncate(callee_idx);
+                self.push(result);
+                Ok(())
+            }
             Kind::Bad => Err(self.throw(error_kind::TYPE, "can only call functions, classes, and methods")),
+        }
+    }
+
+    /// Dispatch a file-handle method (`read_line`/`read`/`write`/`close`) — the
+    /// Rust side of the bound-native methods (DESIGN D32).
+    fn call_file_method(&mut self, handle: GcRef, method: NativeMethod, args: &[Value]) -> Result<Value, Value> {
+        use std::io::{Read, Write};
+        match method {
+            NativeMethod::FileReadLine => {
+                if !args.is_empty() {
+                    return Err(self.throw(error_kind::ARITY, "read_line() takes no arguments"));
+                }
+                self.file_read_line(handle)
+            }
+            NativeMethod::FileRead => {
+                if !args.is_empty() {
+                    return Err(self.throw(error_kind::ARITY, "read() takes no arguments"));
+                }
+                enum R {
+                    Text(String),
+                    NotReader,
+                    Closed,
+                    Io(String),
+                }
+                let r = match self.heap.get_mut(handle) {
+                    Obj::FileHandle(FileHandle::Reader(rd)) => {
+                        let mut s = String::new();
+                        match rd.read_to_string(&mut s) {
+                            Ok(_) => R::Text(s),
+                            Err(e) => R::Io(e.to_string()),
+                        }
+                    }
+                    Obj::FileHandle(FileHandle::Writer(_)) => R::NotReader,
+                    _ => R::Closed,
+                };
+                match r {
+                    R::Text(s) => Ok(self.new_string(&s)),
+                    R::NotReader => Err(self.throw(error_kind::TYPE, "file is open for writing, not reading")),
+                    R::Closed => Err(self.throw(error_kind::VALUE, "file handle is closed")),
+                    R::Io(e) => Err(self.throw(error_kind::VALUE, format!("read failed: {e}"))),
+                }
+            }
+            NativeMethod::FileWrite => {
+                if args.len() != 1 {
+                    return Err(self.throw(error_kind::ARITY, "write() takes one argument"));
+                }
+                let s = self.to_display(args[0], false)?;
+                enum R {
+                    Ok,
+                    NotWriter,
+                    Closed,
+                    Io(String),
+                }
+                let r = match self.heap.get_mut(handle) {
+                    Obj::FileHandle(FileHandle::Writer(w)) => match w.write_all(s.as_bytes()) {
+                        Ok(()) => R::Ok,
+                        Err(e) => R::Io(e.to_string()),
+                    },
+                    Obj::FileHandle(FileHandle::Reader(_)) => R::NotWriter,
+                    _ => R::Closed,
+                };
+                match r {
+                    R::Ok => Ok(Value::Nil),
+                    R::NotWriter => Err(self.throw(error_kind::TYPE, "file is open for reading, not writing")),
+                    R::Closed => Err(self.throw(error_kind::VALUE, "file handle is closed")),
+                    R::Io(e) => Err(self.throw(error_kind::VALUE, format!("write failed: {e}"))),
+                }
+            }
+            NativeMethod::FileClose => {
+                if let Obj::FileHandle(fh) = self.heap.get_mut(handle) {
+                    if let FileHandle::Writer(w) = fh {
+                        let _ = w.flush();
+                    }
+                    *fh = FileHandle::Closed; // dropping the resource closes the file
+                }
+                Ok(Value::Nil)
+            }
+        }
+    }
+
+    /// Read one line from a file handle, returning it with the trailing newline
+    /// stripped, or `nil` at end of file. Shared by `read_line()` and `for-in`.
+    fn file_read_line(&mut self, handle: GcRef) -> Result<Value, Value> {
+        use std::io::BufRead;
+        enum R {
+            Line(String),
+            Eof,
+            NotReader,
+            Closed,
+            Io(String),
+        }
+        let r = match self.heap.get_mut(handle) {
+            Obj::FileHandle(FileHandle::Reader(rd)) => {
+                let mut s = String::new();
+                match rd.read_line(&mut s) {
+                    Ok(0) => R::Eof,
+                    Ok(_) => {
+                        if s.ends_with('\n') {
+                            s.pop();
+                            if s.ends_with('\r') {
+                                s.pop();
+                            }
+                        }
+                        R::Line(s)
+                    }
+                    Err(e) => R::Io(e.to_string()),
+                }
+            }
+            Obj::FileHandle(FileHandle::Writer(_)) => R::NotReader,
+            _ => R::Closed,
+        };
+        match r {
+            R::Line(s) => Ok(self.new_string(&s)),
+            R::Eof => Ok(Value::Nil),
+            R::NotReader => Err(self.throw(error_kind::TYPE, "file is open for writing, not reading")),
+            R::Closed => Err(self.throw(error_kind::VALUE, "file handle is closed")),
+            R::Io(e) => Err(self.throw(error_kind::VALUE, format!("read failed: {e}"))),
         }
     }
 
@@ -2123,6 +2264,16 @@ impl Vm {
             }
             return Ok(());
         }
+        // A file handle iterates lazily over its lines (DESIGN D32).
+        if matches!(self.heap.get(r), Obj::FileHandle(_)) {
+            let line = self.file_read_line(r)?;
+            if matches!(line, Value::Nil) {
+                self.frames.last_mut().unwrap().ip += exit; // EOF
+            } else {
+                self.push(line);
+            }
+            return Ok(());
+        }
         let idx = match self.stack[base + idx_slot] {
             Value::Int(n) => n,
             _ => unreachable!("for-in index is not an int"),
@@ -2287,6 +2438,8 @@ impl Vm {
                     format!("<{cname} instance>")
                 }
                 Obj::Generator(_) => "<generator>".to_string(),
+                Obj::FileHandle(_) => "<file handle>".to_string(),
+                Obj::BoundNative(_) => "<fn bound method>".to_string(),
             },
         })
     }

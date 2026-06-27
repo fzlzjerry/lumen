@@ -298,6 +298,25 @@ module rather than erroring, matching Python's pragmatic behavior.
 
 ---
 
+## D32 — File handles: a native object with bound-native methods
+
+`io.open(path, mode)` returns a **file handle** — a new heap object
+(`Obj::FileHandle`) wrapping a `std::io::BufReader`/`BufWriter` over a
+`std::fs::File`, so reads are incremental (line by line) rather than slurping the
+whole file. Modes are `"r"` (read), `"w"` (truncate-write), and `"a"` (append).
+
+The handle's operations are written as methods (`h.read_line()`, `h.read()`,
+`h.write(s)`, `h.close()`), but their implementations are Rust, not Lumen
+closures. To make `recv.method(...)` dispatch to a Rust function we add a second
+bound-callable object, `Obj::BoundNative { receiver, method }` (a small method
+enum), alongside the existing closure `BoundMethod`: property access on a handle
+returns one, and `call_value` routes it to the matching Rust handler with the
+handle as receiver. `for line in h` iterates lines lazily by special-casing the
+handle in `ITER_NEXT` (it calls `read_line` until EOF), mirroring the generator
+path (D29). `read_line` strips the trailing newline and returns `nil` at EOF;
+operating on a closed handle throws. This keeps file I/O zero-dependency and reuses
+the VM's existing call/iteration machinery rather than adding an I/O runtime.
+
 ## D31 — Comprehensions desugar to a build loop
 
 `[e for x in it if c]` and `{k: v for x in it if c}` build a collection lazily

@@ -2,6 +2,7 @@
 
 use super::{err, string_of, Vm};
 use crate::object::Arity::{self, Exact};
+use crate::object::{FileHandle, Obj};
 use crate::value::{error_kind, Value};
 
 pub fn build(vm: &mut Vm) -> Value {
@@ -9,6 +10,7 @@ pub fn build(vm: &mut Vm) -> Value {
         (name, vm.make_native_value(name, arity, func))
     };
     let exports = vec![
+        f(vm, "open", Exact(2), open),
         f(vm, "read_file", Exact(1), read_file),
         f(vm, "write_file", Exact(2), write_file),
         f(vm, "append_file", Exact(2), append_file),
@@ -24,6 +26,31 @@ pub fn build(vm: &mut Vm) -> Value {
         f(vm, "eprintln", Exact(1), eprintln),
     ];
     vm.make_module("io", exports)
+}
+
+/// `open(path, mode)` returns a buffered file handle (DESIGN D32). Modes: `"r"`
+/// (read), `"w"` (truncate-write), `"a"` (append).
+fn open(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    use std::fs::OpenOptions;
+    use std::io::{BufReader, BufWriter};
+    let path = string_of(vm, a[0])?;
+    let mode = string_of(vm, a[1])?;
+    let opened = match mode.as_str() {
+        "r" => std::fs::File::open(&path).map(|f| FileHandle::Reader(BufReader::new(f))),
+        "w" => std::fs::File::create(&path).map(|f| FileHandle::Writer(BufWriter::new(f))),
+        "a" => OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+            .map(|f| FileHandle::Writer(BufWriter::new(f))),
+        _ => {
+            return Err(err(vm, error_kind::VALUE, format!("invalid file mode '{mode}' (use \"r\", \"w\", or \"a\")")))
+        }
+    };
+    match opened {
+        Ok(handle) => Ok(Value::Obj(vm.heap.alloc(Obj::FileHandle(handle)))),
+        Err(e) => Err(err(vm, error_kind::VALUE, format!("cannot open '{path}': {e}"))),
+    }
 }
 
 fn read_file(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {

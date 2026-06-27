@@ -93,6 +93,53 @@ fn io_append_and_lines() {
 }
 
 #[test]
+fn io_open_file_handle() {
+    let dir = tmpdir("handle");
+    let path = dir.join("h.txt");
+    let p = path.to_string_lossy().replace('\\', "/");
+    let out = run(&format!(
+        r#"import "io";
+        let w = io.open("{p}", "w");
+        w.write("one\n"); w.write("two\n"); w.write("three\n");
+        w.close();
+        let r = io.open("{p}", "r");
+        println(r.read_line());          // one (newline stripped)
+        println(r.read_line());          // two
+        r.close();
+        let n = 0;
+        for line in io.open("{p}", "r") {{ n = n + 1; }}
+        println(n);                       // 3
+        let r2 = io.open("{p}", "r");
+        print(r2.read());                 // whole content
+        r2.close();
+        let a = io.open("{p}", "a");
+        a.write("four\n"); a.close();
+        let m = 0;
+        for line in io.open("{p}", "r") {{ m = m + 1; }}
+        println(m);                       // 4
+        println(type(io.open("{p}", "r")));  // file
+        "#
+    ));
+    assert_eq!(out, "one\ntwo\n3\none\ntwo\nthree\n4\nfile\n");
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
+fn io_handle_errors() {
+    let dir = tmpdir("handle_err");
+    let path = dir.join("e.txt");
+    let p = path.to_string_lossy().replace('\\', "/");
+    // Reading from a writer and writing to a reader are TypeErrors; a closed
+    // handle and a bad mode are ValueErrors.
+    let prog = |body: &str| format!("import \"io\"; io.write_file(\"{p}\", \"x\\n\"); {body}");
+    assert!(run_expect_throw(&prog(&format!("io.open(\"{p}\", \"w\").read_line();"))).contains("TypeError"));
+    assert!(run_expect_throw(&prog(&format!("io.open(\"{p}\", \"r\").write(\"x\");"))).contains("TypeError"));
+    assert!(run_expect_throw(&prog(&format!("io.open(\"{p}\", \"z\");"))).contains("ValueError"));
+    assert!(run_expect_throw(&prog(&format!("let h = io.open(\"{p}\", \"r\"); h.close(); h.read_line();"))).contains("ValueError"));
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
 fn io_exists_is_false_for_missing() {
     let out = run(
         r#"import "io";

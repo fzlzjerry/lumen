@@ -425,8 +425,9 @@ fn outgoing_edges(obj: &Obj, values: &mut Vec<Value>, refs: &mut Vec<GcRef>) {
             refs.extend(g.ctx.frames.iter().map(|f| f.closure));
             refs.extend(g.ctx.open_upvalues.iter().copied());
         }
-        // Strings, natives, and errors hold no heap references.
-        Obj::Str(_) | Obj::Native(_) | Obj::Error(_) => {}
+        Obj::BoundNative(b) => refs.push(b.receiver),
+        // Strings, natives, errors, and file handles hold no heap references.
+        Obj::Str(_) | Obj::Native(_) | Obj::Error(_) | Obj::FileHandle(_) => {}
     }
 }
 

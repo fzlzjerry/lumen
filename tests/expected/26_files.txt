@@ -1,0 +1,11 @@
+first line: alpha
+--- all lines ---
+1: alpha
+2: beta
+3: gamma
+--- read() ---
+alpha
+beta
+gamma
+delta
+done

@@ -8,6 +8,8 @@
 use crate::chunk::FnProto;
 use crate::value::{GcRef, MapKey, Value};
 use crate::fxhash::FxHashMap;
+use std::fs::File;
+use std::io::{BufReader, BufWriter};
 use std::rc::Rc;
 
 /// The native-function signature: given the VM and the already-evaluated
@@ -78,6 +80,30 @@ pub struct Instance {
 pub struct BoundMethod {
     pub receiver: Value,
     pub method: GcRef, // a Closure
+}
+
+/// A buffered file handle returned by `io.open` (DESIGN D32). Reads/writes go
+/// through a buffer so they are incremental, not whole-file.
+pub enum FileHandle {
+    Reader(BufReader<File>),
+    Writer(BufWriter<File>),
+    Closed,
+}
+
+/// A built-in (Rust) method bound to a receiver — e.g. `handle.read_line`. Unlike
+/// [`BoundMethod`] (a Lumen closure), the method here is a Rust handler selected
+/// by [`NativeMethod`] (DESIGN D32).
+pub struct BoundNative {
+    pub receiver: GcRef,
+    pub method: NativeMethod,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NativeMethod {
+    FileReadLine,
+    FileRead,
+    FileWrite,
+    FileClose,
 }
 
 /// A built-in function implemented in Rust.
@@ -266,6 +292,8 @@ pub enum Obj {
     Module(Module),
     Error(LumError),
     Generator(Generator),
+    FileHandle(FileHandle),
+    BoundNative(BoundNative),
 }
 
 impl Obj {
@@ -283,6 +311,8 @@ impl Obj {
             Obj::Error(_) => "error",
             Obj::Upvalue(_) => "upvalue",
             Obj::Generator(_) => "generator",
+            Obj::FileHandle(_) => "file",
+            Obj::BoundNative(_) => "function",
         }
     }
 }
