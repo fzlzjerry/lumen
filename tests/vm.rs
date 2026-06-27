@@ -213,6 +213,35 @@ fn or_patterns() {
 }
 
 #[test]
+fn tail_call_optimization() {
+    // Deep tail recursion runs in constant stack space (no StackOverflow).
+    assert_eq!(
+        out("fn loop(n) { if n == 0 { return \"done\"; } return loop(n - 1); } println(loop(1000000));"),
+        "done\n"
+    );
+    // Tail recursion with an accumulator.
+    assert_eq!(
+        out("fn sum(n, a) { if n == 0 { return a; } return sum(n - 1, a + n); } println(sum(100000, 0));"),
+        "5000050000\n"
+    );
+    // Mutual tail recursion.
+    let mutual = "fn ev(n) { if n == 0 { return true; } return od(n - 1); } \
+                  fn od(n) { if n == 0 { return false; } return ev(n - 1); }";
+    assert_eq!(out(&format!("{mutual} println(ev(400000));")), "true\n");
+    // Tail call to a method.
+    assert_eq!(
+        out("class C { d(n) { if n == 0 { return 0; } return this.d(n - 1); } } println(C().d(200000));"),
+        "0\n"
+    );
+    // A non-tail recursion still overflows gracefully (catchable), not a crash.
+    let e = run("fn deep(n) { if n == 0 { return 0; } return 1 + deep(n - 1); } deep(100000);").unwrap_err();
+    assert!(e.contains("StackOverflow"), "got: {e}");
+    // `finally` suppresses TCO so the finally still runs.
+    let fin = "fn h(n) { if n == 0 { return 0; } try { return h(n - 1); } finally { if n == 2 { print(\"f\"); } } } println(h(4));";
+    assert_eq!(out(fin), "f0\n");
+}
+
+#[test]
 fn generators() {
     // for-in drives a finite generator lazily.
     let g = "fn up(n) { let i = 0; while i < n { yield i; i = i + 1; } } ";
@@ -356,7 +385,9 @@ fn arity_mismatch_throws() {
 
 #[test]
 fn deep_recursion_is_stack_overflow_not_crash() {
-    let err = run("fn rec(n) { return rec(n + 1); } rec(0);").unwrap_err();
+    // Non-tail recursion (the `n +` keeps it from being tail-call optimized,
+    // DESIGN D30) overflows the call stack with a catchable error, not a crash.
+    let err = run("fn rec(n) { return n + rec(n + 1); } rec(0);").unwrap_err();
     assert!(err.contains("StackOverflow") || err.contains("stack overflow"));
 }
 

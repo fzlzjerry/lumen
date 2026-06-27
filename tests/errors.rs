@@ -126,7 +126,9 @@ fn uncaught_runtime_errors_have_traces() {
     assert!(msg.contains("fn b"));
     assert!(msg.contains("fn a"));
 
-    let so = runtime_error("fn rec() { return rec(); } rec();");
+    // A *non-tail* recursion overflows the call stack. (`return rec();` would be
+    // tail-call optimized into a constant-space infinite loop — DESIGN D30.)
+    let so = runtime_error("fn rec() { return 1 + rec(); } rec();");
     assert!(so.contains("StackOverflow") || so.contains("stack overflow"));
 }
 

@@ -459,6 +459,13 @@ the method is absent the operator keeps its built-in behavior and throws
 
 ### 6.5 Calls
 
+A call in **tail position** — `return f(args);`, where the call's value is
+returned directly — reuses the current call frame rather than growing the stack
+(tail-call optimization, DESIGN D30). This applies to function, closure, method
+(`return this.m(...)`), and `super` (`return super.m(...)`) calls, and to mutual
+recursion, so tail-recursive code runs in constant stack space. It does not apply
+when a `finally` must run first (the `finally` runs and the call is ordinary).
+
 `f(a, b)` evaluates `f` then the arguments left to right, then invokes. An
 argument prefixed with `..` is a **spread**: its value must be an iterable
 (array, string, map, or `range`), and its elements are unpacked in order into the

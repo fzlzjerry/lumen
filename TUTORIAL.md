@@ -241,6 +241,17 @@ for n in naturals() {
 }
 ```
 
+A call in **tail position** (`return f(args);`) reuses the current stack frame,
+so tail-recursive functions run in constant space and don't overflow:
+
+```lumen
+fn sum_to(n, acc) {
+    if n == 0 { return acc; }
+    return sum_to(n - 1, acc + n);   // tail call — no stack growth
+}
+println(sum_to(1000000, 0));          // 500000500000
+```
+
 ## 6. Collections
 
 **Arrays** are mutable, ordered, and heterogeneous:

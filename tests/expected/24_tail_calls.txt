@@ -1,0 +1,4 @@
+liftoff
+sum 1..5000 = 12502500
+is_even(5000) = true
+arrived

@@ -882,6 +882,20 @@ impl Vm {
                 let callee = self.stack[callee_idx];
                 self.call_value(callee, argc, callee_idx)?;
             }
+            OpCode::TailCall => {
+                // Tail position: reuse the current frame for a closure callee,
+                // else fall back to a normal call (the following RETURN returns
+                // its result) — DESIGN D30.
+                let argc = self.read_byte() as usize;
+                let callee_idx = self.stack.len() - argc - 1;
+                let callee = self.stack[callee_idx];
+                match self.tail_target(callee) {
+                    Some((slot0, closure, proto)) => {
+                        self.tail_reuse_frame(slot0, closure, proto, argc, callee_idx)?
+                    }
+                    None => self.call_value(callee, argc, callee_idx)?,
+                }
+            }
             OpCode::CallSpread => {
                 // Stack: [..., callee, argv]. `argv` is a freshly built array;
                 // splice its elements in as the arguments, then call. No GC can
@@ -1841,6 +1855,49 @@ impl Vm {
             return self.make_generator(closure, argc, callee_idx);
         }
         self.enter_frame(closure, proto, argc, callee_idx)
+    }
+
+    /// If `callee` is a tail-call-optimizable target (a non-generator closure, or
+    /// a bound method to one), return `(slot0, closure, proto)` where `slot0` is
+    /// the value for the reused frame's slot 0 (the closure, or the receiver for a
+    /// bound method). Otherwise `None` (DESIGN D30).
+    fn tail_target(&self, callee: Value) -> Option<(Value, GcRef, Rc<FnProto>)> {
+        let r = callee.as_obj()?;
+        match self.heap.get(r) {
+            Obj::Closure(c) if !c.proto.is_generator => Some((callee, r, c.proto.clone())),
+            Obj::Bound(b) => {
+                let (receiver, mr) = (b.receiver, b.method);
+                if let Obj::Closure(c) = self.heap.get(mr) {
+                    if !c.proto.is_generator {
+                        return Some((receiver, mr, c.proto.clone()));
+                    }
+                }
+                None
+            }
+            _ => None,
+        }
+    }
+
+    /// Reuse the current frame for a tail call: close its open upvalues, move the
+    /// callee's `[slot0, args…]` down over the frame's slots, drop the frame, and
+    /// re-enter at the same `slot_base` — so recursion does not grow the stack
+    /// (DESIGN D30).
+    fn tail_reuse_frame(
+        &mut self,
+        slot0: Value,
+        closure: GcRef,
+        proto: Rc<FnProto>,
+        argc: usize,
+        callee_idx: usize,
+    ) -> Result<(), Value> {
+        let base = self.frames.last().unwrap().slot_base;
+        self.close_upvalues(base);
+        let args: Vec<Value> = self.stack[callee_idx + 1..callee_idx + 1 + argc].to_vec();
+        self.stack.truncate(base);
+        self.stack.push(slot0);
+        self.stack.extend(args);
+        self.frames.pop(); // discard the current frame; enter_frame re-pushes at `base`
+        self.enter_frame(closure, proto, argc, base)
     }
 
     /// Lay out a closure's parameter slots and push its call frame. Shared by the

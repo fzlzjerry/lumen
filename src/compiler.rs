@@ -634,6 +634,22 @@ impl Compiler {
     }
 
     fn compile_return(&mut self, value: Option<&Expr>, span: Span) {
+        let has_finally = self
+            .cur_ref()
+            .cf
+            .iter()
+            .any(|c| matches!(c, Cf::Try { finally: Some(_), .. }));
+        // Tail-call optimization: `return f(args);` reuses the current frame when
+        // no `finally` must run first (DESIGN D30). Spread calls keep the normal
+        // path (the argument count is dynamic).
+        if !has_finally {
+            if let Some(Expr { kind: ExprKind::Call { callee, args, paren_span }, span: cspan }) = value {
+                if !args.iter().any(|a| matches!(a, CallArg::Spread(_))) {
+                    self.compile_tail_call(callee, args, *paren_span, cspan.line, *cspan);
+                    return;
+                }
+            }
+        }
         match value {
             Some(e) => self.compile_expr(e),
             None => {
@@ -644,11 +660,6 @@ impl Compiler {
                 }
             }
         }
-        let has_finally = self
-            .cur_ref()
-            .cf
-            .iter()
-            .any(|c| matches!(c, Cf::Try { finally: Some(_), .. }));
         if has_finally {
             // Park the return value in a temp so the finally blocks' locals do
             // not collide with it, run them, then reload and return.
@@ -1243,6 +1254,41 @@ impl Compiler {
         }
     }
 
+    /// Compile a tail-position call (`return f(args);`) as `TAIL_CALL` + `RETURN`
+    /// (DESIGN D30). Method/super callees first materialize a bound method (no
+    /// INVOKE fusion) so the single `TAIL_CALL` path handles them too.
+    fn compile_tail_call(
+        &mut self,
+        callee: &Expr,
+        args: &[CallArg],
+        paren_span: Span,
+        line: u32,
+        span: Span,
+    ) {
+        if args.len() > 255 {
+            self.error(paren_span, "too many call arguments (max 255)");
+        }
+        if let ExprKind::Get { object, name, name_span } = &callee.kind {
+            self.compile_expr(object);
+            let idx = self.string_const(name, *name_span);
+            self.emit_op_u16(OpCode::GetProp, idx, line);
+        } else if let ExprKind::Super { method, method_span } = &callee.kind {
+            self.named_variable_get("this", span);
+            self.named_variable_get("super", span);
+            let idx = self.string_const(method, *method_span);
+            self.emit_op_u16(OpCode::GetSuper, idx, line);
+        } else {
+            self.compile_expr(callee);
+        }
+        for a in args {
+            self.compile_call_arg(a);
+        }
+        self.emit_op_u8(OpCode::TailCall, args.len() as u8, line);
+        // For an optimized (closure) callee this is dead code; otherwise it
+        // returns the call's result from the current frame.
+        self.emit_op(OpCode::Return, line);
+    }
+
     fn compile_assign(&mut self, target: &Expr, value: &Expr, span: Span) {
         match &target.kind {
             ExprKind::Var(name) => {
@@ -1701,13 +1747,27 @@ mod tests {
     fn class_emits_class_method_inherit_super() {
         let d = dis(
             "class A { m() { return 1; } }
-             class B < A { m() { return super.m(); } }",
+             class B < A { m() { let r = super.m(); return r; } }",
         );
         assert!(d.contains("CLASS"));
         assert!(d.contains("METHOD"));
         assert!(d.contains("INHERIT"));
-        // A super *call* fuses to SUPER_INVOKE (no separate GET_SUPER + CALL).
+        // A non-tail super *call* fuses to SUPER_INVOKE (no separate GET_SUPER + CALL).
         assert!(d.contains("SUPER_INVOKE"));
+    }
+
+    #[test]
+    fn tail_call_emits_tail_call_opcode() {
+        // `return f(...)` in tail position compiles to TAIL_CALL (DESIGN D30).
+        let d = dis("fn f(n) { if n == 0 { return 0; } return f(n - 1); }");
+        assert!(d.contains("TAIL_CALL"));
+        // A tail super call materializes a bound method then TAIL_CALLs it.
+        let d2 = dis(
+            "class A { m() { return 1; } }
+             class B < A { m() { return super.m(); } }",
+        );
+        assert!(d2.contains("GET_SUPER"));
+        assert!(d2.contains("TAIL_CALL"));
     }
 
     #[test]

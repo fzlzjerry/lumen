@@ -1,0 +1,49 @@
+// Tail-call optimization: a call in tail position (`return f(args);`) reuses the
+// current call frame instead of growing the stack, so code written
+// tail-recursively runs in constant space and never overflows — even far past
+// the call-stack limit (~1024 frames) that a naive recursion would hit.
+
+// A 5000-deep countdown returns fine (a non-tail recursion this deep would
+// StackOverflow well before reaching 0).
+fn countdown(n) {
+    if n == 0 {
+        return "liftoff";
+    }
+    return countdown(n - 1);
+}
+println(countdown(5000));
+
+// Tail recursion with an accumulator is the idiomatic loop replacement.
+fn sum_to(n, acc) {
+    if n == 0 {
+        return acc;
+    }
+    return sum_to(n - 1, acc + n);
+}
+println("sum 1..5000 = ${sum_to(5000, 0)}");
+
+// Mutual tail recursion is optimized too.
+fn is_even(n) {
+    if n == 0 {
+        return true;
+    }
+    return is_odd(n - 1);
+}
+fn is_odd(n) {
+    if n == 0 {
+        return false;
+    }
+    return is_even(n - 1);
+}
+println("is_even(5000) = ${is_even(5000)}");
+
+// Tail calls to methods work as well.
+class Walker {
+    walk(steps) {
+        if steps == 0 {
+            return "arrived";
+        }
+        return this.walk(steps - 1);
+    }
+}
+println(Walker().walk(5000));

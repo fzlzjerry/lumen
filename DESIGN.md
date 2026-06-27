@@ -298,6 +298,32 @@ module rather than erroring, matching Python's pragmatic behavior.
 
 ---
 
+## D30 — Tail-call optimization by frame reuse
+
+`return f(args);` in **tail position** reuses the current call frame instead of
+pushing a new one, so deep self- or mutual-recursion (`return loop(n - 1);`) runs
+in constant stack space rather than overflowing at `MAX_FRAMES`.
+
+The compiler emits `TAIL_CALL argc` **followed by** an ordinary `RETURN` for a
+tail-position call (including `obj.m(...)` and `super.m(...)`, which first
+materialize a bound method). The doubled instruction is what keeps the VM simple
+and correct for *every* callee:
+
+- **Closure / bound-to-closure** (the optimizable case): `TAIL_CALL` closes the
+  current frame's open upvalues, moves `[receiver-or-closure, args…]` down over the
+  frame's slots, pops the frame, and re-enters at the *same* `slot_base` — frame
+  count is unchanged, so recursion never grows the stack. The trailing `RETURN` is
+  then dead code (the frame now runs the callee's bytecode, never the caller's).
+- **Native / class / generator function** (not optimizable): `TAIL_CALL` performs
+  an ordinary call, and the trailing `RETURN` returns its result from the current
+  frame as usual.
+
+TCO is **suppressed when a `finally` is pending** in the function: the return value
+must be parked and the `finally` blocks run before returning, which frame reuse
+would skip. Generator-function callees are never reused (a call to one produces a
+`Generator`); the resolver already forbids a value `return` in an `init`, so
+constructors need no special case.
+
 ## D29 — Generators: stackful coroutines via a saved VM sub-context
 
 A function whose body contains `yield` is a **generator function**; calling it does

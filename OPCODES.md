@@ -74,6 +74,7 @@ All pop two operands (one for `NEG`/`NOT`) and push one result, per SPEC §6.4.
 |---|---|---|---|
 | `CALL` | `u8` argc | `…, f, a1..aN -> …, r` | Call `f` with `argc` args; checks arity. |
 | `CALL_SPREAD` | — | `…, f, argv -> …, r` | Call `f` spreading the freshly built array `argv` as the argument list (`f(..xs)`); argument count is determined at runtime and arity-checked. |
+| `TAIL_CALL` | `u8` argc | `…, f, a1..aN -> …, r` | Tail-position call: reuses the current frame for a closure/bound-method callee (constant stack for recursion), else acts as `CALL` (the following `RETURN` returns the result). Emitted with a trailing `RETURN` (DESIGN D30). |
 | `INVOKE` | `u16` name, `u8` argc | `…, recv, a1..aN -> …, r` | `recv.name(args)`: fused property-read + call; skips bound-method allocation for instance methods. |
 | `SUPER_INVOKE` | `u16` name, `u8` argc | `…, this, a1..aN, super -> …, r` | `super.name(args)`: pops the superclass, resolves `name` in it, and calls with `this` as receiver; skips the bound-method allocation. |
 | `DEFAULT_ARG` | `u8` index, `u16` d | `…` | At function entry: if parameter `index` was supplied, `ip += d` (skip its default expression); else fall through to evaluate it. |

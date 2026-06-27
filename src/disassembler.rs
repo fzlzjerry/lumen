@@ -90,6 +90,7 @@ pub fn disassemble_instruction(chunk: &Chunk, offset: usize, out: &mut String) -
         | OpCode::GetUpvalue
         | OpCode::SetUpvalue
         | OpCode::Call
+        | OpCode::TailCall
         | OpCode::Interpolate => {
             let n = chunk.code[offset + 1];
             out.push_str(&format!("{prefix}{name:<14} {n:>4}\n"));

@@ -218,6 +218,12 @@ pub enum OpCode {
     /// `Yield` — pop a value and suspend the running generator, handing the value
     /// to `next`/`for-in`. Execution resumes at the next instruction (DESIGN D29).
     Yield,
+
+    /// `TailCall u8 argc` — call in tail position. For a closure/bound-method
+    /// callee it reuses the current frame (constant stack for recursion); for any
+    /// other callee it acts as `Call`, with the following `RETURN` returning the
+    /// result (DESIGN D30).
+    TailCall,
 }
 
 impl OpCode {
@@ -225,7 +231,7 @@ impl OpCode {
     pub fn from_u8(b: u8) -> Option<OpCode> {
         // Safe because the range check guarantees `b` is a valid discriminant of
         // this contiguous `#[repr(u8)]` enum.
-        if b <= OpCode::Yield as u8 {
+        if b <= OpCode::TailCall as u8 {
             Some(unsafe { std::mem::transmute::<u8, OpCode>(b) })
         } else {
             None
@@ -307,6 +313,7 @@ impl OpCode {
             OpCode::StaticMethod => "STATIC_METHOD",
             OpCode::MatchError => "MATCH_ERROR",
             OpCode::Yield => "YIELD",
+            OpCode::TailCall => "TAIL_CALL",
         }
     }
 }
@@ -318,7 +325,7 @@ mod tests {
     #[test]
     fn roundtrip_all_opcodes() {
         // Every discriminant from 0..=Is must decode back to itself.
-        for b in 0..=(OpCode::Yield as u8) {
+        for b in 0..=(OpCode::TailCall as u8) {
             let op = OpCode::from_u8(b).expect("valid opcode");
             assert_eq!(op as u8, b);
         }
@@ -326,7 +333,7 @@ mod tests {
 
     #[test]
     fn invalid_byte_is_none() {
-        assert!(OpCode::from_u8(OpCode::Yield as u8 + 1).is_none());
+        assert!(OpCode::from_u8(OpCode::TailCall as u8 + 1).is_none());
         assert!(OpCode::from_u8(255).is_none());
     }
 }
