@@ -121,6 +121,7 @@ All pop two operands (one for `NEG`/`NOT`) and push one result, per SPEC §6.4.
 | `ITER_NEXT` | `u8` iter, `u8` idx, `u16` d | `… -> …, elem` or `…` | If `idx` slot is past the end of the `iter` slot, jump `d`; else push the current element and increment the index. |
 | `MATCH_ARRAY` | `u8` len, `u8` exact | `…, v -> …, b` | Push `true` iff `v` is an array of exactly/at-least `len` elements. |
 | `MATCH_MAP_HAS` | `u16` key | `…, v -> …, b` | Push `true` iff `v` is a map containing `key`. |
+| `MATCH_ERROR` | `u16` kind | `…, v -> …, b` | Push `true` iff `v` is a built-in error whose `.kind` equals the string constant (typed `catch` dispatch). |
 | `ARRAY_REST` | `u8` front, `u8` back | `…, arr -> …, sub` | Push `arr[front .. len-back]` (binds an array pattern's `..rest`). |
 
 ## Worked example

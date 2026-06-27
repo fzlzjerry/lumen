@@ -201,11 +201,17 @@ returnStmt   = "return" [ expression ] ";" ;
 breakStmt    = "break" ";" ;
 continueStmt = "continue" ";" ;
 throwStmt    = "throw" expression ";" ;
-tryStmt      = "try" block ( catchClause [ "finally" block ] | "finally" block ) ;
-catchClause  = "catch" "(" identifier ")" block ;
+tryStmt      = "try" block ( { catchClause } [ "finally" block ] ) ;  (* >=1 catch or a finally *)
+catchClause  = "catch" "(" [ identifier ] identifier ")" block ;  (* `catch (Kind e)` is typed *)
 ```
 
-A `try` must be followed by a `catch` clause, a `finally` clause, or both. A
+A `try` must be followed by one or more `catch` clauses, a `finally` clause, or
+both. A clause may be **typed** — `catch (Kind e)` fires only when the thrown
+value is a built-in error whose `.kind` equals `"Kind"` — or **bare** —
+`catch (e)` fires for any thrown value. Clauses are tried top-to-bottom, first
+match wins; if no clause matches, the value re-propagates (running `finally`,
+if present). A bare clause after which further clauses are unreachable is a
+warning (DESIGN D28). A
 `try`/`finally` without a `catch` runs the `finally` on every exit (including a
 propagating exception) but does not handle the exception.
 

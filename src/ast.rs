@@ -232,17 +232,19 @@ pub enum Stmt {
     },
     Try {
         body: Block,
-        /// The `catch (e) { ... }` clause, if present. At least one of `catch`
-        /// or `finally` is always present (the parser enforces this).
-        catch: Option<CatchClause>,
+        /// The `catch (...) { ... }` clauses, tried top-to-bottom (DESIGN D28).
+        /// At least one of `catches`/`finally` is non-empty (parser-enforced).
+        catches: Vec<CatchClause>,
         finally: Option<Block>,
         span: Span,
     },
 }
 
-/// A `catch (name) { body }` clause.
+/// A `catch ([Kind] name) { body }` clause. `kind` is the error kind a typed
+/// clause matches (`catch (IndexError e)`); `None` is a bare catch-all.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CatchClause {
+    pub kind: Option<String>,
     pub name: String,
     pub name_span: Span,
     pub body: Block,

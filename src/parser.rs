@@ -516,16 +516,24 @@ impl Parser {
         let kw = self.consume(&K::Try, "expected 'try'")?;
         let body = self.block()?;
         let mut span = body.span;
-        let catch = if self.match_kind(&K::Catch) {
+        // Zero or more catch clauses, each optionally typed `catch (Kind e)`.
+        let mut catches = Vec::new();
+        while self.match_kind(&K::Catch) {
             self.consume(&K::LParen, "expected '(' after 'catch'")?;
-            let (name, name_span) = self.consume_ident("expected an exception variable name")?;
+            // `catch (e)` is a bare catch; `catch (Kind e)` is a typed catch
+            // (two identifiers: the error kind then the variable).
+            let (first, first_span) = self.consume_ident("expected an exception variable name")?;
+            let (kind, name, name_span) = if let K::Ident(_) = self.peek().kind {
+                let (var, var_span) = self.consume_ident("expected an exception variable name")?;
+                (Some(first), var, var_span)
+            } else {
+                (None, first, first_span)
+            };
             self.consume(&K::RParen, "expected ')' after the catch variable")?;
-            let body = self.block()?;
-            span = kw.span.to(body.span);
-            Some(CatchClause { name, name_span, body })
-        } else {
-            None
-        };
+            let cbody = self.block()?;
+            span = kw.span.to(cbody.span);
+            catches.push(CatchClause { kind, name, name_span, body: cbody });
+        }
         let finally = if self.match_kind(&K::Finally) {
             let b = self.block()?;
             span = kw.span.to(b.span);
@@ -533,14 +541,14 @@ impl Parser {
         } else {
             None
         };
-        if catch.is_none() && finally.is_none() {
+        if catches.is_empty() && finally.is_none() {
             self.error_at(
                 kw.span,
                 "a 'try' must be followed by a 'catch' clause, a 'finally' clause, or both",
             );
             return Err(ParseError);
         }
-        Ok(Stmt::Try { body, catch, finally, span: kw.span.to(span) })
+        Ok(Stmt::Try { body, catches, finally, span: kw.span.to(span) })
     }
 
     fn expr_stmt(&mut self) -> PResult<Stmt> {

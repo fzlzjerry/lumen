@@ -507,9 +507,16 @@ impl Resolver {
                 }
             }
             Stmt::Throw { value, .. } => self.resolve_expr(value),
-            Stmt::Try { body, catch, finally, .. } => {
+            Stmt::Try { body, catches, finally, .. } => {
                 self.resolve_block(body);
-                if let Some(c) = catch {
+                let mut seen_bare = false;
+                for c in catches {
+                    if seen_bare {
+                        self.warning(c.name_span, "unreachable catch clause (a bare 'catch' above it already catches everything)");
+                    }
+                    if c.kind.is_none() {
+                        seen_bare = true;
+                    }
                     self.begin_scope();
                     self.declare_defined(&c.name, c.name_span, false);
                     self.resolve_stmts(&c.body.stmts);

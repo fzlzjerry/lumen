@@ -1055,6 +1055,15 @@ impl Vm {
                 };
                 self.push(Value::Bool(ok));
             }
+            OpCode::MatchError => {
+                let kind = self.read_string();
+                let v = self.pop();
+                let ok = matches!(
+                    v.as_obj().map(|r| self.heap.get(r)),
+                    Some(Obj::Error(e)) if e.kind == kind
+                );
+                self.push(Value::Bool(ok));
+            }
             OpCode::ArrayRest => {
                 let front = self.read_byte() as usize;
                 let back = self.read_byte() as usize;

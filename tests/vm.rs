@@ -213,6 +213,36 @@ fn or_patterns() {
 }
 
 #[test]
+fn typed_catch() {
+    // A typed clause matches by e.kind; a later bare clause catches the rest.
+    let prog = |body: &str| {
+        format!(
+            "fn run(t) {{ try {{ t(); return \"ok\"; }} \
+             catch (IndexError e) {{ return \"index\"; }} \
+             catch (DivisionByZero e) {{ return \"div\"; }} \
+             catch (e) {{ return \"other\"; }} }} {body}"
+        )
+    };
+    assert_eq!(out(&prog("println(run(fn() { let a = [1]; return a[9]; }));")), "index\n");
+    assert_eq!(out(&prog("println(run(fn() { return 1 / 0; }));")), "div\n");
+    assert_eq!(out(&prog("println(run(fn() { return nil.x.y; }));")), "other\n");
+    assert_eq!(out(&prog("println(run(fn() { return 7; }));")), "ok\n");
+    // No matching typed clause and no bare clause -> re-raise to the outer try.
+    let reraise = "fn outer() { try { try { let a = [1]; let z = a[9]; } \
+                   catch (DivisionByZero e) { return \"inner\"; } } \
+                   catch (e) { return e.kind; } } println(outer());";
+    assert_eq!(out(reraise), "IndexError\n");
+    // finally runs even when the value re-raises past the typed clauses.
+    let fin = "fn f() { try { try { throw \"boom\"; } \
+               catch (IndexError e) { return \"wrong\"; } \
+               finally { print(\"fin \"); } } catch (e) { return \"caught\"; } } println(f());";
+    assert_eq!(out(fin), "fin caught\n");
+    // A bare catch before a typed one makes the typed one unreachable (warning).
+    let (_p, diags) = lumen::check_all("let g = 1; try { g; } catch (e) {} catch (IndexError x) {}");
+    assert!(diags.iter().any(|d| d.message.contains("unreachable catch")), "got: {diags:?}");
+}
+
+#[test]
 fn static_methods_and_fields() {
     // Field initializers run per-instance before init; C() == 0.
     assert_eq!(out("class C { count = 0; } println(C().count);"), "0\n");

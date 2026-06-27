@@ -417,8 +417,8 @@ impl Compiler {
                 self.compile_expr(value);
                 self.emit_op(OpCode::Throw, span.line);
             }
-            Stmt::Try { body, catch, finally, span } => {
-                self.compile_try(body, catch.as_ref(), finally.as_ref(), *span)
+            Stmt::Try { body, catches, finally, span } => {
+                self.compile_try(body, catches, finally.as_ref(), *span)
             }
         }
     }
@@ -682,14 +682,14 @@ impl Compiler {
     fn compile_try(
         &mut self,
         body: &Block,
-        catch: Option<&CatchClause>,
+        catches: &[CatchClause],
         finally: Option<&Block>,
         span: Span,
     ) {
         let line = span.line;
-        match (catch, finally) {
+        match (catches.is_empty(), finally) {
             // try / catch (no finally)
-            (Some(c), None) => {
+            (false, None) => {
                 let catch_jump = self.emit_jump(OpCode::PushHandler, line);
                 self.cur().cf.push(Cf::Try { finally: None, n_handlers: 1 });
                 self.compile_block(body);
@@ -697,11 +697,11 @@ impl Compiler {
                 self.emit_op(OpCode::PopHandler, line);
                 let end_jump = self.emit_jump(OpCode::Jump, line);
                 self.patch_jump(catch_jump, span);
-                self.compile_catch(c, span);
+                self.compile_catch_dispatch(catches, span);
                 self.patch_jump(end_jump, span);
             }
             // try / catch / finally
-            (Some(c), Some(f)) => {
+            (false, Some(f)) => {
                 let fin_handler = self.emit_jump(OpCode::PushHandler, line);
                 let catch_jump = self.emit_jump(OpCode::PushHandler, line);
                 self.cur().cf.push(Cf::Try { finally: Some(f.clone()), n_handlers: 2 });
@@ -710,7 +710,7 @@ impl Compiler {
                 self.emit_op(OpCode::PopHandler, line); // pop catch handler
                 let after_body = self.emit_jump(OpCode::Jump, line);
                 self.patch_jump(catch_jump, span);
-                self.compile_catch(c, span);
+                self.compile_catch_dispatch(catches, span);
                 self.patch_jump(after_body, span); // normal-B path joins here
                 self.emit_op(OpCode::PopHandler, line); // pop finally handler
                 self.compile_block(f); // normal-path finally
@@ -727,7 +727,7 @@ impl Compiler {
                 self.patch_jump(end_jump, span);
             }
             // try / finally (no catch): exceptions run finally, then propagate.
-            (None, Some(f)) => {
+            (true, Some(f)) => {
                 let fin_handler = self.emit_jump(OpCode::PushHandler, line);
                 self.cur().cf.push(Cf::Try { finally: Some(f.clone()), n_handlers: 1 });
                 self.compile_block(body);
@@ -745,12 +745,51 @@ impl Compiler {
                 self.discard_scope();
                 self.patch_jump(end_jump, span);
             }
-            (None, None) => unreachable!("parser guarantees catch or finally"),
+            (true, None) => unreachable!("parser guarantees catch or finally"),
         }
     }
 
-    fn compile_catch(&mut self, c: &CatchClause, span: Span) {
-        // The VM has truncated the stack and pushed the thrown value; bind it.
+    /// Compile the catch clauses as a dispatch chain (DESIGN D28). On entry the
+    /// thrown value is on top of the stack. Each typed clause tests `MATCH_ERROR`
+    /// and runs its body on a match; a bare clause runs unconditionally; with no
+    /// bare clause the chain re-throws. The thrown value is consumed on every
+    /// path, and control falls through to the code after this (the catch exit).
+    fn compile_catch_dispatch(&mut self, catches: &[CatchClause], span: Span) {
+        let line = span.line;
+        let mut end_jumps = Vec::new();
+        let mut has_bare = false;
+        for c in catches {
+            match &c.kind {
+                Some(kind) => {
+                    self.emit_op(OpCode::Dup, line); // [exc, exc]
+                    let kidx = self.string_const(kind, span);
+                    self.emit_op_u16(OpCode::MatchError, kidx, line); // [exc, bool]
+                    let skip = self.emit_jump(OpCode::JumpIfFalse, line);
+                    self.emit_op(OpCode::Pop, line); // matched: drop bool -> [exc]
+                    self.compile_catch_body(c, span); // binds exc, runs body, pops exc
+                    end_jumps.push(self.emit_jump(OpCode::Jump, line));
+                    self.patch_jump(skip, span); // unmatched: [exc, bool]
+                    self.emit_op(OpCode::Pop, line); // drop bool -> [exc]
+                }
+                None => {
+                    has_bare = true;
+                    self.compile_catch_body(c, span); // binds exc, runs body, pops exc
+                    end_jumps.push(self.emit_jump(OpCode::Jump, line));
+                    break; // a bare catch catches everything; rest is unreachable
+                }
+            }
+        }
+        if !has_bare {
+            self.emit_op(OpCode::Throw, line); // no clause matched: re-raise
+        }
+        for j in end_jumps {
+            self.patch_jump(j, span);
+        }
+    }
+
+    /// Bind the on-stack thrown value to a clause's variable and run its body
+    /// (the binding is cleaned up when the scope ends).
+    fn compile_catch_body(&mut self, c: &CatchClause, span: Span) {
         self.begin_scope();
         self.add_local(&c.name, span);
         for s in &c.body.stmts {

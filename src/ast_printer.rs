@@ -186,11 +186,15 @@ impl Printer {
                 self.out.push_str(&v);
                 self.out.push(';');
             }
-            Stmt::Try { body, catch, finally, .. } => {
+            Stmt::Try { body, catches, finally, .. } => {
                 self.out.push_str("try ");
                 self.append_block(body);
-                if let Some(c) = catch {
+                for c in catches {
                     self.out.push_str(" catch (");
+                    if let Some(kind) = &c.kind {
+                        self.out.push_str(kind);
+                        self.out.push(' ');
+                    }
                     self.out.push_str(&c.name);
                     self.out.push_str(") ");
                     self.append_block(&c.body);

@@ -343,6 +343,21 @@ The error kinds are `TypeError`, `NameError`, `ArityError`, `IndexError`,
 `KeyError`, `DivisionByZero`, `ValueError`, `StackOverflow`, and
 `AssertionError`. An uncaught throw prints a stack trace and exits with code 70.
 
+You can route on the kind with **typed catch** clauses, falling through to a
+bare `catch (e)` (and re-raising if nothing matches):
+
+```lumen
+try {
+    risky();
+} catch (IndexError e) {
+    println("bad index: ${e.message}");
+} catch (DivisionByZero e) {
+    println("divide by zero");
+} catch (e) {
+    println("something else: ${e.kind}");
+}
+```
+
 ## 9. Pattern matching
 
 `match` is an expression. Arms are tried top to bottom; the first match wins.

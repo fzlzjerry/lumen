@@ -5,3 +5,7 @@ kind=IndexError message=index 99 out of bounds for length 3
 ok
 handled: boom
 final: outer wraps [inner failure]
+out of range: index 10 out of bounds for length 2
+divide by zero
+other (TypeError)
+ok

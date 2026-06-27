@@ -298,6 +298,25 @@ module rather than erroring, matching Python's pragmatic behavior.
 
 ---
 
+## D28 — Typed catch clauses dispatch on `error.kind`
+
+`try` may now carry **multiple** catch clauses, each optionally typed:
+`catch (IndexError e) { ... } catch (e) { ... }`. A typed clause `catch (Kind e)`
+fires only when the thrown value is a built-in error object whose `.kind` equals
+`"Kind"`; a bare `catch (e)` fires for anything (including user-thrown
+non-errors). Clauses are tried top-to-bottom, first match wins; if none matches,
+the value re-propagates (running any `finally` on the way out, unchanged).
+
+The lowering reuses the existing single-handler/`finally` machinery rather than
+adding per-kind handlers: one `PUSH_HANDLER` still guards the body, and the catch
+target is a **dispatch chain** compiled from the clauses. The chain tests each
+typed clause with a new `MATCH_ERROR kind` opcode (true iff the top value is an
+error of that kind) and branches into the matching body; a trailing bare clause
+binds and runs unconditionally, and when there is no bare clause the chain ends in
+a `THROW` that re-raises the original value (which the enclosing `finally` handler,
+if any, still catches). Keeping it to one handler means `break`/`continue`/`return`
+unwinding (which counts handlers per `try`) is unchanged.
+
 ## D27 — Static methods and field declarations
 
 A class body may now contain `static name(params) { ... }` static methods and

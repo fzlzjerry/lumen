@@ -209,6 +209,11 @@ pub enum OpCode {
     /// to the class now on top (which stays). Like `Method` but for the class's
     /// separate static table (DESIGN D27).
     StaticMethod,
+
+    /// `MatchError u16` — pop a value; push `true` iff it is a built-in error
+    /// object whose `.kind` equals the string `constants[idx]`. Drives the
+    /// dispatch of typed `catch (Kind e)` clauses (DESIGN D28).
+    MatchError,
 }
 
 impl OpCode {
@@ -216,7 +221,7 @@ impl OpCode {
     pub fn from_u8(b: u8) -> Option<OpCode> {
         // Safe because the range check guarantees `b` is a valid discriminant of
         // this contiguous `#[repr(u8)]` enum.
-        if b <= OpCode::StaticMethod as u8 {
+        if b <= OpCode::MatchError as u8 {
             Some(unsafe { std::mem::transmute::<u8, OpCode>(b) })
         } else {
             None
@@ -296,6 +301,7 @@ impl OpCode {
             OpCode::CallSpread => "CALL_SPREAD",
             OpCode::Is => "IS",
             OpCode::StaticMethod => "STATIC_METHOD",
+            OpCode::MatchError => "MATCH_ERROR",
         }
     }
 }
@@ -307,7 +313,7 @@ mod tests {
     #[test]
     fn roundtrip_all_opcodes() {
         // Every discriminant from 0..=Is must decode back to itself.
-        for b in 0..=(OpCode::StaticMethod as u8) {
+        for b in 0..=(OpCode::MatchError as u8) {
             let op = OpCode::from_u8(b).expect("valid opcode");
             assert_eq!(op as u8, b);
         }
@@ -315,7 +321,7 @@ mod tests {
 
     #[test]
     fn invalid_byte_is_none() {
-        assert!(OpCode::from_u8(OpCode::StaticMethod as u8 + 1).is_none());
+        assert!(OpCode::from_u8(OpCode::MatchError as u8 + 1).is_none());
         assert!(OpCode::from_u8(255).is_none());
     }
 }

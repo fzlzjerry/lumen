@@ -51,3 +51,22 @@ try {
 } catch (e) {
     println("final: ${e}");
 }
+
+// Typed catch clauses route on the error's `.kind`, falling through to a bare
+// `catch (e)` and re-raising when nothing matches.
+fn describe(thunk) {
+    try {
+        thunk();
+        return "ok";
+    } catch (IndexError e) {
+        return "out of range: ${e.message}";
+    } catch (DivisionByZero e) {
+        return "divide by zero";
+    } catch (e) {
+        return "other (${e.kind})";
+    }
+}
+println(describe(fn() { let a = [1, 2]; return a[10]; }));
+println(describe(fn() { return 1 / 0; }));
+println(describe(fn() { return len(42); }));
+println(describe(fn() { return 99; }));

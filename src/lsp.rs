@@ -575,11 +575,11 @@ fn lambdas_in_stmt(stmt: &Stmt, out: &mut Vec<Def>) {
             }
         }
         Stmt::Return { value: Some(e), .. } => lambdas_in_expr(e, out),
-        Stmt::Try { body, catch, finally, .. } => {
+        Stmt::Try { body, catches, finally, .. } => {
             for s in &body.stmts {
                 lambdas_in_stmt(s, out);
             }
-            if let Some(c) = catch {
+            for c in catches {
                 for s in &c.body.stmts {
                     lambdas_in_stmt(s, out);
                 }
@@ -792,9 +792,9 @@ fn walk_stmt(stmt: &Stmt, scope: (u32, u32), out: &mut Vec<Def>) {
                 walk_stmt(s, loop_scope, out);
             }
         }
-        Stmt::Try { body, catch, finally, .. } => {
+        Stmt::Try { body, catches, finally, .. } => {
             walk_block(body, out);
-            if let Some(c) = catch {
+            for c in catches {
                 let cscope = block_scope(&c.body);
                 out.push(Def { name: c.name.clone(), name_span: c.name_span, scope: cscope });
                 walk_block(&c.body, out);
@@ -1011,11 +1011,11 @@ fn collect_signatures(program: &Program) -> HashMap<String, Vec<String>> {
                     walk(s, sigs);
                 }
             }
-            Stmt::Try { body, catch, finally, .. } => {
+            Stmt::Try { body, catches, finally, .. } => {
                 for s in &body.stmts {
                     walk(s, sigs);
                 }
-                if let Some(c) = catch {
+                for c in catches {
                     for s in &c.body.stmts {
                         walk(s, sigs);
                     }

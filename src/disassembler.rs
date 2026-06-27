@@ -74,7 +74,8 @@ pub fn disassemble_instruction(chunk: &Chunk, offset: usize, out: &mut String) -
         | OpCode::StaticMethod
         | OpCode::GetSuper
         | OpCode::Import
-        | OpCode::MatchMapHas => {
+        | OpCode::MatchMapHas
+        | OpCode::MatchError => {
             let idx = chunk.read_u16(offset + 1);
             out.push_str(&format!(
                 "{prefix}{name:<14} {idx:>4} {}\n",

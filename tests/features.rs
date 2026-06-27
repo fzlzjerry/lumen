@@ -338,6 +338,8 @@ fn formatter_roundtrips_new_features() {
         "[x, ..rest] = xs;",
         "{k} = m;",
         "let m = match x { 1 | 2 | 3 => \"a\", _ => \"b\" };",
+        "try { f(); } catch (IndexError e) { a(); } catch (e) { b(); }",
+        "class C { count = 0; static make() { return C(); } }",
         "let [a, b, ..rest] = xs;",
         "let {x, y} = m;",
         "let g = fn(n = 5) { return n; };",
