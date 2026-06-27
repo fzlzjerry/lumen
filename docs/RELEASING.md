@@ -6,9 +6,9 @@ Lumen ships through an automated, keyword-triggered pipeline
 
 ```bash
 # 1. bump the version
-sed -i 's/^version = .*/version = "0.2.0"/' Cargo.toml
+sed -i 's/^version = .*/version = "0.3.0"/' Cargo.toml
 # 2. commit with the keyword
-git commit -am "Release 0.2.0 [release]"
+git commit -am "Release 0.3.0 [release]"
 git push
 ```
 
