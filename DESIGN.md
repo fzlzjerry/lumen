@@ -298,6 +298,30 @@ module rather than erroring, matching Python's pragmatic behavior.
 
 ---
 
+## D33 — Non-goals: single-threaded, no networking, no concurrency
+
+Lumen is intentionally scoped to **computation plus local file and process I/O**.
+Networking, threads, concurrency, `async`/`await`, and parallelism are explicit
+**non-goals**, not omissions awaiting implementation.
+
+The reason is foundational: the runtime is built to be single-threaded and is
+**not thread-safe**. The garbage collector (D10/D20) is a handle arena (`Heap`
+owns every object in a `Vec`, `GcRef` is an index) with **no synchronization**;
+`Value` is `Copy` and freely aliases heap objects with no locking; the VM keeps
+its stack, frames, open upvalues, and module globals as plain mutable state. Every
+one of these would need locks, atomics, or a wholly different ownership model to
+be shared across threads — a redesign that would slow the common single-threaded
+path and complicate the GC's invariants for no benefit to Lumen's purpose. Adding
+`async` would likewise require either threads or a hand-rolled event loop and a
+coloured-function split of the whole stdlib.
+
+So instead of a half-working concurrency story, Lumen offers a clean one: write
+straight-line and recursive computation (with generators and TCO for laziness and
+deep recursion), read and write local files (`io`, D32), and shell out to other
+programs (`os.exec`) for anything — including networking — that needs a separate
+process. This is recorded here and in the README so the boundary is a deliberate,
+documented decision rather than a surprise.
+
 ## D32 — File handles: a native object with bound-native methods
 
 `io.open(path, mode)` returns a **file handle** — a new heap object

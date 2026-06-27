@@ -42,20 +42,31 @@ println(label);
   `array`, `map`, plus functions, classes, instances, and modules.
 - **Variables & constants** (`let` / `const`), block-scoped.
 - **First-class functions & closures** with per-iteration loop capture.
-- **Classes** with single inheritance, `super`, constructors, and a custom
-  `str()` hook.
+- **Classes** with single inheritance, `super`, constructors, static methods,
+  field declarations, a custom `str()` hook, and **operator overloading** via
+  dunder methods (`__add__`, `__eq__`, `__index__`, …). `type(instance)` gives
+  the class name, and `is` tests class membership.
 - **Control flow**: `if`/`else`, `while`, C-style and `for-in` loops,
-  `break`/`continue`.
+  `break`/`continue`, and **tail-call optimization** (deep recursion runs in
+  constant stack).
+- **Generators**: `yield` produces lazy sequences, driven by `for-in` / `next`.
 - **Exceptions**: `throw` / `try` / `catch` / `finally` (catch is optional),
-  with typed built-in error objects and full stack traces.
-- **Collections**: array and map literals, spread (`..`), negative indexing,
-  insertion-ordered maps.
+  with **typed catch** (`catch (IndexError e)`), built-in error objects, and
+  full stack traces.
+- **Collections**: array and map literals, **comprehensions**
+  (`[e for x in it if c]`), spread (`..`) in literals *and* calls, negative
+  indexing, insertion-ordered maps.
+- **Operators**: arithmetic incl. `**` (exponentiation), bitwise/shift, string
+  repeat (`"ab" * 3`), and hex/binary/octal int literals.
 - **String interpolation**: `"${expr}"`, nestable, with escapes incl.
-  `\u{...}`.
+  `\u{...}`, plus rich `string.format` specifiers (`{:.2f}`, `{:>8}`, `{:x}`).
 - **Pattern matching**: `match` over literals, bindings, wildcards, arrays
-  (with `..rest`), and maps, with arm guards.
+  (with `..rest`), maps, and `|` alternations, with arm guards.
+- **Destructuring**: in `let` and as assignment (`[a, b] = [b, a]`).
 - **Modules**: `import "name";`, aliasing, and selective imports; per-module
   global scope.
+- **Local I/O**: file handles (`io.open` with line iteration) and subprocesses
+  (`os.exec`).
 - **A real GC**: a handle-based, generational mark-and-sweep collector, in safe
   Rust, that collects cycles and interns strings.
 - **A full toolchain**: REPL, source-level debugger, formatter, language server,
@@ -64,6 +75,24 @@ println(label);
 See [`SPEC.md`](SPEC.md) for the complete language specification (lexical and
 syntactic grammar in EBNF, type/evaluation/scope semantics, error and memory
 models), and [`DESIGN.md`](DESIGN.md) for the rationale behind the design.
+
+## Non-goals
+
+Lumen is deliberately a **single-threaded language for computation and local I/O**.
+Its VM and garbage collector are **not thread-safe** by design (the GC uses a
+handle arena with no synchronization, and values are not `Send`/`Sync`), which
+keeps the runtime simple and fast for its target use. As a direct consequence,
+the following are **out of scope** and intentionally not provided:
+
+- **Threads, concurrency, or parallelism** — no threads, no shared-memory
+  concurrency, no parallel execution.
+- **`async`/`await` or an event loop** — there is no asynchronous runtime.
+- **Networking** — no sockets, HTTP, or other network I/O.
+
+The supported surface is **computation plus local file and process I/O** (`io`,
+`os`). Programs needing networking or concurrency should shell out via
+`os.exec` to a tool built for that, rather than expect it in the language.
+(See DESIGN D33.)
 
 ## Install
 
