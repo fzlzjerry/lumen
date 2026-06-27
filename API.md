@@ -277,8 +277,12 @@ deterministic.
 |---|---|---|
 | `random` | `() -> float` | Uniform float in `[0, 1)`. |
 | `randint` | `(lo, hi) -> int` | Uniform int in `[lo, hi]` inclusive. **Throws** `ValueError` if `lo > hi`. |
+| `uniform` | `(a, b) -> float` | Uniform float in `[a, b)`. |
+| `randrange` | `(lo, hi) -> int` | Uniform int in `[lo, hi)` (hi exclusive). **Throws** `ValueError` if `lo >= hi`. |
 | `choice` | `(arr) -> any` | A random element. **Throws** `ValueError` if empty. |
+| `sample` | `(seq, k) -> array` | `k` distinct elements of `seq`, without replacement. **Throws** `ValueError` if `k < 0` or `k > len(seq)`. |
 | `shuffle` | `(arr) -> array` | A new Fisher–Yates-shuffled array. |
+| `gauss` | `(mu, sigma) -> float` | A normal deviate with mean `mu` and standard deviation `sigma` (Box–Muller). |
 | `seed` | `(n) -> nil` | Seed the generator for reproducible sequences. |
 
 ```lumen

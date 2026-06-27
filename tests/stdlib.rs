@@ -237,6 +237,30 @@ fn random_is_deterministic_after_seed() {
 }
 
 #[test]
+fn random_distributions() {
+    // Degenerate uniform plus range/membership properties that hold for any draw,
+    // and the error cases for randrange/sample.
+    let src = "import \"random\" as r; import \"math\" as m; r.seed(7);
+               println(r.uniform(2.0, 2.0));
+               let u = r.uniform(5.0, 6.0); println(u >= 5.0 && u < 6.0);
+               let x = r.randrange(0, 5); println(x >= 0 && x < 5);
+               try { r.randrange(5, 5); } catch (e) { println(e.kind); }
+               let s = r.sample([1, 2, 3, 4], 2); println(len(s)); println(s[0] != s[1]);
+               try { r.sample([1, 2, 3], -1); } catch (e) { println(e.kind); }
+               try { r.sample([1, 2, 3], 99); } catch (e) { println(e.kind); }
+               println(m.is_finite(r.gauss(0.0, 1.0)));";
+    assert_eq!(
+        out(src),
+        "2.0\ntrue\ntrue\nValueError\n2\ntrue\nValueError\nValueError\ntrue\n"
+    );
+
+    // Deterministic after seed: same seed -> same uniform sequence.
+    let prog = "import \"random\" as r; r.seed(99);
+                for let i = 0; i < 3; i = i + 1 { print(r.uniform(0.0, 1.0)); print(\" \"); } println(\"\");";
+    assert_eq!(out(prog), out(prog));
+}
+
+#[test]
 fn self_hosted_seq_module() {
     assert_eq!(
         out("import \"seq\" as q; println(q.take([1,2,3,4], 2));"),

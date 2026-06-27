@@ -222,7 +222,7 @@ manipulation), and `testing` (a unit-test harness). Full reference:
 
 ```sh
 cargo build            # debug build (zero warnings)
-cargo test             # all 265 tests: unit + e2e snapshots + errors + fuzz + GC stress
+cargo test             # all 289 tests: unit + e2e snapshots + errors + fuzz + GC stress
 cargo build --release  # optimized build
 cargo llvm-cov --summary-only   # coverage (core components are ≥90%)
 ```
