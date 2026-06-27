@@ -493,9 +493,11 @@ sequence. Methods return the set where it makes sense, so calls chain.
 | `.size` | `() -> int` | Number of members. |
 | `.values` | `() -> array` | Members in insertion order. |
 | `.union` | `(other) -> Set` | Members of either set. |
-| `.intersect` | `(other) -> Set` | Members in both sets. |
+| `.intersect` `.intersection` | `(other) -> Set` | Members in both sets (`intersection` is the canonical name; `intersect` is a kept alias). |
 | `.difference` | `(other) -> Set` | This set's members that `other` lacks. |
+| `.symmetric_difference` | `(other) -> Set` | Members in exactly one of the two sets. |
 | `.is_subset` | `(other) -> bool` | Whether every member is also in `other`. |
+| `.is_superset` | `(other) -> bool` | Whether every member of `other` is also in this set. |
 
 ```lumen
 import "set";

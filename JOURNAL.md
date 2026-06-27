@@ -1178,3 +1178,4 @@ Closing small standard-library gaps tier by tier (one commit + gate each:
 `fmt && clippy -D warnings && test`), backward-compatible only.
 
 - **T1 string**: added `is_digit`/`is_alpha`/`is_alnum`/`is_space`/`is_upper`/`is_lower` (Unicode-aware predicates, with `is_digit` accepting only ASCII `0`–`9`), `capitalize`, `count` (non-overlapping; empty needle throws `ValueError`), and `lines` (`str::lines` semantics, `"" → []`). Suite green at **286**.
+- **T2 set** (`std/set.lum`, self-hosted): added `intersection` (canonical name; `intersect` kept as alias), `symmetric_difference`, and `is_superset` (`= other.is_subset(this)`), in the class's existing `for x in this.values()` style. Suite green at **286**.

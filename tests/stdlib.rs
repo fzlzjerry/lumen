@@ -291,9 +291,16 @@ fn self_hosted_set_module() {
                  println(a.has(9));
                  println(a.union(b).size());
                  println(a.intersect(b).values());
+                 println(a.intersection(b).values());
                  println(a.difference(b).values());
-                 println(a.is_subset(set.of([1, 2, 3, 4])));"#;
-    assert_eq!(out(src), "3\ntrue\nfalse\n4\n[2, 3]\n[1]\ntrue\n");
+                 println(a.symmetric_difference(b).values());
+                 println(a.is_subset(set.of([1, 2, 3, 4])));
+                 println(a.is_superset(set.of([2, 3])));
+                 println(a.is_superset(b));"#;
+    assert_eq!(
+        out(src),
+        "3\ntrue\nfalse\n4\n[2, 3]\n[2, 3]\n[1]\n[1, 4]\ntrue\ntrue\nfalse\n"
+    );
 }
 
 #[test]

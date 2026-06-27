@@ -57,11 +57,33 @@ export class Set {
         return r;
     }
 
+    // A new set with the members present in both (the canonical name;
+    // `intersect` is kept as an alias).
+    intersection(other) {
+        let r = Set();
+        for x in this.values() {
+            if other.has(x) { r.add(x); }
+        }
+        return r;
+    }
+
     // A new set with this set's members that `other` lacks.
     difference(other) {
         let r = Set();
         for x in this.values() {
             if !other.has(x) { r.add(x); }
+        }
+        return r;
+    }
+
+    // A new set with the members in exactly one of the two sets.
+    symmetric_difference(other) {
+        let r = Set();
+        for x in this.values() {
+            if !other.has(x) { r.add(x); }
+        }
+        for x in other.values() {
+            if !this.has(x) { r.add(x); }
         }
         return r;
     }
@@ -72,6 +94,11 @@ export class Set {
             if !other.has(x) { return false; }
         }
         return true;
+    }
+
+    // Is every member of `other` also in this set?
+    is_superset(other) {
+        return other.is_subset(this);
     }
 
     str() {
