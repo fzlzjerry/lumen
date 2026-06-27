@@ -1,23 +1,23 @@
 Architectures: amd64 arm64
 Codename: stable
 Components: main
-Date: Fri, 26 Jun 2026 23:40:28 +0000
+Date: Sat, 27 Jun 2026 08:55:43 +0000
 Label: lumen
 Origin: lumen
 Suite: stable
 MD5Sum:
- d98fd4d99d2cf0a095d79fffd6d55510             2070 Packages
- 0ca853271694f57cd11dbd2390c96239              899 Packages.gz
- e553eb2a4e2104555ab34afc69d60c98              140 Release
+ 0b7c48386e34db1eb50d220caeeb39b0             2070 Packages
+ 0ff9a3ec1e554c43eaa341cb0e33ac81              901 Packages.gz
+ b09bfa2b1dd1fe547a059fbc62b675d0              140 Release
 SHA1:
- e3b74a558cbce14821901e59fab2a6e6296ef99f             2070 Packages
- f13a43d65d79fd00a603ed2e528adb851cb38153              899 Packages.gz
- fcae30446328e2f7d5f36ab1a516197da3587ce4              140 Release
+ 724bb323d07d14c302a6620bef4cae487d3e47a1             2070 Packages
+ f1c5cafb862c1cbdab743c6950b7528fac999550              901 Packages.gz
+ 1317ef38099aaa01e1a73a462cb83d2794f0b83b              140 Release
 SHA256:
- c9b6d8ad387c2c4a2bd86dbd835198d415524966e7a390de6ce7ffdca289493c             2070 Packages
- 2185b0c3c2c46ae8d9198db74e01665fc7458aefa416a8157b6af8cf281d7ce7              899 Packages.gz
- 1d15fdf0def0d2d175a427bbe12793a89c3308af0e4e086fd79e966e1e1093fc              140 Release
+ c289b1e97e85440ff25f128e7f5d3bea8435363fee1406e1ffd8ea38f2ace2d7             2070 Packages
+ 83475a89be19bf5a75379b5c7f37eb82b937ccff860ce9f4e7ac8ae950ff72e1              901 Packages.gz
+ 9bb3c04fd9262e17da756667ce40e1caece1956f1310ace282100595a42236f4              140 Release
 SHA512:
- 85fdc68ed43b82f47f64abfa36d8799fb140a1dd67c3bd4d73d615c2d14a0e831ac62a8fc0613a8e9780a5d258a91c0e1816fe8bb375f84ff72b4e2c5228e20c             2070 Packages
- 04012824ac733f9ac43281cfcb91ca76bc33413c4cad7b27ce41d8e72e2faa44a5abe7914238f3603d8dadde2156cedbe23058a29c2e4e1378965345f11db57c              899 Packages.gz
- 61d06bd97936a34c062cb5715d4c152bdefc2cb942ad3dd7df80dc0570109c9632e0c4d9fcae57e04f6867d03f240cdb29e4241d82c67351d3aa4c782b3f1eca              140 Release
+ 009cc1bd3d4337ae4659b0907ba7471134e2cf10fd2cdc79416be01091e4adb6d75b6c3e0b674572da44cb3b6a1d2e01e9d3cce5f6d2665e3e683154ade933f3             2070 Packages
+ dc0992bad537532d0ac6bc8124af833b7cd4bd12e8c995778ef831ba407824cea53bc7c1f62efda7e61050e85e4dbd2b1c48650590da5e066ff5b38e6f64c8ce              901 Packages.gz
+ 3c5eb99d1273b39a9b35b71377eef9d61039f74f9cdc4c1b085f4e26378e5ef4acefc49ebb27be82d13b4080df1a7ee7775ab0d681270404861d43c2231008e7              140 Release

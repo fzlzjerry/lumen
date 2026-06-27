@@ -1,17 +1,17 @@
 Package: lumen
 Architecture: amd64
-Version: 0.2.0-1
+Version: 0.3.0-1
 Priority: optional
 Section: devel
 Maintainer: fzlzjerry <fzlzjerry@users.noreply.github.com>
-Installed-Size: 1321
+Installed-Size: 1419
 Depends: libc6 (>= 2.39)
-Filename: ./lumen_0.2.0-1_amd64.deb
-Size: 503384
-MD5sum: 30d6b177fdd9f93a1528f8f1dc75819f
-SHA1: 184047fb0e6959bc64bd939163c8051f3fe20a19
-SHA256: 150aab65be313a6d36e99f06b1ade9ae2612aa4e33308d0d4dd201099b34af6c
-SHA512: 33c98a73f543f8a679f5e4d3e75bfaa6971f0248dcb4f39a702b3d2337f391e87f5cdda164ffbcb9af513d249c0c5afd40cbecd9c9fa95cbb4aa4a4e14e46271
+Filename: ./lumen_0.3.0-1_amd64.deb
+Size: 536776
+MD5sum: 0313b38a189d09bbfdc90200aa160fb8
+SHA1: 792b0cb2b71262d73c8bc0ebced3bb050c8676b0
+SHA256: 304a14a3ccf8c2f9428b3a500c6f15e549c1553dfa36009249a96bb5cf69b382
+SHA512: 30b7674652d2d7f2c056d2c6609ba6621424a7497b89115d91b8cd5ab92f7ab4052196cdd54efc0fdae12472e1d65ef6cf06d044cf6281566935da9902aad24a
 Homepage: https://github.com/fzlzjerry/lumen
 Description: Lumen — a dynamic, bytecode-compiled programming language with a bytecode VM,
  generational GC, and a full toolchain
@@ -22,18 +22,18 @@ Description: Lumen — a dynamic, bytecode-compiled programming language with a 
 
 Package: lumen
 Architecture: arm64
-Version: 0.2.0-1
+Version: 0.3.0-1
 Priority: optional
 Section: devel
 Maintainer: fzlzjerry <fzlzjerry@users.noreply.github.com>
-Installed-Size: 1172
+Installed-Size: 1238
 Depends: libc6:arm64 (>= 2.39)
-Filename: ./lumen_0.2.0-1_arm64.deb
-Size: 432880
-MD5sum: 42a1ec3cfe44b3033c2a5cbc38ce48b3
-SHA1: 40655278bac9b9550314a994f60a5491738c31a5
-SHA256: 7d9a69f7fa13a4d674d84ff601b2eb2ce5d7b4e71eb2994b00603d81db3739aa
-SHA512: 3dcebf9cbb2bc55b6b8f86826b4bd5c2dacd73e8b8867b009943390f37e70e021bae07da29ebea4efa02c1f10bf81c5e6b61d7c72d37aff0def1457ba65293ae
+Filename: ./lumen_0.3.0-1_arm64.deb
+Size: 460256
+MD5sum: 226f52bea389ef2529d94e2a003d1726
+SHA1: a1b7694f6f77aeb64962a86c121432ceff099837
+SHA256: 341f4ce6a96a72344021e879dfed31256bda530b9e7c55689024e5b6ebe314a5
+SHA512: 7524388ec2d8cfd3177d4b0660e96a3167aed13f73f6b617c64b4735009d2774060a98792adf324e7bd6c600e081bf888163356146da6a470c4b996d087af6e8
 Homepage: https://github.com/fzlzjerry/lumen
 Description: Lumen — a dynamic, bytecode-compiled programming language with a bytecode VM,
  generational GC, and a full toolchain
