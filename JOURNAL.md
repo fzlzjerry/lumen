@@ -1171,3 +1171,10 @@ only genuinely-nested matches pay for the IIFE. The resolver needed no change
 static check on an arm's expression body). Verified with `match` in every nested
 position (call arg, operand, array element, interpolation, comprehension,
 upvalue-capturing) and under stress GC; suite green at **285** test functions.
+
+### stdlib gap-closing pass
+
+Closing small standard-library gaps tier by tier (one commit + gate each:
+`fmt && clippy -D warnings && test`), backward-compatible only.
+
+- **T1 string**: added `is_digit`/`is_alpha`/`is_alnum`/`is_space`/`is_upper`/`is_lower` (Unicode-aware predicates, with `is_digit` accepting only ASCII `0`–`9`), `capitalize`, `count` (non-overlapping; empty needle throws `ValueError`), and `lines` (`str::lines` semantics, `"" → []`). Suite green at **286**.

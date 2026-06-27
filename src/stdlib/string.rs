@@ -31,6 +31,15 @@ pub fn build(vm: &mut Vm) -> Value {
         f(vm, "pad_left", Range(2, 3), pad_left),
         f(vm, "pad_right", Range(2, 3), pad_right),
         f(vm, "format", Exact(2), format),
+        f(vm, "is_digit", Exact(1), is_digit),
+        f(vm, "is_alpha", Exact(1), is_alpha),
+        f(vm, "is_alnum", Exact(1), is_alnum),
+        f(vm, "is_space", Exact(1), is_space),
+        f(vm, "is_upper", Exact(1), is_upper),
+        f(vm, "is_lower", Exact(1), is_lower),
+        f(vm, "capitalize", Exact(1), capitalize),
+        f(vm, "count", Exact(2), count),
+        f(vm, "lines", Exact(1), lines),
     ];
     vm.make_module("string", exports)
 }
@@ -478,4 +487,86 @@ fn pad_left(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
 }
 fn pad_right(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
     pad(vm, a, false)
+}
+
+// ---- character-class predicates -------------------------------------------
+//
+// Each is true only for a *non-empty* string whose every character matches; the
+// empty string is `false`. The predicates are Unicode-aware (`is_alphabetic` /
+// `is_alphanumeric` / `is_whitespace`), with one deliberate exception:
+// `is_digit` accepts only the ASCII digits `0`–`9` (the canonical meaning of
+// "digit"), not arbitrary Unicode numerics.
+
+fn is_digit(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    let s = string_of(vm, a[0])?;
+    Ok(Value::Bool(
+        !s.is_empty() && s.chars().all(|c| c.is_ascii_digit()),
+    ))
+}
+fn is_alpha(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    let s = string_of(vm, a[0])?;
+    Ok(Value::Bool(
+        !s.is_empty() && s.chars().all(|c| c.is_alphabetic()),
+    ))
+}
+fn is_alnum(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    let s = string_of(vm, a[0])?;
+    Ok(Value::Bool(
+        !s.is_empty() && s.chars().all(|c| c.is_alphanumeric()),
+    ))
+}
+fn is_space(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    let s = string_of(vm, a[0])?;
+    Ok(Value::Bool(
+        !s.is_empty() && s.chars().all(|c| c.is_whitespace()),
+    ))
+}
+
+/// `is_upper`/`is_lower`: true iff the string has at least one cased character
+/// and none of the opposite case (mirrors Python's `str.isupper`/`islower`).
+fn is_upper(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    let s = string_of(vm, a[0])?;
+    let cased = s.chars().any(|c| c.is_uppercase() || c.is_lowercase());
+    let has_lower = s.chars().any(|c| c.is_lowercase());
+    Ok(Value::Bool(cased && !has_lower))
+}
+fn is_lower(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    let s = string_of(vm, a[0])?;
+    let cased = s.chars().any(|c| c.is_uppercase() || c.is_lowercase());
+    let has_upper = s.chars().any(|c| c.is_uppercase());
+    Ok(Value::Bool(cased && !has_upper))
+}
+
+/// `capitalize`: upper-case the first character, lower-case the rest. Empty
+/// string maps to itself.
+fn capitalize(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    let s = string_of(vm, a[0])?;
+    let mut chars = s.chars();
+    let result = match chars.next() {
+        Some(first) => {
+            let head: String = first.to_uppercase().collect();
+            format!("{head}{}", chars.as_str().to_lowercase())
+        }
+        None => String::new(),
+    };
+    Ok(vm.new_string(&result))
+}
+
+/// `count(hay, needle)`: number of **non-overlapping** occurrences of `needle`
+/// in `hay`. An empty needle throws `ValueError`.
+fn count(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    let hay = string_of(vm, a[0])?;
+    let needle = string_of(vm, a[1])?;
+    if needle.is_empty() {
+        return Err(err(vm, error_kind::VALUE, "count: needle cannot be empty"));
+    }
+    Ok(Value::Int(hay.matches(needle.as_str()).count() as i64))
+}
+
+/// `lines(s)`: split into lines like Rust's `str::lines` — on `\n`, stripping a
+/// trailing `\r`, with no trailing empty element (so `""` yields `[]`).
+fn lines(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    let s = string_of(vm, a[0])?;
+    let vals: Vec<Value> = s.lines().map(|l| vm.new_string(l)).collect();
+    Ok(vm.new_array(vals))
 }

@@ -96,6 +96,83 @@ fn string_module() {
 }
 
 #[test]
+fn string_predicates() {
+    // Character-class predicates: non-empty AND every character matches.
+    assert_eq!(
+        out("import \"string\" as s; println(s.is_digit(\"123\"));"),
+        "true\n"
+    );
+    assert_eq!(
+        out("import \"string\" as s; println(s.is_digit(\"\"));"),
+        "false\n"
+    ); // empty is always false
+    assert_eq!(
+        out("import \"string\" as s; println(s.is_digit(\"12a\"));"),
+        "false\n"
+    );
+    assert_eq!(
+        out("import \"string\" as s; println(s.is_alpha(\"abcÉ\"));"),
+        "true\n"
+    ); // Unicode-aware
+    assert_eq!(
+        out("import \"string\" as s; println(s.is_alnum(\"ab12\"));"),
+        "true\n"
+    );
+    assert_eq!(
+        out("import \"string\" as s; println(s.is_space(\" \\t\\n\"));"),
+        "true\n"
+    );
+    // is_upper/is_lower: >=1 cased char and none of the opposite case.
+    assert_eq!(
+        out("import \"string\" as s; println(s.is_upper(\"ABC1\"));"),
+        "true\n"
+    );
+    assert_eq!(
+        out("import \"string\" as s; println(s.is_upper(\"Abc\"));"),
+        "false\n"
+    );
+    assert_eq!(
+        out("import \"string\" as s; println(s.is_upper(\"123\"));"),
+        "false\n"
+    ); // no cased char
+    assert_eq!(
+        out("import \"string\" as s; println(s.is_lower(\"abc\"));"),
+        "true\n"
+    );
+    // capitalize: first upper, rest lower.
+    assert_eq!(
+        out("import \"string\" as s; println(s.capitalize(\"hELLO\"));"),
+        "Hello\n"
+    );
+    assert_eq!(
+        out("import \"string\" as s; println(s.capitalize(\"\"));"),
+        "\n"
+    );
+    // count: non-overlapping; empty needle throws ValueError.
+    assert_eq!(
+        out("import \"string\" as s; println(s.count(\"aaaa\", \"aa\"));"),
+        "2\n"
+    );
+    assert_eq!(
+        out("import \"string\" as s; println(s.count(\"abcabc\", \"x\"));"),
+        "0\n"
+    );
+    assert_eq!(
+        out("import \"string\" as s; try { s.count(\"x\", \"\"); } catch (e) { println(e.kind); }"),
+        "ValueError\n"
+    );
+    // lines: like str::lines (no trailing empty element; "" -> []).
+    assert_eq!(
+        out("import \"string\" as s; println(s.lines(\"a\\nb\\n\"));"),
+        "[\"a\", \"b\"]\n"
+    );
+    assert_eq!(
+        out("import \"string\" as s; println(s.lines(\"\"));"),
+        "[]\n"
+    );
+}
+
+#[test]
 fn array_module() {
     assert_eq!(
         out("import \"array\" as a; println(a.sum([1,2,3,4]));"),

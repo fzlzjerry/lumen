@@ -164,6 +164,11 @@ the end. Functions **throw** `TypeError` on non-string arguments.
 | `reverse` | `(s) -> string` | Reversed by character. |
 | `chars` | `(s) -> array` | Array of one-character strings. |
 | `pad_left` `pad_right` | `(s, width, fill?) -> string` | Pad to `width` chars with `fill` (default a space). |
+| `is_digit` `is_alpha` `is_alnum` `is_space` | `(s) -> bool` | True iff `s` is non-empty and **every** character is a digit / letter / alphanumeric / whitespace (empty `s` → `false`). Unicode-aware, except `is_digit` accepts only the ASCII digits `0`–`9`. |
+| `is_upper` `is_lower` | `(s) -> bool` | True iff `s` has at least one cased character and none of the opposite case. |
+| `capitalize` | `(s) -> string` | Upper-case the first character and lower-case the rest. |
+| `count` | `(s, needle) -> int` | Number of **non-overlapping** occurrences of `needle` in `s`. **Throws** `ValueError` if `needle` is empty. |
+| `lines` | `(s) -> array` | Split into lines like Rust's `str::lines` (split on `\n`, strip a trailing `\r`, no trailing empty element; `""` → `[]`). |
 | `format` | `(template, args) -> string` | Substitute `{[index][:spec]}` placeholders. `{}` takes the next positional arg, `{N}` the indexed one; `{{`/`}}` are literal braces. The optional `:spec` is `[[fill]align][sign][#][0][width][.precision][type]` — align `<`/`>`/`^`, `sign` `+`, `#` base prefix, leading `0` zero-pad, `width`, `.precision`, and `type` `f`/`e`/`E`/`x`/`X`/`o`/`b`/`d`/`s`. Numbers default to right alignment, other values to left. **Throws** `ValueError` on a missing argument, out-of-range index, unmatched brace, or invalid spec. |
 
 ```lumen
