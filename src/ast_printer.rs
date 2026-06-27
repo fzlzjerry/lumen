@@ -497,6 +497,10 @@ impl Printer {
                     .collect();
                 format!("{{{}}}", parts.join(", "))
             }
+            PatternKind::Or(alts) => {
+                let parts: Vec<String> = alts.iter().map(Self::pattern_str).collect();
+                parts.join(" | ")
+            }
         }
     }
 }

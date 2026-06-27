@@ -1060,7 +1060,24 @@ impl Parser {
         Ok(MatchArm { pattern, guard, body, span })
     }
 
+    /// A pattern, possibly an `a | b | c` alternation (DESIGN D25). The bitwise
+    /// `|` token is repurposed here because patterns are a distinct grammar with
+    /// no bitwise operators.
     fn pattern(&mut self) -> PResult<Pattern> {
+        let first = self.pattern_atom()?;
+        if !self.check(&K::Pipe) {
+            return Ok(first);
+        }
+        let start = first.span;
+        let mut alts = vec![first];
+        while self.match_kind(&K::Pipe) {
+            alts.push(self.pattern_atom()?);
+        }
+        let span = start.to(alts.last().unwrap().span);
+        Ok(Pattern { kind: PatternKind::Or(alts), span })
+    }
+
+    fn pattern_atom(&mut self) -> PResult<Pattern> {
         let span = self.peek().span;
         match self.peek().kind.clone() {
             K::Ident(name) => {

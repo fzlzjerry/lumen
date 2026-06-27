@@ -393,6 +393,9 @@ pub enum PatternKind {
     Array(Vec<PatElem>),
     /// `{key: pat, ...}` — match by key, recursively.
     Map(Vec<(String, Pattern)>),
+    /// `p1 | p2 | ...` — matches if any alternative matches. Alternatives may not
+    /// bind variables (DESIGN D25).
+    Or(Vec<Pattern>),
 }
 
 /// An element of an array pattern.

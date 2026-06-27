@@ -186,6 +186,33 @@ fn pattern_matching() {
 }
 
 #[test]
+fn or_patterns() {
+    let src = "fn size(n) { return match n {
+                   0 => \"zero\",
+                   1 | 2 | 3 => \"small\",
+                   4 | 5 | 6 => \"medium\",
+                   _ => \"large\",
+               }; }
+               for x in [0, 2, 3, 5, 9] { println(size(x)); }";
+    assert_eq!(out(src), "zero\nsmall\nsmall\nmedium\nlarge\n");
+    // Mixed literal types in one alternation.
+    assert_eq!(
+        out("let r = match nil { nil | false => \"falsy\", _ => \"other\" }; println(r);"),
+        "falsy\n"
+    );
+    assert_eq!(
+        out("let r = match false { nil | false => \"falsy\", _ => \"other\" }; println(r);"),
+        "falsy\n"
+    );
+    // A binding inside an alternation is a static (resolver) error.
+    let (_p, errs) = lumen::check_source("let r = match 5 { a | 2 => a, _ => 0 };");
+    assert!(
+        errs.iter().any(|d| d.message.contains("alternative patterns")),
+        "got: {errs:?}"
+    );
+}
+
+#[test]
 fn higher_order_native_callback() {
     // `sort`/comparators arrive in Phase 7; here verify a closure passed to a
     // user function and invoked works (the call_and_run path is exercised by

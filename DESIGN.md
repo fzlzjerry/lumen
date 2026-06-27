@@ -298,6 +298,24 @@ module rather than erroring, matching Python's pragmatic behavior.
 
 ---
 
+## D25 — `match` OR-patterns forbid bindings (v1)
+
+A pattern may be a `|`-separated alternation, `1 | 2 | 3 => "small"`, matching if
+**any** alternative matches. For v1, alternatives may **not** bind variables (a
+binding inside an alternation is a static error). The alternative — requiring
+every alternative to bind exactly the same set of names so the body sees a
+consistent environment regardless of which arm fired — is more machinery (a
+binding-set equality check, and a compiler that funnels each alternative's
+binds into one set of slots) than the feature earns at this stage. Forbidding
+binds keeps the lowering trivial: an alternation compiles to a short-circuiting
+OR of the per-alternative *tests* (no bind phase), and the rule is easy to teach
+("alternatives are literal/wildcard tests"). Allowing same-name binds across all
+alternatives is a clean future extension that does not change existing programs.
+
+OR-patterns are parsed wherever a pattern is (so they nest in array/map
+patterns); in a destructuring `let`/assignment an alternation is rejected by the
+existing "targets must be names" check.
+
 ## D24 — Destructuring assignment is a statement, disambiguated by lookahead
 
 `let [a, b] = xs;` already binds *new* variables. The mirror operation — assigning

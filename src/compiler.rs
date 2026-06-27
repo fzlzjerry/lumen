@@ -1396,7 +1396,30 @@ impl Compiler {
             }
             PatternKind::Array(elems) => self.test_array(elems, acc, span),
             PatternKind::Map(entries) => self.test_map(entries, acc, span),
+            PatternKind::Or(alts) => self.test_or(alts, acc, span),
         }
+    }
+
+    /// `p1 | p2 | ...`: push `true` iff any alternative matches. Alternatives bind
+    /// nothing (DESIGN D25), so this is a pure short-circuiting OR of their tests.
+    fn test_or(&mut self, alts: &[Pattern], acc: &Access, span: Span) {
+        let line = span.line;
+        let mut successes = Vec::new();
+        for alt in alts {
+            self.compile_pattern_test(alt, acc, span); // [b]
+            let is_false = self.emit_jump(OpCode::JumpIfFalse, line); // b false: keep, skip
+            self.emit_op(OpCode::Pop, line); // b true: drop it
+            successes.push(self.emit_jump(OpCode::Jump, line)); // -> success
+            self.patch_jump(is_false, span);
+            self.emit_op(OpCode::Pop, line); // drop the false bool, try next alt
+        }
+        self.emit_op(OpCode::False, line); // no alternative matched
+        let done = self.emit_jump(OpCode::Jump, line);
+        for s in successes {
+            self.patch_jump(s, span);
+        }
+        self.emit_op(OpCode::True, line);
+        self.patch_jump(done, span);
     }
 
     fn test_literal(&mut self, acc: &Access, c: Constant, span: Span) {

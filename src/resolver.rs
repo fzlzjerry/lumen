@@ -881,8 +881,35 @@ impl Resolver {
                     self.declare_pattern(p);
                 }
             }
+            PatternKind::Or(alts) => {
+                // v1: alternatives may not bind variables (DESIGN D25).
+                for alt in alts {
+                    if pattern_binds_any(alt) {
+                        self.error(
+                            alt.span,
+                            "alternative patterns ('a | b') may not bind variables",
+                        );
+                    }
+                }
+            }
             _ => {}
         }
+    }
+}
+
+/// Whether a pattern binds at least one variable (used to reject binds inside an
+/// OR-pattern alternative, DESIGN D25).
+fn pattern_binds_any(pat: &Pattern) -> bool {
+    match &pat.kind {
+        PatternKind::Binding(_) => true,
+        PatternKind::Array(elems) => elems.iter().any(|el| match el {
+            PatElem::Pattern(p) => pattern_binds_any(p),
+            PatElem::Rest(Some(_)) => true,
+            PatElem::Rest(None) => false,
+        }),
+        PatternKind::Map(entries) => entries.iter().any(|(_, p)| pattern_binds_any(p)),
+        PatternKind::Or(alts) => alts.iter().any(pattern_binds_any),
+        _ => false,
     }
 }
 

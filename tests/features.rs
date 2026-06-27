@@ -337,6 +337,7 @@ fn formatter_roundtrips_new_features() {
         "[a, b] = [b, a];",
         "[x, ..rest] = xs;",
         "{k} = m;",
+        "let m = match x { 1 | 2 | 3 => \"a\", _ => \"b\" };",
         "let [a, b, ..rest] = xs;",
         "let {x, y} = m;",
         "let g = fn(n = 5) { return n; };",

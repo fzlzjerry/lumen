@@ -13,3 +13,4 @@ head 1, tail [2, 3, 4]
 read /users
 write /users
 unsupported
+zero odd even odd even odd even odd even odd 

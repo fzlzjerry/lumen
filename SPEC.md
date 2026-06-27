@@ -285,7 +285,8 @@ evaluated.
 ### 3.4 Patterns
 
 ```
-pattern     = "_"                                  (* wildcard *)
+pattern     = patternAtom { "|" patternAtom } ;     (* "|" alternation *)
+patternAtom = "_"                                  (* wildcard *)
             | intLit | floatLit | string | boolLit | nilLit   (* literal *)
             | "-" (intLit | floatLit)              (* negative literal *)
             | identifier                            (* binding *)
@@ -300,8 +301,11 @@ anything and binds it. A literal matches by equality (§6.2). An array pattern
 matches an array of the given shape; a single `..` or `..rest` element matches
 zero-or-more elements (at most one rest per array pattern), binding `rest` to a
 new array. A map pattern matches a map that contains each named key, recursively
-matching the value; extra keys in the subject are ignored. An optional arm guard
-`if expression` must also evaluate truthy for the arm to fire.
+matching the value; extra keys in the subject are ignored. An **alternation**
+`p1 | p2 | ...` matches if any alternative matches; for v1, alternatives may not
+bind variables (a binding inside an alternation is a static error — DESIGN D25).
+An optional arm guard `if expression` must also evaluate truthy for the arm to
+fire.
 
 ---
 
