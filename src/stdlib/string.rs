@@ -1,8 +1,9 @@
 //! The `string` module: text manipulation. All indexing is by Unicode scalar
 //! (character), consistent with `s[i]` in the core language.
 
-use super::{array_of, err, int, string_of, Vm};
+use super::{array_of, err, int, num, string_of, Vm};
 use crate::object::Arity::{self, Exact, Range};
+use crate::util::format_float;
 use crate::value::{error_kind, Value};
 
 pub fn build(vm: &mut Vm) -> Value {
@@ -34,10 +35,23 @@ pub fn build(vm: &mut Vm) -> Value {
     vm.make_module("string", exports)
 }
 
-/// `format(template, args)` — substitute `{}` (next positional arg) and `{N}`
-/// (indexed arg) placeholders, rendering each value as `str()` would. `{{` and
-/// `}}` are literal braces. Throws `ValueError` on a missing argument, an
-/// out-of-range index, or an unmatched brace.
+/// `format(template, args)` — substitute placeholders in `template` with values
+/// from `args`. A placeholder is `{[index][:spec]}`: `{}` takes the next
+/// positional argument, `{N}` the indexed one. `{{` and `}}` are literal braces.
+///
+/// The optional `:spec` is a mini format spec
+/// `[[fill]align][sign][#][0][width][.precision][type]`:
+/// - **align** `<` `>` `^` (left/right/center), with an optional `fill` char;
+/// - **sign** `+` always shows the sign of a number;
+/// - `#` adds the base prefix (`0x`/`0o`/`0b`) for the integer base types;
+/// - a leading `0` zero-pads a number to `width`;
+/// - **width** is the minimum field width; **.precision** the digits after the
+///   point (for `f`/`e`) or — with no type — the float precision;
+/// - **type** `f`/`e`/`E` (float), `x`/`X`/`o`/`b`/`d` (integer base), `s`
+///   (string). Numbers default to right alignment, everything else to left.
+///
+/// Throws `ValueError` on a missing argument, an out-of-range index, an unmatched
+/// brace, or an invalid spec.
 fn format(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
     let fmt = string_of(vm, a[0])?;
     let args = array_of(vm, a[1])?;
@@ -58,26 +72,42 @@ fn format(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
             '}' => return Err(err(vm, error_kind::VALUE, "format: unmatched '}'")),
             '{' => {
                 let mut j = i + 1;
-                let mut spec = String::new();
+                let mut field = String::new();
                 while j < chars.len() && chars[j] != '}' {
-                    spec.push(chars[j]);
+                    field.push(chars[j]);
                     j += 1;
                 }
                 if j >= chars.len() {
                     return Err(err(vm, error_kind::VALUE, "format: unmatched '{'"));
                 }
-                let idx = if spec.is_empty() {
+                let (index_part, spec_part) = match field.find(':') {
+                    Some(p) => (&field[..p], Some(&field[p + 1..])),
+                    None => (field.as_str(), None),
+                };
+                let idx = if index_part.is_empty() {
                     let k = next;
                     next += 1;
                     k
                 } else {
-                    spec.parse::<usize>()
-                        .map_err(|_| err(vm, error_kind::VALUE, format!("format: invalid placeholder '{{{spec}}}'")))?
+                    index_part.parse::<usize>().map_err(|_| {
+                        err(vm, error_kind::VALUE, format!("format: invalid placeholder '{{{field}}}'"))
+                    })?
                 };
-                let val = *args
-                    .get(idx)
-                    .ok_or_else(|| err(vm, error_kind::VALUE, format!("format: argument {idx} out of range (have {})", args.len())))?;
-                let rendered = vm.to_display(val, false)?;
+                let val = *args.get(idx).ok_or_else(|| {
+                    err(
+                        vm,
+                        error_kind::VALUE,
+                        format!("format: argument {idx} out of range (have {})", args.len()),
+                    )
+                })?;
+                let rendered = match spec_part {
+                    None => vm.to_display(val, false)?,
+                    Some(sp) => {
+                        let spec = FormatSpec::parse(sp)
+                            .map_err(|m| err(vm, error_kind::VALUE, format!("format: {m}")))?;
+                        spec.render(vm, val)?
+                    }
+                };
                 result.push_str(&rendered);
                 i = j + 1;
             }
@@ -88,6 +118,187 @@ fn format(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
         }
     }
     Ok(vm.new_string(&result))
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum Align {
+    Left,
+    Right,
+    Center,
+}
+
+/// A parsed `string.format` field spec (the part after `:`).
+struct FormatSpec {
+    fill: char,
+    align: Option<Align>,
+    sign_plus: bool,
+    alternate: bool,
+    zero_pad: bool,
+    width: Option<usize>,
+    precision: Option<usize>,
+    ty: Option<char>,
+}
+
+impl FormatSpec {
+    fn parse(s: &str) -> Result<FormatSpec, String> {
+        let c: Vec<char> = s.chars().collect();
+        let mut i = 0;
+        let is_align = |ch: char| matches!(ch, '<' | '>' | '^');
+        let to_align = |ch: char| match ch {
+            '<' => Align::Left,
+            '>' => Align::Right,
+            _ => Align::Center,
+        };
+        let mut spec = FormatSpec {
+            fill: ' ',
+            align: None,
+            sign_plus: false,
+            alternate: false,
+            zero_pad: false,
+            width: None,
+            precision: None,
+            ty: None,
+        };
+        // [[fill]align]: a fill char is only recognized when an align follows it.
+        if c.len() >= i + 2 && is_align(c[i + 1]) {
+            spec.fill = c[i];
+            spec.align = Some(to_align(c[i + 1]));
+            i += 2;
+        } else if i < c.len() && is_align(c[i]) {
+            spec.align = Some(to_align(c[i]));
+            i += 1;
+        }
+        // sign
+        if i < c.len() && c[i] == '+' {
+            spec.sign_plus = true;
+            i += 1;
+        } else if i < c.len() && c[i] == '-' {
+            i += 1; // the default; accepted for symmetry
+        }
+        // alternate form (#) then zero-pad (0)
+        if i < c.len() && c[i] == '#' {
+            spec.alternate = true;
+            i += 1;
+        }
+        if i < c.len() && c[i] == '0' {
+            spec.zero_pad = true;
+            i += 1;
+        }
+        // width
+        let mut w = String::new();
+        while i < c.len() && c[i].is_ascii_digit() {
+            w.push(c[i]);
+            i += 1;
+        }
+        if !w.is_empty() {
+            spec.width = Some(w.parse().map_err(|_| "width too large".to_string())?);
+        }
+        // precision
+        if i < c.len() && c[i] == '.' {
+            i += 1;
+            let mut p = String::new();
+            while i < c.len() && c[i].is_ascii_digit() {
+                p.push(c[i]);
+                i += 1;
+            }
+            if p.is_empty() {
+                return Err("expected digits after '.' in precision".to_string());
+            }
+            spec.precision = Some(p.parse().map_err(|_| "precision too large".to_string())?);
+        }
+        // type
+        if i < c.len() {
+            let t = c[i];
+            if matches!(t, 'f' | 'e' | 'E' | 'x' | 'X' | 'o' | 'b' | 'd' | 's') {
+                spec.ty = Some(t);
+                i += 1;
+            } else {
+                return Err(format!("unknown format type '{t}'"));
+            }
+        }
+        if i != c.len() {
+            return Err(format!("invalid format spec '{s}'"));
+        }
+        Ok(spec)
+    }
+
+    fn render(&self, vm: &mut Vm, val: Value) -> Result<String, Value> {
+        // Build the body and learn whether it is numeric (affects default
+        // alignment, sign, and zero-padding) and whether it is negative.
+        let (body, prefix, numeric, negative) = match self.ty {
+            Some('f') | Some('e') | Some('E') => {
+                let x = num(vm, val)?;
+                let prec = self.precision.unwrap_or(6);
+                let mag = x.abs();
+                let s = match self.ty {
+                    Some('e') => format!("{mag:.prec$e}"),
+                    Some('E') => format!("{mag:.prec$E}"),
+                    _ => format!("{mag:.prec$}"),
+                };
+                (s, String::new(), true, x.is_sign_negative() && x != 0.0)
+            }
+            Some('x') | Some('X') | Some('o') | Some('b') | Some('d') => {
+                let n = int(vm, val)?;
+                let mag = (n as i128).unsigned_abs();
+                let (digits, pre) = match self.ty {
+                    Some('x') => (format!("{mag:x}"), "0x"),
+                    Some('X') => (format!("{mag:X}"), "0x"),
+                    Some('o') => (format!("{mag:o}"), "0o"),
+                    Some('b') => (format!("{mag:b}"), "0b"),
+                    _ => (mag.to_string(), ""),
+                };
+                let prefix = if self.alternate { pre.to_string() } else { String::new() };
+                (digits, prefix, true, n < 0)
+            }
+            Some('s') => (vm.to_display(val, false)?, String::new(), false, false),
+            Some(_) => unreachable!("format type validated in FormatSpec::parse"),
+            None => match val {
+                Value::Int(n) => ((n as i128).unsigned_abs().to_string(), String::new(), true, n < 0),
+                Value::Float(x) => {
+                    let body = match self.precision {
+                        Some(p) => format!("{:.*}", p, x.abs()),
+                        None => format_float(x.abs()),
+                    };
+                    (body, String::new(), true, x.is_sign_negative() && x != 0.0)
+                }
+                _ => (vm.to_display(val, false)?, String::new(), false, false),
+            },
+        };
+
+        // Sign goes before the alternate prefix and the digits.
+        let sign = if negative {
+            "-"
+        } else if numeric && self.sign_plus {
+            "+"
+        } else {
+            ""
+        };
+        let head_len = sign.chars().count() + prefix.chars().count();
+        let content_len = head_len + body.chars().count();
+
+        let width = self.width.unwrap_or(0);
+        if content_len >= width {
+            return Ok(format!("{sign}{prefix}{body}"));
+        }
+        let pad = width - content_len;
+
+        // Zero-padding (only without an explicit alignment) goes between the
+        // sign/prefix and the digits; otherwise pad with `fill` per alignment.
+        if self.zero_pad && self.align.is_none() {
+            return Ok(format!("{sign}{prefix}{}{body}", "0".repeat(pad)));
+        }
+        let align = self.align.unwrap_or(if numeric { Align::Right } else { Align::Left });
+        let fillstr = |n: usize| self.fill.to_string().repeat(n);
+        let core = format!("{sign}{prefix}{body}");
+        Ok(match align {
+            Align::Left => format!("{core}{}", fillstr(pad)),
+            Align::Right => format!("{}{core}", fillstr(pad)),
+            Align::Center => {
+                let left = pad / 2;
+                format!("{}{core}{}", fillstr(left), fillstr(pad - left))
+            }
+        })
+    }
 }
 
 fn upper(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {

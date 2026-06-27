@@ -129,7 +129,7 @@ the end. Functions **throw** `TypeError` on non-string arguments.
 | `reverse` | `(s) -> string` | Reversed by character. |
 | `chars` | `(s) -> array` | Array of one-character strings. |
 | `pad_left` `pad_right` | `(s, width, fill?) -> string` | Pad to `width` chars with `fill` (default a space). |
-| `format` | `(template, args) -> string` | Substitute `{}` (next positional arg) / `{N}` (indexed arg) placeholders, each rendered with `str`; `{{` and `}}` are literal braces. **Throws** `ValueError` on a missing argument, out-of-range index, or unmatched brace. |
+| `format` | `(template, args) -> string` | Substitute `{[index][:spec]}` placeholders. `{}` takes the next positional arg, `{N}` the indexed one; `{{`/`}}` are literal braces. The optional `:spec` is `[[fill]align][sign][#][0][width][.precision][type]` — align `<`/`>`/`^`, `sign` `+`, `#` base prefix, leading `0` zero-pad, `width`, `.precision`, and `type` `f`/`e`/`E`/`x`/`X`/`o`/`b`/`d`/`s`. Numbers default to right alignment, other values to left. **Throws** `ValueError` on a missing argument, out-of-range index, unmatched brace, or invalid spec. |
 
 ```lumen
 import "string" as s;
@@ -137,7 +137,10 @@ println(s.split("a,b,c", ","));   // ["a", "b", "c"]
 println(s.join(["a", "b"], "-")); // a-b
 println(s.substring("hello", 1, 4)); // ell
 println(s.pad_left("7", 3));      // "  7"
-println(s.format("{} = {0}", [42])); // "42 = 42"
+println(s.format("{} = {0}", [42]));   // "42 = 42"
+println(s.format("{:.2f}", [3.14159])); // "3.14"
+println(s.format("[{:>6}]", [42]));     // "[    42]"
+println(s.format("{:#x}", [255]));      // "0xff"
 ```
 
 ### `array` — sequence operations

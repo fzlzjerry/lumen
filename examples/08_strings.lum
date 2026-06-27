@@ -29,3 +29,12 @@ println("repeat    = ${str.repeat("ab", 3)}");
 // Build a string from pieces.
 let words = ["the", "quick", "brown", "fox"];
 println("sentence  = ${str.join(words, " ")}");
+
+// Formatting with format specifiers: precision, width/zero-pad, alignment,
+// sign, and number bases (Rust/Python-style mini format language).
+println(str.format("pi ~= {:.2f}", [3.14159]));     // pi ~= 3.14
+println(str.format("|{:6}|{:<6}|", [42, 42]));      // |    42|42    |
+println(str.format("id={:05}", [42]));              // id=00042
+println(str.format("{:+} / {:+}", [7, -7]));        // +7 / -7
+println(str.format("hex={:x} bin={:b}", [255, 5])); // hex=ff bin=101
+println(str.format("[{:^9}]", ["lumen"]));          // [  lumen  ]

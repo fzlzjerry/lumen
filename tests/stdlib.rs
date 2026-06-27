@@ -315,6 +315,41 @@ fn string_format() {
 }
 
 #[test]
+fn string_format_specifiers() {
+    // `call` is the `s.format(...)` argument list; raw strings avoid escaping.
+    fn fmtout(call: &str) -> String {
+        out(&(r#"import "string" as s; println(s.format("#.to_string() + call + "));"))
+    }
+    // Precision.
+    assert_eq!(fmtout(r#""{:.2f}", [3.14159]"#), "3.14\n");
+    assert_eq!(fmtout(r#""{:.0f}", [3.7]"#), "4\n");
+    // Width and zero-pad.
+    assert_eq!(fmtout(r#""[{:5}]", [42]"#), "[   42]\n");
+    assert_eq!(fmtout(r#""[{:05}]", [42]"#), "[00042]\n");
+    assert_eq!(fmtout(r#""[{:05}]", [-42]"#), "[-0042]\n");
+    // Alignment, with and without a fill char.
+    assert_eq!(fmtout(r#""[{:>8}]", ["hi"]"#), "[      hi]\n");
+    assert_eq!(fmtout(r#""[{:<8}]", ["hi"]"#), "[hi      ]\n");
+    assert_eq!(fmtout(r#""[{:^8}]", ["hi"]"#), "[   hi   ]\n");
+    assert_eq!(fmtout(r#""[{:*^8}]", ["hi"]"#), "[***hi***]\n");
+    // Sign.
+    assert_eq!(fmtout(r#""{:+}", [42]"#), "+42\n");
+    assert_eq!(fmtout(r#""{:+}", [-42]"#), "-42\n");
+    // Bases, with and without the alternate prefix.
+    assert_eq!(fmtout(r#""{:x}", [255]"#), "ff\n");
+    assert_eq!(fmtout(r#""{:#x}", [255]"#), "0xff\n");
+    assert_eq!(fmtout(r#""{:b}", [5]"#), "101\n");
+    assert_eq!(fmtout(r#""{:o}", [8]"#), "10\n");
+    // Width + precision together.
+    assert_eq!(fmtout(r#""[{:8.2f}]", [3.14159]"#), "[    3.14]\n");
+    // An invalid spec is a ValueError.
+    assert_eq!(
+        out(r#"import "string" as s; try { s.format("{:q}", [1]); } catch (e) { println(e.kind); }"#),
+        "ValueError\n"
+    );
+}
+
+#[test]
 fn hash_module() {
     // Non-cryptographic hashes are deterministic and distinguish inputs.
     assert_eq!(out("import \"hash\" as h; println(h.fnv1a(\"hello\") == h.fnv1a(\"hello\"));"), "true\n");

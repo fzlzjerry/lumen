@@ -15,3 +15,9 @@ replaced  = a+b+c
 starts    = true
 repeat    = ababab
 sentence  = the quick brown fox
+pi ~= 3.14
+|    42|42    |
+id=00042
++7 / -7
+hex=ff bin=101
+[  lumen  ]
