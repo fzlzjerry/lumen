@@ -411,6 +411,11 @@ impl Resolver {
                     self.declare_pattern(pattern);
                 }
             }
+            Stmt::DestructureAssign { pattern, value, .. } => {
+                self.validate_destructure(pattern);
+                self.resolve_expr(value);
+                self.resolve_assign_pattern(pattern);
+            }
             Stmt::Function(f) => {
                 let name = f.name.as_deref().unwrap_or("");
                 self.bind_decl(name, f.name_span, false, true);
@@ -811,6 +816,49 @@ impl Resolver {
                 pat.span,
                 "destructuring requires an array '[...]' or map '{...}' pattern",
             ),
+        }
+    }
+
+    /// Check every binding target of a destructuring **assignment** pattern: each
+    /// must name an existing mutable variable (assigning a `const` or an undefined
+    /// name is a static error), and reassigning a global invalidates its arity
+    /// signature (mirrors plain `Assign`).
+    fn resolve_assign_pattern(&mut self, pat: &Pattern) {
+        match &pat.kind {
+            PatternKind::Binding(name) => {
+                self.reassigned.insert(name.clone());
+                match self.assignability(name) {
+                    Assignability::Constant => {
+                        self.error(pat.span, format!("cannot assign to constant '{name}'"))
+                    }
+                    Assignability::Undefined => self.error(
+                        pat.span,
+                        format!("assignment to undefined variable '{name}'"),
+                    ),
+                    Assignability::Mutable => {}
+                }
+            }
+            PatternKind::Array(elems) => {
+                for el in elems {
+                    match el {
+                        PatElem::Pattern(p) => self.resolve_assign_pattern(p),
+                        PatElem::Rest(Some(name)) => {
+                            self.resolve_assign_pattern(&Pattern {
+                                kind: PatternKind::Binding(name.clone()),
+                                span: pat.span,
+                            });
+                        }
+                        PatElem::Rest(None) => {}
+                    }
+                }
+            }
+            PatternKind::Map(entries) => {
+                for (_, p) in entries {
+                    self.resolve_assign_pattern(p);
+                }
+            }
+            PatternKind::Wildcard => {}
+            _ => {} // other pattern kinds rejected by validate_destructure
         }
     }
 

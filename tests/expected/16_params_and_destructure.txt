@@ -11,3 +11,6 @@ head=1 tail=[2, 3, 4, 5]
 Ada the engineer
 min=1 max=9
 count=4 sum=20
+after swap: p=2 q=1
+first=10 more=[20, 30, 40]
+point: 3,4

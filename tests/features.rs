@@ -274,6 +274,37 @@ fn spread_call_arguments() {
 }
 
 #[test]
+fn destructuring_assignment() {
+    // Swap via array destructuring assignment to existing variables.
+    assert_eq!(
+        out("let a = 1; let b = 2; [a, b] = [b, a]; println(\"${a} ${b}\");"),
+        "2 1\n"
+    );
+    // Rest binding on the left.
+    assert_eq!(
+        out("let h = 0; let t = []; [h, ..t] = [1, 2, 3, 4]; println(\"${h} ${t}\");"),
+        "1 [2, 3, 4]\n"
+    );
+    // Map destructuring assignment and a wildcard skip.
+    assert_eq!(
+        out("let x = 0; let y = 0; {x, y} = {x: 7, y: 9}; println(\"${x} ${y}\");"),
+        "7 9\n"
+    );
+    assert_eq!(out("let p = 0; let q = 0; [p, _, q] = [1, 2, 3]; println(\"${p} ${q}\");"), "1 3\n");
+    // Assigns to upvalues, too.
+    let up = "fn m() { let s = 0; let f = fn() { [s] = [42]; }; f(); return s; } println(m());";
+    assert_eq!(out(up), "42\n");
+    // Assigning a const target is a static error.
+    let e = run("const c = 1; let d = 2; [c, d] = [3, 4];").unwrap_err();
+    assert!(e.contains("constant"), "got: {e}");
+    // A pattern with a literal value is rejected (clear error, not a misparse).
+    let e2 = run("let z = 0; {k: 1} = {k: 2};").unwrap_err();
+    assert!(!e2.is_empty());
+    // A leading `{` that is really a block still parses as a block.
+    assert_eq!(out("{ let inner = 5; println(inner); }"), "5\n");
+}
+
+#[test]
 fn formatter_roundtrips_new_features() {
     // Parse -> print -> parse must be stable for the new syntax.
     let srcs = [
@@ -281,6 +312,9 @@ fn formatter_roundtrips_new_features() {
         "f(..xs);",
         "f(1, ..xs, 2);",
         "obj.m(..args);",
+        "[a, b] = [b, a];",
+        "[x, ..rest] = xs;",
+        "{k} = m;",
         "let [a, b, ..rest] = xs;",
         "let {x, y} = m;",
         "let g = fn(n = 5) { return n; };",

@@ -160,14 +160,24 @@ from a value: `let [a, b, ..rest] = xs;`, `let {x, y} = m;` (shorthand for
 `{x: x, y: y}`), or `let {key: name} = m;`. Wildcards (`_`) skip a position.
 Nested patterns and literals are reserved for `match`.
 
+A **destructuring assignment** uses the same patterns but assigns to *existing*
+variables instead of declaring new ones: `[a, b] = [b, a];` (a swap),
+`[head, ..rest] = xs;`, `{x, y} = m;`. Every target must name a mutable variable
+already in scope (a `const` or undefined target is a static error). The
+right-hand side is evaluated once, in full, before any target is written. A
+statement that begins with `[` or `{` is a destructuring assignment when its
+matching close bracket is immediately followed by `=`; otherwise the leading `[`
+is an array literal and the leading `{` opens a block (DESIGN D24).
+
 ### 3.2 Statements
 
 ```
-statement    = exprStmt | block | ifStmt | whileStmt | forStmt
+statement    = exprStmt | destructAssign | block | ifStmt | whileStmt | forStmt
              | returnStmt | breakStmt | continueStmt
              | tryStmt | throwStmt ;
 
 exprStmt     = expression ";" ;
+destructAssign = pattern "=" expression ";" ;  (* assign to existing variables *)
 block        = "{" { declaration } "}" ;
 ifStmt       = "if" expression block [ "else" ( ifStmt | block ) ] ;
 whileStmt    = "while" expression block ;

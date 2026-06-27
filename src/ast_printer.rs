@@ -97,6 +97,14 @@ impl Printer {
                 self.out.push_str(&v);
                 self.out.push(';');
             }
+            Stmt::DestructureAssign { pattern, value, .. } => {
+                let pat = Self::pattern_str(pattern);
+                let v = self.expr(value, 0);
+                self.out.push_str(&pat);
+                self.out.push_str(" = ");
+                self.out.push_str(&v);
+                self.out.push(';');
+            }
             Stmt::Function(f) => self.append_function("fn ", f),
             Stmt::Class(c) => self.append_class(c),
             Stmt::Import(im) => self.append_import(im),

@@ -352,6 +352,14 @@ impl Parser {
     // ---- statements --------------------------------------------------------
 
     fn statement(&mut self) -> PResult<Stmt> {
+        // A leading `[`/`{` whose matching close is followed by `=` is a
+        // destructuring assignment (`[a, b] = …`, `{k} = …`), not an array
+        // literal / block. See DESIGN D24.
+        if matches!(self.peek().kind, K::LBracket | K::LBrace)
+            && self.looks_like_destructure_assign()
+        {
+            return self.destructure_assign_stmt();
+        }
         match self.peek().kind {
             K::LBrace => Ok(Stmt::Block(self.block()?)),
             K::If => self.if_stmt(),
@@ -507,6 +515,38 @@ impl Parser {
         let semi = self.consume(&K::Semicolon, "expected ';' after the expression")?;
         let span = expr.span.to(semi.span);
         Ok(Stmt::Expr { expr, span })
+    }
+
+    /// Lookahead for a destructuring assignment: starting at the current `[`/`{`,
+    /// scan to its matching close bracket/brace (tracking nesting of `()[]{}`) and
+    /// report whether the token immediately after is a single `=` (DESIGN D24).
+    fn looks_like_destructure_assign(&self) -> bool {
+        let mut depth = 0usize;
+        let mut i = self.pos;
+        while i < self.tokens.len() {
+            match self.tokens[i].kind {
+                K::LParen | K::LBracket | K::LBrace => depth += 1,
+                K::RParen | K::RBracket | K::RBrace => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return matches!(self.tokens.get(i + 1).map(|t| &t.kind), Some(K::Eq));
+                    }
+                }
+                K::Eof => return false,
+                _ => {}
+            }
+            i += 1;
+        }
+        false
+    }
+
+    fn destructure_assign_stmt(&mut self) -> PResult<Stmt> {
+        let start = self.peek().span;
+        let pattern = self.pattern()?;
+        self.consume(&K::Eq, "expected '=' in destructuring assignment")?;
+        let value = self.expression()?;
+        let semi = self.consume(&K::Semicolon, "expected ';' after the assignment")?;
+        Ok(Stmt::DestructureAssign { pattern, value, span: start.to(semi.span) })
     }
 
     // ---- expressions (precedence climbing) --------------------------------

@@ -295,3 +295,29 @@ the module value, cached by resolved path so repeated imports are cheap and shar
 state. Built-in native modules (`math`, …) present the same interface as user
 modules so `import` is uniform. Circular imports return the partially initialized
 module rather than erroring, matching Python's pragmatic behavior.
+
+---
+
+## D24 — Destructuring assignment is a statement, disambiguated by lookahead
+
+`let [a, b] = xs;` already binds *new* variables. The mirror operation — assigning
+to *existing* variables, `[a, b] = [b, a];` (a swap), `[x, ..rest] = xs;`,
+`{k} = m;` — is added as a distinct statement form (`Stmt::DestructureAssign`),
+not an expression. Keeping it statement-only avoids having to make patterns
+double as both lvalues and rvalues inside arbitrary expressions; the targets are
+existing variables (or `_` to skip), validated by the resolver to be mutable
+(assigning a `const` target is a static error, just like `const x; x = 1`).
+
+The parse-time wrinkle is the leading token. At statement start `[` already begins
+an array-literal expression and `{` always begins a **block** (D4). Rather than
+thread a restriction flag, the parser uses a **bounded lookahead**: when a
+statement begins with `[` or `{`, it scans to the matching close bracket/brace
+(tracking nesting) and checks whether the *next* token is a single `=`. If so, the
+construct is parsed as a destructuring assignment via the existing `pattern()`
+grammar; otherwise it falls through to the normal block / expression-statement
+path. This is unambiguous because neither a complete array literal nor a complete
+block is ever validly followed by `=` in statement position (`[a,b] = …` is not an
+lvalue assignment, and a block is a complete statement). A map pattern whose entry
+value is a literal (e.g. `{a: 1} = m`) parses but is rejected by the resolver, so
+the failure mode is a clear diagnostic rather than a silent misparse. The RHS is
+evaluated **once**, in full, before any target is written, so swaps work.

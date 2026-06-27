@@ -57,3 +57,19 @@ fn stats(..xs) {
 }
 let {count, sum} = stats(2, 4, 6, 8);
 println("count=${count} sum=${sum}");
+
+// --- Destructuring assignment (to existing variables) ---
+let p = 1;
+let q = 2;
+[p, q] = [q, p]; // swap, with the RHS fully evaluated first
+println("after swap: p=${p} q=${q}");
+
+let first = 0;
+let more = [];
+[first, ..more] = [10, 20, 30, 40];
+println("first=${first} more=${more}");
+
+let mx = 0;
+let my = 0;
+{x: mx, y: my} = {x: 3, y: 4};
+println("point: ${mx},${my}");

@@ -367,6 +367,9 @@ impl Compiler {
             Stmt::Destructure { pattern, init, span } => {
                 self.compile_destructure(pattern, init, *span);
             }
+            Stmt::DestructureAssign { pattern, value, span } => {
+                self.compile_destructure_assign(pattern, value, *span);
+            }
             Stmt::Function(f) => {
                 let line = f.span.line;
                 let name = f.name.clone().unwrap_or_default();
@@ -869,6 +872,62 @@ impl Compiler {
             }
             _ => {} // rejected by the resolver
         }
+    }
+
+    /// Compile `<pattern> = value;`. The RHS is evaluated once and kept on the
+    /// stack as an anonymous temp; each target is read out with DUP + INDEX_GET
+    /// (or ARRAY_REST) and stored into its existing variable, then the temp is
+    /// dropped. Using DUP avoids a named temp local that would otherwise leak.
+    fn compile_destructure_assign(&mut self, pattern: &Pattern, value: &Expr, span: Span) {
+        self.compile_expr(value); // [..., src]
+        match &pattern.kind {
+            PatternKind::Array(elems) => {
+                let rest_pos = elems.iter().position(|e| matches!(e, PatElem::Rest(_)));
+                let len = elems.len() as i64;
+                for (i, el) in elems.iter().enumerate() {
+                    match el {
+                        PatElem::Pattern(p) => {
+                            if let PatternKind::Binding(name) = &p.kind {
+                                let idx = if rest_pos.map(|rp| i < rp).unwrap_or(true) {
+                                    i as i64
+                                } else {
+                                    (i as i64) - len
+                                };
+                                self.emit_op(OpCode::Dup, span.line);
+                                self.emit_load_const(Constant::Int(idx), span);
+                                self.emit_op(OpCode::IndexGet, span.line);
+                                self.named_variable_set(name, span);
+                                self.emit_op(OpCode::Pop, span.line);
+                            }
+                        }
+                        PatElem::Rest(Some(name)) => {
+                            let front = rest_pos.unwrap();
+                            let back = elems.len() - front - 1;
+                            self.emit_op(OpCode::Dup, span.line);
+                            self.emit_op(OpCode::ArrayRest, span.line);
+                            self.emit_byte(front as u8, span.line);
+                            self.emit_byte(back as u8, span.line);
+                            self.named_variable_set(name, span);
+                            self.emit_op(OpCode::Pop, span.line);
+                        }
+                        PatElem::Rest(None) => {}
+                    }
+                }
+            }
+            PatternKind::Map(entries) => {
+                for (key, p) in entries {
+                    if let PatternKind::Binding(name) = &p.kind {
+                        self.emit_op(OpCode::Dup, span.line);
+                        self.emit_load_const(Constant::Str(key.clone()), span);
+                        self.emit_op(OpCode::IndexGet, span.line);
+                        self.named_variable_set(name, span);
+                        self.emit_op(OpCode::Pop, span.line);
+                    }
+                }
+            }
+            _ => {} // rejected by the resolver
+        }
+        self.emit_op(OpCode::Pop, span.line); // drop the source temp
     }
 
     fn compile_class(&mut self, c: &ClassDecl) {

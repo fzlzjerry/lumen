@@ -104,6 +104,13 @@ pub enum Stmt {
         init: Expr,
         span: Span,
     },
+    /// `<pattern> = value;` — assign the variables of an array/map pattern from
+    /// the destructured value (the targets must already exist and be mutable).
+    DestructureAssign {
+        pattern: Pattern,
+        value: Expr,
+        span: Span,
+    },
     Function(Function),
     Class(ClassDecl),
     Import(Import),
@@ -182,6 +189,7 @@ impl Stmt {
             Stmt::Let { span, .. }
             | Stmt::Const { span, .. }
             | Stmt::Destructure { span, .. }
+            | Stmt::DestructureAssign { span, .. }
             | Stmt::Export { span, .. }
             | Stmt::Expr { span, .. }
             | Stmt::If { span, .. }
