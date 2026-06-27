@@ -443,6 +443,67 @@ fn math_extras() {
 }
 
 #[test]
+fn math_hyperbolic_clamp_factorial() {
+    // Hyperbolics return floats.
+    assert_eq!(out("import \"math\" as m; println(m.sinh(0));"), "0.0\n");
+    assert_eq!(out("import \"math\" as m; println(m.cosh(0));"), "1.0\n");
+    assert_eq!(out("import \"math\" as m; println(m.tanh(0));"), "0.0\n");
+    assert_eq!(
+        out("import \"math\" as m; println(m.round(m.asinh(m.sinh(2))));"),
+        "2\n"
+    );
+    // clamp preserves the operand's type (int-in -> int-out) and errors on lo > hi.
+    assert_eq!(
+        out("import \"math\" as m; println(m.clamp(5, 1, 10));"),
+        "5\n"
+    );
+    assert_eq!(
+        out("import \"math\" as m; println(m.clamp(15, 1, 10));"),
+        "10\n"
+    );
+    assert_eq!(
+        out("import \"math\" as m; println(m.clamp(0, 1, 10));"),
+        "1\n"
+    );
+    assert_eq!(
+        out("import \"math\" as m; try { m.clamp(1, 10, 1); } catch (e) { println(e.kind); }"),
+        "ValueError\n"
+    );
+    // factorial: checked; negative and overflow both throw ValueError.
+    assert_eq!(
+        out("import \"math\" as m; println(m.factorial(5));"),
+        "120\n"
+    );
+    assert_eq!(out("import \"math\" as m; println(m.factorial(0));"), "1\n");
+    assert_eq!(
+        out("import \"math\" as m; println(m.factorial(20));"),
+        "2432902008176640000\n"
+    );
+    assert_eq!(
+        out("import \"math\" as m; try { m.factorial(-1); } catch (e) { println(e.kind); }"),
+        "ValueError\n"
+    );
+    assert_eq!(
+        out("import \"math\" as m; try { m.factorial(21); } catch (e) { println(e.kind); }"),
+        "ValueError\n"
+    );
+    // log gains an optional base: log(x, base) = ln(x) / ln(base); 1-arg unchanged.
+    // (Rounded to avoid float-formatting fragility on the exact division result.)
+    assert_eq!(
+        out("import \"math\" as m; println(m.round(m.log(8, 2)));"),
+        "3\n"
+    );
+    assert_eq!(
+        out("import \"math\" as m; println(m.round(m.log(100, 10)));"),
+        "2\n"
+    );
+    assert_eq!(
+        out("import \"math\" as m; println(m.round(m.log(m.e)));"),
+        "1\n"
+    );
+}
+
+#[test]
 fn map_iteration_helpers() {
     let src = "import \"map\" as mp;
                let m = {a: 1, b: 2, c: 3};

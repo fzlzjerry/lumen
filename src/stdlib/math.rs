@@ -1,8 +1,8 @@
 //! The `math` module: numeric constants and functions.
 
-use super::{int, num, Vm};
+use super::{err, int, num, Vm};
 use crate::object::Arity::{self, Exact, Range};
-use crate::value::Value;
+use crate::value::{error_kind, Value};
 
 pub fn build(vm: &mut Vm) -> Value {
     let f = |vm: &mut Vm, name: &'static str, arity: Arity, func: crate::object::NativeFn| {
@@ -18,7 +18,7 @@ pub fn build(vm: &mut Vm) -> Value {
         f(vm, "cbrt", Exact(1), cbrt),
         f(vm, "pow", Exact(2), pow),
         f(vm, "exp", Exact(1), exp),
-        f(vm, "log", Exact(1), log),
+        f(vm, "log", Range(1, 2), log),
         f(vm, "log2", Exact(1), log2),
         f(vm, "log10", Exact(1), log10),
         f(vm, "sin", Exact(1), sin),
@@ -28,6 +28,14 @@ pub fn build(vm: &mut Vm) -> Value {
         f(vm, "acos", Exact(1), acos),
         f(vm, "atan", Exact(1), atan),
         f(vm, "atan2", Exact(2), atan2),
+        f(vm, "sinh", Exact(1), sinh),
+        f(vm, "cosh", Exact(1), cosh),
+        f(vm, "tanh", Exact(1), tanh),
+        f(vm, "asinh", Exact(1), asinh),
+        f(vm, "acosh", Exact(1), acosh),
+        f(vm, "atanh", Exact(1), atanh),
+        f(vm, "clamp", Exact(3), clamp),
+        f(vm, "factorial", Exact(1), factorial),
         f(vm, "abs", Exact(1), abs),
         f(vm, "floor", Exact(1), floor),
         f(vm, "ceil", Exact(1), ceil),
@@ -61,8 +69,16 @@ fn cbrt(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
 fn exp(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
     unary(vm, a, f64::exp)
 }
+/// `log(x)` is the natural logarithm; `log(x, base)` is the base-`base` logarithm,
+/// computed as `x.ln() / base.ln()`.
 fn log(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
-    unary(vm, a, f64::ln)
+    let x = num(vm, a[0])?;
+    if a.len() == 2 {
+        let base = num(vm, a[1])?;
+        Ok(Value::Float(x.ln() / base.ln()))
+    } else {
+        Ok(Value::Float(x.ln()))
+    }
 }
 fn log2(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
     unary(vm, a, f64::log2)
@@ -87,6 +103,24 @@ fn acos(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
 }
 fn atan(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
     unary(vm, a, f64::atan)
+}
+fn sinh(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    unary(vm, a, f64::sinh)
+}
+fn cosh(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    unary(vm, a, f64::cosh)
+}
+fn tanh(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    unary(vm, a, f64::tanh)
+}
+fn asinh(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    unary(vm, a, f64::asinh)
+}
+fn acosh(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    unary(vm, a, f64::acosh)
+}
+fn atanh(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    unary(vm, a, f64::atanh)
 }
 
 fn pow(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
@@ -186,6 +220,46 @@ fn lcm(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
         g = t;
     }
     Ok(Value::Int((x / g).wrapping_mul(y)))
+}
+
+/// `clamp(x, lo, hi)` constrains `x` to `[lo, hi]`, returning the selected operand
+/// **unchanged** so its int/float type is preserved (like `min`/`max`). Throws
+/// `ValueError` if `lo > hi`.
+fn clamp(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    let x = num(vm, a[0])?;
+    let lo = num(vm, a[1])?;
+    let hi = num(vm, a[2])?;
+    if lo > hi {
+        return Err(err(vm, error_kind::VALUE, "clamp: lo must be <= hi"));
+    }
+    Ok(if x < lo {
+        a[1]
+    } else if x > hi {
+        a[2]
+    } else {
+        a[0]
+    })
+}
+
+/// `factorial(n)` for a non-negative integer `n`, with checked multiplication.
+/// Throws `ValueError` on a negative argument or on i64 overflow (never wraps).
+fn factorial(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    let n = int(vm, a[0])?;
+    if n < 0 {
+        return Err(err(
+            vm,
+            error_kind::VALUE,
+            "factorial: argument must be non-negative",
+        ));
+    }
+    let mut acc: i64 = 1;
+    for k in 1..=n {
+        acc = match acc.checked_mul(k) {
+            Some(v) => v,
+            None => return Err(err(vm, error_kind::VALUE, "factorial: result overflows")),
+        };
+    }
+    Ok(Value::Int(acc))
 }
 
 fn is_nan(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {

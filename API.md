@@ -117,11 +117,16 @@ import "math".{sqrt, pi};  // selected exports directly:     sqrt(2), pi
 | Function | Signature | Notes |
 |---|---|---|
 | `sqrt` `cbrt` `exp` | `(x) -> float` | Square root, cube root, eˣ. |
-| `log` `log2` `log10` | `(x) -> float` | Natural / base-2 / base-10 logarithm. |
+| `log` | `(x) -> float` / `(x, base) -> float` | Natural logarithm, or — with `base` — the base-`base` logarithm (`log(x, base) == ln(x) / ln(base)`). |
+| `log2` `log10` | `(x) -> float` | Base-2 / base-10 logarithm. |
 | `pow` | `(x, y) -> float` | xʸ. |
 | `sin` `cos` `tan` | `(x) -> float` | Trig (radians). |
 | `asin` `acos` `atan` | `(x) -> float` | Inverse trig. |
+| `sinh` `cosh` `tanh` | `(x) -> float` | Hyperbolic functions. |
+| `asinh` `acosh` `atanh` | `(x) -> float` | Inverse hyperbolic functions. |
 | `atan2` | `(y, x) -> float` | Two-argument arctangent. |
+| `clamp` | `(x, lo, hi) -> int\|float` | Constrain `x` to `[lo, hi]`, returning the selected operand unchanged (type preserved, like `min`/`max`). **Throws** `ValueError` if `lo > hi`. |
+| `factorial` | `(n) -> int` | `n!` for a non-negative integer `n` (checked). **Throws** `ValueError` on a negative argument or i64 overflow. |
 | `hypot` | `(x, y) -> float` | √(x²+y²). |
 | `abs` | `(x) -> int\|float` | Absolute value; **preserves** int/float-ness. |
 | `floor` `ceil` `trunc` | `(x) -> int` | Rounding; **return ints**. |
