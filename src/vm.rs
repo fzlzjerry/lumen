@@ -1254,6 +1254,24 @@ impl Vm {
     fn binary_num(&mut self, op: OpCode) -> Result<(), Value> {
         let b = self.pop();
         let a = self.pop();
+        // String repeat: `"ab" * 3` and `3 * "ab"` (a negative count gives "").
+        if matches!(op, OpCode::Mul) {
+            let rep = match (a, b) {
+                (Value::Obj(r), Value::Int(n)) | (Value::Int(n), Value::Obj(r)) => {
+                    match self.heap.get(r) {
+                        Obj::Str(s) => Some((s.clone(), n)),
+                        _ => None,
+                    }
+                }
+                _ => None,
+            };
+            if let Some((s, n)) = rep {
+                let repeated = s.repeat(n.max(0) as usize);
+                let v = Value::Obj(self.heap.intern(&repeated));
+                self.push(v);
+                return Ok(());
+            }
+        }
         let (x, y) = match (a.as_f64(), b.as_f64()) {
             (Some(x), Some(y)) => (x, y),
             _ => {

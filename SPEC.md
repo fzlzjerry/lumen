@@ -438,6 +438,8 @@ Let `n` denote a number (int or float).
   the same overflow check as `*`); otherwise (a float operand, or a negative
   integer exponent) the result is a float. `**` is right-associative and binds
   tighter than unary minus, so `-2 ** 2` is `-4` and `2 ** 3 ** 2` is `512`.
+- `string * int` / `int * string`: repeat the string that many times
+  (`"ab" * 3` is `"ababab"`); a count `<= 0` yields `""`.
 - `a / b`: if both operands are int, **truncating** integer division; otherwise
   float division. Divisor zero throws `DivisionByZero`.
 - `a % b`: remainder with the sign of the dividend; divisor zero throws.

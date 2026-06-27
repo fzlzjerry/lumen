@@ -25,6 +25,8 @@ println("contains  = ${str.contains("hello world", "world")}");
 println("replaced  = ${str.replace("a-b-c", "-", "+")}");
 println("starts    = ${str.starts_with("lumen", "lum")}");
 println("repeat    = ${str.repeat("ab", 3)}");
+println("rep op    = ${"ab" * 3}");      // string repeat: "ababab"
+println("rule      = ${"-" * 10}");      // "----------"
 
 // Build a string from pieces.
 let words = ["the", "quick", "brown", "fox"];

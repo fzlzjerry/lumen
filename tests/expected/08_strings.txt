@@ -14,6 +14,8 @@ contains  = true
 replaced  = a+b+c
 starts    = true
 repeat    = ababab
+rep op    = ababab
+rule      = ----------
 sentence  = the quick brown fox
 pi ~= 3.14
 |    42|42    |

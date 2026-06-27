@@ -325,6 +325,19 @@ fn instance_reflection_and_is_operator() {
 }
 
 #[test]
+fn string_repeat() {
+    assert_eq!(out("println(\"ab\" * 3);"), "ababab\n");
+    assert_eq!(out("println(3 * \"ab\");"), "ababab\n"); // commutative
+    assert_eq!(out("println(\"x\" * 0);"), "\n"); // empty
+    assert_eq!(out("println(\"x\" * -2);"), "\n"); // negative -> empty
+    assert_eq!(out("println(\"=\" * 5);"), "=====\n");
+    // int * int is unaffected; string * string is still a TypeError.
+    assert_eq!(out("println(3 * 4);"), "12\n");
+    let e = run("\"a\" * \"b\";").unwrap_err();
+    assert!(e.contains("TypeError"), "got: {e}");
+}
+
+#[test]
 fn power_operator() {
     assert_eq!(out("println(2 ** 10);"), "1024\n");
     // Right-associative: 2 ** (3 ** 2) = 2 ** 9.
