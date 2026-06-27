@@ -284,6 +284,16 @@ let bark = d.speak;     // methods are first-class once bound to a receiver
 println(bark());
 ```
 
+For runtime reflection, `type(x)` returns an instance's class name, and the `is`
+operator tests class membership (including inherited classes):
+
+```lumen
+println(type(d));        // "Dog"
+println(d is Dog);       // true
+println(d is Animal);    // true — Dog inherits Animal
+println(d is Cat);       // false
+```
+
 ## 8. Exceptions
 
 `throw` any value; catch it with `try`/`catch`. `finally` always runs. The

@@ -5,3 +5,8 @@ d = Dog(Rex, Husky)
 Rex is 3
 missing field: nil
 bound: Rex makes a sound — woof!
+type(d) = Dog
+type(a) = Animal
+d is Dog    = true
+d is Animal = true
+a is Dog    = false

@@ -476,6 +476,7 @@ fn describe_token(kind: &TokenKind) -> String {
         Import | Export => "module system".to_string(),
         This => "`this` — the method receiver".to_string(),
         Super => "`super` — the superclass".to_string(),
+        Is => "`is` — instance-of test (`x is Class`)".to_string(),
         other => format!("`{}`", other.lexeme()),
     }
 }

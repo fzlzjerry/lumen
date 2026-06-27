@@ -1533,6 +1533,7 @@ fn binary_op(op: BinaryOp) -> OpCode {
         BinaryOp::Le => OpCode::Le,
         BinaryOp::Gt => OpCode::Gt,
         BinaryOp::Ge => OpCode::Ge,
+        BinaryOp::Is => OpCode::Is,
         BinaryOp::BitAnd => OpCode::BitAnd,
         BinaryOp::BitOr => OpCode::BitOr,
         BinaryOp::BitXor => OpCode::BitXor,

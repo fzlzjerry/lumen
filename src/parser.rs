@@ -665,6 +665,7 @@ impl Parser {
                 K::LtEq => BinaryOp::Le,
                 K::Gt => BinaryOp::Gt,
                 K::GtEq => BinaryOp::Ge,
+                K::Is => BinaryOp::Is,
                 _ => break,
             };
             self.advance();

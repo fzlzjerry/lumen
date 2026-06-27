@@ -50,8 +50,8 @@ names:
 
 ```
 and  break  catch  class  const  continue  else  export  false  finally
-fn   for    if     import in     let       match  nil     not    or
-return  super  this  throw  true  try  while
+fn   for    if     import in     is        let    match  nil    not
+or   return super  this   throw  true      try    while
 ```
 
 `print` is **not** a keyword; it is an ordinary built-in function and may be
@@ -225,7 +225,7 @@ exactly once and otherwise behaves as `x = x + e`. Bitwise/shift operators are
 | 3     | `\|\|` `or`                   | left   | short-circuit                      |
 | 4     | `&&` `and`                    | left   | short-circuit                      |
 | 5     | `==` `!=`                     | left   |                                    |
-| 6     | `<` `<=` `>` `>=`             | left   |                                    |
+| 6     | `<` `<=` `>` `>=` `is`        | left   | `is`: instance-of test             |
 | 7     | `\|`                          | left   | bitwise or (int)                   |
 | 8     | `^`                           | left   | bitwise xor (int)                  |
 | 9     | `&`                           | left   | bitwise and (int)                  |
@@ -245,7 +245,7 @@ conditional = logicOr [ "?" assignment ":" assignment ] ;
 logicOr    = logicAnd { ("||"|"or") logicAnd } ;
 logicAnd   = equality { ("&&"|"and") equality } ;
 equality   = comparison { ("=="|"!=") comparison } ;
-comparison = bitOr { ("<"|"<="|">"|">=") bitOr } ;
+comparison = bitOr { ("<"|"<="|">"|">="|"is") bitOr } ;
 bitOr      = bitXor { "|" bitXor } ;
 bitXor     = bitAnd { "^" bitAnd } ;
 bitAnd     = shift { "&" shift } ;
@@ -326,7 +326,12 @@ Lumen is dynamically typed. Every value has one of these runtime types:
 | `module`  | reference | an imported module's exported bindings                  |
 | `error`   | reference | a built-in error object (`.kind`, `.message`)           |
 
-`type(x)` returns the type name as a string. Map keys are restricted to the
+`type(x)` returns the type name as a string; for a class **instance** it returns
+that instance's **class name** (so `type(Point(1, 2)) == "Point"`), and for every
+other value it returns the type name from the table above. The `x is C` operator
+tests class membership: it is `true` iff `x` is an instance whose class is `C` or
+a subclass of it, and `false` for any non-instance; the right operand must be a
+class (else `TypeError`). Map keys are restricted to the
 *hashable* immediate types plus strings; using a mutable reference as a key is a
 runtime error. `int` and `float` keys that are numerically equal (`1` and `1.0`)
 are considered the **same** key.
@@ -408,6 +413,8 @@ Let `n` denote a number (int or float).
 - `a < b` etc.: numbers compare numerically (mixed int/float allowed); strings
   compare lexicographically by Unicode scalar value. Other combinations are a
   runtime type error.
+- `a is C`: `true` iff `a` is an instance whose class is `C` or a subclass of it;
+  `false` for any non-instance. `C` must be a class, else a runtime type error.
 - `a && b` / `a and b`: evaluate `a`; if falsy, result is `a`; else result is
   `b` (short-circuit, value-preserving like Lua/Python).
 - `a || b` / `a or b`: evaluate `a`; if truthy, result is `a`; else `b`.

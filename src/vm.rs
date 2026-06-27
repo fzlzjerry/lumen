@@ -835,6 +835,12 @@ impl Vm {
                 self.push(Value::Bool(!eq));
             }
             OpCode::Lt | OpCode::Le | OpCode::Gt | OpCode::Ge => self.binary_compare(op)?,
+            OpCode::Is => {
+                let class = self.pop();
+                let value = self.pop();
+                let result = self.value_is_instance_of(value, class)?;
+                self.push(Value::Bool(result));
+            }
             OpCode::BitAnd | OpCode::BitOr | OpCode::BitXor | OpCode::Shl | OpCode::Shr => {
                 self.binary_bitwise(op)?
             }
@@ -1252,6 +1258,32 @@ impl Vm {
         };
         self.push(Value::Int(result));
         Ok(())
+    }
+
+    /// `x is Class`: true iff `value` is an instance whose class is `class` or a
+    /// subclass of it. The right operand must be a class (else `TypeError`).
+    fn value_is_instance_of(&mut self, value: Value, class: Value) -> Result<bool, Value> {
+        let class_ref = match class.as_obj() {
+            Some(r) if matches!(self.heap.get(r), Obj::Class(_)) => r,
+            _ => return Err(self.throw(error_kind::TYPE, "right operand of 'is' must be a class")),
+        };
+        let Some(obj) = value.as_obj() else {
+            return Ok(false); // only instances can match
+        };
+        let mut cur = match self.heap.get(obj) {
+            Obj::Instance(inst) => Some(inst.class),
+            _ => return Ok(false),
+        };
+        while let Some(c) = cur {
+            if c == class_ref {
+                return Ok(true);
+            }
+            cur = match self.heap.get(c) {
+                Obj::Class(cl) => cl.superclass,
+                _ => None,
+            };
+        }
+        Ok(false)
     }
 
     fn binary_compare(&mut self, op: OpCode) -> Result<(), Value> {

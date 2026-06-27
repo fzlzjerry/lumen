@@ -274,6 +274,9 @@ pub enum BinaryOp {
     Le,
     Gt,
     Ge,
+    /// `x is Class` — instance-of test (true iff `x` is an instance whose class
+    /// is `Class` or a subclass of it).
+    Is,
     /// Integer-only bitwise / shift operators.
     BitAnd,
     BitOr,

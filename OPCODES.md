@@ -55,6 +55,7 @@ All pop two operands (one for `NEG`/`NOT`) and push one result, per SPEC §6.4.
 | `NOT` | `…, a -> …, b` | Logical negation (always a bool). |
 | `EQ` `NE` | `…, a, b -> …, c` | Equality per SPEC §6.2. |
 | `LT` `LE` `GT` `GE` | `…, a, b -> …, c` | Ordered comparison of numbers or strings. |
+| `IS` | `…, v, class -> …, c` | `v is class`: `true` iff `v` is an instance of `class` or a subclass; `class` must be a class (else TypeError). |
 | `BIT_AND` `BIT_OR` `BIT_XOR` | `…, a, b -> …, c` | Integer bitwise and/or/xor (TypeError on non-int). |
 | `SHL` `SHR` | `…, a, b -> …, c` | Integer shift left / arithmetic shift right; amount in `0..=63`. |
 | `BIT_NOT` | `…, a -> …, b` | Integer bitwise complement (`~`). |

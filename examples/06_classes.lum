@@ -44,3 +44,11 @@ println("missing field: ${d.weight}");   // nil
 // Methods are first-class once bound to a receiver.
 let bark = d.speak;
 println("bound: ${bark()}");
+
+// Reflection: type() reports the class name for instances, and the `is`
+// operator tests class membership across the inheritance chain.
+println("type(d) = ${type(d)}");          // Dog
+println("type(a) = ${type(a)}");          // Animal
+println("d is Dog    = ${d is Dog}");     // true
+println("d is Animal = ${d is Animal}");  // true (subclass)
+println("a is Dog    = ${a is Dog}");     // false

@@ -305,6 +305,26 @@ fn destructuring_assignment() {
 }
 
 #[test]
+fn instance_reflection_and_is_operator() {
+    // type() reports the class name for instances; primitives are unchanged.
+    assert_eq!(out("class Foo {} println(type(Foo()));"), "Foo\n");
+    assert_eq!(out("println(type(42));"), "int\n");
+    assert_eq!(out("println(type(\"x\"));"), "string\n");
+    assert_eq!(out("println(type([1]));"), "array\n");
+    // `is` tests class membership, including across inheritance.
+    assert_eq!(out("class Foo {} let f = Foo(); println(f is Foo);"), "true\n");
+    assert_eq!(out("class A {} class B < A {} println(B() is A);"), "true\n");
+    assert_eq!(out("class A {} class B {} println(A() is B);"), "false\n");
+    assert_eq!(out("class A {} println(5 is A);"), "false\n");
+    assert_eq!(out("class A {} println(nil is A);"), "false\n");
+    // `is` binds tighter than `==`.
+    assert_eq!(out("class A {} println((A() is A) == true);"), "true\n");
+    // A non-class right operand is a TypeError.
+    let e = run("class A {} A() is 5;").unwrap_err();
+    assert!(e.contains("class"), "got: {e}");
+}
+
+#[test]
 fn formatter_roundtrips_new_features() {
     // Parse -> print -> parse must be stable for the new syntax.
     let srcs = [
@@ -312,6 +332,8 @@ fn formatter_roundtrips_new_features() {
         "f(..xs);",
         "f(1, ..xs, 2);",
         "obj.m(..args);",
+        "let r = x is Foo;",
+        "let s = (a is B) == c;",
         "[a, b] = [b, a];",
         "[x, ..rest] = xs;",
         "{k} = m;",

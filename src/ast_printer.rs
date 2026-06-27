@@ -514,6 +514,7 @@ fn binary_sym(op: BinaryOp) -> &'static str {
         BinaryOp::Le => "<=",
         BinaryOp::Gt => ">",
         BinaryOp::Ge => ">=",
+        BinaryOp::Is => "is",
         BinaryOp::BitAnd => "&",
         BinaryOp::BitOr => "|",
         BinaryOp::BitXor => "^",
@@ -534,7 +535,7 @@ fn expr_prec(e: &Expr) -> u8 {
         ExprKind::Logical { op: LogicalOp::And, .. } => 3,
         ExprKind::Binary { op, .. } => match op {
             BinaryOp::Eq | BinaryOp::Ne => 4,
-            BinaryOp::Lt | BinaryOp::Le | BinaryOp::Gt | BinaryOp::Ge => 5,
+            BinaryOp::Lt | BinaryOp::Le | BinaryOp::Gt | BinaryOp::Ge | BinaryOp::Is => 5,
             BinaryOp::BitOr => 6,
             BinaryOp::BitXor => 7,
             BinaryOp::BitAnd => 8,

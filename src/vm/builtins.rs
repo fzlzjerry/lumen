@@ -64,6 +64,21 @@ fn str_fn(vm: &mut Vm, args: &[Value]) -> Result<Value, Value> {
 }
 
 fn type_fn(vm: &mut Vm, args: &[Value]) -> Result<Value, Value> {
+    // For class instances, `type` reports the class name (reflection); primitives
+    // and other reference types keep their built-in type name.
+    if let Value::Obj(r) = args[0] {
+        let class = match vm.heap.get(r) {
+            Obj::Instance(inst) => Some(inst.class),
+            _ => None,
+        };
+        if let Some(class) = class {
+            let name = match vm.heap.get(class) {
+                Obj::Class(c) => c.name.clone(),
+                _ => String::new(),
+            };
+            return Ok(vm.new_string(&name));
+        }
+    }
     let t = vm.type_name(args[0]);
     Ok(vm.new_string(t))
 }

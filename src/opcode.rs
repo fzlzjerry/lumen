@@ -199,6 +199,11 @@ pub enum OpCode {
     /// `f(..xs)` / `obj.m(..xs)`, where the argument count is not known
     /// statically.
     CallSpread,
+
+    /// `Is` — pop a class then a value; push `true` iff the value is an instance
+    /// whose class is that class or a subclass of it (`x is Class`). The right
+    /// operand must be a class (else `TypeError`).
+    Is,
 }
 
 impl OpCode {
@@ -206,7 +211,7 @@ impl OpCode {
     pub fn from_u8(b: u8) -> Option<OpCode> {
         // Safe because the range check guarantees `b` is a valid discriminant of
         // this contiguous `#[repr(u8)]` enum.
-        if b <= OpCode::CallSpread as u8 {
+        if b <= OpCode::Is as u8 {
             Some(unsafe { std::mem::transmute::<u8, OpCode>(b) })
         } else {
             None
@@ -284,6 +289,7 @@ impl OpCode {
             OpCode::Invoke => "INVOKE",
             OpCode::DefaultArg => "DEFAULT_ARG",
             OpCode::CallSpread => "CALL_SPREAD",
+            OpCode::Is => "IS",
         }
     }
 }
@@ -294,8 +300,8 @@ mod tests {
 
     #[test]
     fn roundtrip_all_opcodes() {
-        // Every discriminant from 0..=CallSpread must decode back to itself.
-        for b in 0..=(OpCode::CallSpread as u8) {
+        // Every discriminant from 0..=Is must decode back to itself.
+        for b in 0..=(OpCode::Is as u8) {
             let op = OpCode::from_u8(b).expect("valid opcode");
             assert_eq!(op as u8, b);
         }
@@ -303,7 +309,7 @@ mod tests {
 
     #[test]
     fn invalid_byte_is_none() {
-        assert!(OpCode::from_u8(OpCode::CallSpread as u8 + 1).is_none());
+        assert!(OpCode::from_u8(OpCode::Is as u8 + 1).is_none());
         assert!(OpCode::from_u8(255).is_none());
     }
 }
