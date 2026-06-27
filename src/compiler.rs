@@ -1683,6 +1683,7 @@ fn binary_op(op: BinaryOp) -> OpCode {
         BinaryOp::Mul => OpCode::Mul,
         BinaryOp::Div => OpCode::Div,
         BinaryOp::Rem => OpCode::Rem,
+        BinaryOp::Pow => OpCode::Pow,
         BinaryOp::Eq => OpCode::Eq,
         BinaryOp::Ne => OpCode::Ne,
         BinaryOp::Lt => OpCode::Lt,

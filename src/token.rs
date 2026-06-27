@@ -80,6 +80,7 @@ pub enum TokenKind {
     Plus,       // +
     Minus,      // -
     Star,       // *
+    StarStar,   // ** (exponentiation)
     Slash,      // /
     Percent,    // %
     PlusEq,     // +=
@@ -213,6 +214,7 @@ impl TokenKind {
             TokenKind::Plus => "+",
             TokenKind::Minus => "-",
             TokenKind::Star => "*",
+            TokenKind::StarStar => "**",
             TokenKind::Slash => "/",
             TokenKind::Percent => "%",
             TokenKind::PlusEq => "+=",

@@ -325,6 +325,25 @@ fn instance_reflection_and_is_operator() {
 }
 
 #[test]
+fn power_operator() {
+    assert_eq!(out("println(2 ** 10);"), "1024\n");
+    // Right-associative: 2 ** (3 ** 2) = 2 ** 9.
+    assert_eq!(out("println(2 ** 3 ** 2);"), "512\n");
+    // Binds above unary minus: -(2 ** 2).
+    assert_eq!(out("println(-2 ** 2);"), "-4\n");
+    assert_eq!(out("println((-2) ** 2);"), "4\n");
+    // Negative exponent and float base yield floats.
+    assert_eq!(out("println(2 ** -1);"), "0.5\n");
+    assert_eq!(out("println(2.0 ** 3);"), "8.0\n");
+    // Binds tighter than `*`.
+    assert_eq!(out("println(2 ** 3 * 4);"), "32\n");
+    assert_eq!(out("println(10 ** 0);"), "1\n");
+    // Integer overflow throws (like `*`).
+    let e = run("2 ** 1000;").unwrap_err();
+    assert!(e.contains("overflow") || e.contains("ValueError"), "got: {e}");
+}
+
+#[test]
 fn formatter_roundtrips_new_features() {
     // Parse -> print -> parse must be stable for the new syntax.
     let srcs = [
@@ -341,6 +360,10 @@ fn formatter_roundtrips_new_features() {
         "try { f(); } catch (IndexError e) { a(); } catch (e) { b(); }",
         "class C { count = 0; static make() { return C(); } }",
         "fn gen(n) { let i = 0; while i < n { yield i; i = i + 1; } }",
+        "let p = 2 ** 3 ** 2;",
+        "let q = -2 ** 2;",
+        "let r = (-2) ** 2;",
+        "let s = foo()[0] ** 2 * 3;",
         "let [a, b, ..rest] = xs;",
         "let {x, y} = m;",
         "let g = fn(n = 5) { return n; };",

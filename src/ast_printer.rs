@@ -410,10 +410,10 @@ impl Printer {
                 format!("{{{}}}", parts.join(", "))
             }
             ExprKind::Assign { target, value } => {
-                format!("{} = {}", self.expr(target, 13), self.expr(value, 1))
+                format!("{} = {}", self.expr(target, 14), self.expr(value, 1))
             }
             ExprKind::CompoundAssign { target, op, value } => {
-                format!("{} {}= {}", self.expr(target, 13), binary_sym(*op), self.expr(value, 1))
+                format!("{} {}= {}", self.expr(target, 14), binary_sym(*op), self.expr(value, 1))
             }
             ExprKind::Unary { op, operand } => {
                 let sym = match op {
@@ -425,12 +425,13 @@ impl Printer {
             }
             ExprKind::Binary { op, left, right } => {
                 let p = expr_prec(e);
-                format!(
-                    "{} {} {}",
-                    self.expr(left, p),
-                    binary_sym(*op),
-                    self.expr(right, p + 1)
-                )
+                // `**` is right-associative; everything else is left-associative.
+                let (lctx, rctx) = if matches!(op, BinaryOp::Pow) {
+                    (p + 1, p)
+                } else {
+                    (p, p + 1)
+                };
+                format!("{} {} {}", self.expr(left, lctx), binary_sym(*op), self.expr(right, rctx))
             }
             ExprKind::Logical { op, left, right } => {
                 let p = expr_prec(e);
@@ -456,13 +457,13 @@ impl Printer {
                         CallArg::Spread(e) => format!("..{}", self.expr(e, 0)),
                     })
                     .collect();
-                format!("{}({})", self.expr(callee, 13), a.join(", "))
+                format!("{}({})", self.expr(callee, 14), a.join(", "))
             }
             ExprKind::Index { object, index } => {
-                format!("{}[{}]", self.expr(object, 13), self.expr(index, 0))
+                format!("{}[{}]", self.expr(object, 14), self.expr(index, 0))
             }
             ExprKind::Get { object, name, .. } => {
-                format!("{}.{}", self.expr(object, 13), name)
+                format!("{}.{}", self.expr(object, 14), name)
             }
             ExprKind::Lambda(f) => {
                 let params = self.params_str(&f.params);
@@ -548,6 +549,7 @@ fn binary_sym(op: BinaryOp) -> &'static str {
         BinaryOp::Mul => "*",
         BinaryOp::Div => "/",
         BinaryOp::Rem => "%",
+        BinaryOp::Pow => "**",
         BinaryOp::Eq => "==",
         BinaryOp::Ne => "!=",
         BinaryOp::Lt => "<",
@@ -582,10 +584,12 @@ fn expr_prec(e: &Expr) -> u8 {
             BinaryOp::Shl | BinaryOp::Shr => 9,
             BinaryOp::Add | BinaryOp::Sub => 10,
             BinaryOp::Mul | BinaryOp::Div | BinaryOp::Rem => 11,
+            // `**` binds tighter than unary minus, between unary (12) and postfix.
+            BinaryOp::Pow => 13,
         },
         ExprKind::Unary { .. } => 12,
-        ExprKind::Call { .. } | ExprKind::Index { .. } | ExprKind::Get { .. } => 13,
-        _ => 14,
+        ExprKind::Call { .. } | ExprKind::Index { .. } | ExprKind::Get { .. } => 14,
+        _ => 15,
     }
 }
 

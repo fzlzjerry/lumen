@@ -221,7 +221,15 @@ impl<'src> Lexer<'src> {
                 '?' => TokenKind::Question,
                 '+' => if self.match_char('=') { TokenKind::PlusEq } else { TokenKind::Plus },
                 '-' => if self.match_char('=') { TokenKind::MinusEq } else { TokenKind::Minus },
-                '*' => if self.match_char('=') { TokenKind::StarEq } else { TokenKind::Star },
+                '*' => {
+                    if self.match_char('*') {
+                        TokenKind::StarStar
+                    } else if self.match_char('=') {
+                        TokenKind::StarEq
+                    } else {
+                        TokenKind::Star
+                    }
+                }
                 '%' => if self.match_char('=') { TokenKind::PercentEq } else { TokenKind::Percent },
                 // comments already consumed by skip_trivia
                 '/' => if self.match_char('=') { TokenKind::SlashEq } else { TokenKind::Slash },

@@ -821,6 +821,7 @@ impl Vm {
             OpCode::Add => self.binary_add()?,
             OpCode::Sub => self.binary_num(op)?,
             OpCode::Mul => self.binary_num(op)?,
+            OpCode::Pow => self.binary_pow()?,
             OpCode::Div => self.binary_num(op)?,
             OpCode::Rem => self.binary_num(op)?,
             OpCode::Neg => {
@@ -1394,6 +1395,29 @@ impl Vm {
             None => self.values_equal(a, b),
         };
         self.push(Value::Bool(eq ^ negate));
+        Ok(())
+    }
+
+    /// `a ** b`: `int ** nonneg-int` is an int (overflow throws like `*`);
+    /// otherwise the result is a float.
+    fn binary_pow(&mut self) -> Result<(), Value> {
+        let b = self.pop();
+        let a = self.pop();
+        let result = match (a, b) {
+            (Value::Int(base), Value::Int(exp)) if exp >= 0 => {
+                match u32::try_from(exp).ok().and_then(|e| base.checked_pow(e)) {
+                    Some(r) => Value::Int(r),
+                    None => {
+                        return Err(self.throw(error_kind::VALUE, "integer overflow in exponentiation"))
+                    }
+                }
+            }
+            _ => match (a.as_f64(), b.as_f64()) {
+                (Some(x), Some(y)) => Value::Float(x.powf(y)),
+                _ => return Err(self.type_error_binary("**", a, b)),
+            },
+        };
+        self.push(result);
         Ok(())
     }
 

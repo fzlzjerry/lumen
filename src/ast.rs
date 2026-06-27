@@ -342,6 +342,8 @@ pub enum BinaryOp {
     Mul,
     Div,
     Rem,
+    /// `**` — exponentiation (right-associative, binds above unary minus).
+    Pow,
     Eq,
     Ne,
     Lt,

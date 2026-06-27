@@ -47,6 +47,7 @@ println(7 / 2);     // 3    — int / int truncates
 println(7.0 / 2);   // 3.5  — any float operand gives float division
 println(7 % 3);     // 1
 println(2 * 3.0);   // 6.0  — mixing promotes to float
+println(2 ** 10);   // 1024 — ** is exponentiation (right-assoc, above unary minus)
 println(1 == 1.0);  // true — numbers compare across int/float
 ```
 

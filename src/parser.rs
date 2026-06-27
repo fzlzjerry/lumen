@@ -815,12 +815,27 @@ impl Parser {
             K::Bang | K::Not => (UnaryOp::Not, self.peek().span),
             K::Minus => (UnaryOp::Neg, self.peek().span),
             K::Tilde => (UnaryOp::BitNot, self.peek().span),
-            _ => return self.postfix(),
+            _ => return self.power(),
         };
         self.advance();
         let operand = self.unary()?;
         let span = kw_span.to(operand.span);
         Ok(Expr::new(ExprKind::Unary { op, operand: Box::new(operand) }, span))
+    }
+
+    /// `**` exponentiation: binds tighter than unary minus (so `-2 ** 2` is
+    /// `-(2 ** 2)`) and is right-associative (`2 ** 3 ** 2` is `2 ** (3 ** 2)`).
+    /// The base is a postfix expression; the exponent is a full `unary` so it may
+    /// carry a sign (`2 ** -1`).
+    fn power(&mut self) -> PResult<Expr> {
+        let base = self.postfix()?;
+        if matches!(self.peek().kind, K::StarStar) {
+            self.advance();
+            let exp = self.unary()?;
+            Ok(self.binary(BinaryOp::Pow, base, exp))
+        } else {
+            Ok(base)
+        }
     }
 
     fn postfix(&mut self) -> PResult<Expr> {

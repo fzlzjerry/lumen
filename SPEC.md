@@ -104,7 +104,7 @@ lexical error.
 ### 2.5 Operators and punctuation
 
 ```
-+  -  *  /  %        (* arithmetic *)
++  -  *  /  %  **    (* arithmetic (** is exponentiation) *)
 =                    (* assignment *)
 += -= *= /= %=       (* compound assignment *)
 == != < <= > >=      (* comparison *)
@@ -253,8 +253,9 @@ exactly once and otherwise behaves as `x = x + e`. Bitwise/shift operators are
 | 11    | `+` `-`                       | left   |                                    |
 | 12    | `*` `/` `%`                   | left   |                                    |
 | 13    | `!` `not` `-` `~` (unary)     | right  | prefix                             |
-| 14    | `()` `[]` `.`                 | left   | call, index, member (postfix)      |
-| 15    | primary                       | —      | atoms                              |
+| 14    | `**`                          | right  | exponentiation (binds above unary) |
+| 15    | `()` `[]` `.`                 | left   | call, index, member (postfix)      |
+| 16    | primary                       | —      | atoms                              |
 
 ```
 expression  = assignment ;
@@ -272,7 +273,8 @@ bitAnd     = shift { "&" shift } ;
 shift      = term { ("<<"|">>") term } ;
 term       = factor { ("+"|"-") factor } ;
 factor     = unary { ("*"|"/"|"%") unary } ;
-unary      = ("!"|"not"|"-"|"~") unary | postfix ;
+unary      = ("!"|"not"|"-"|"~") unary | power ;
+power      = postfix [ "**" unary ] ;  (* right-assoc; binds above unary minus *)
 postfix    = primary { call | index | member } ;
 call       = "(" [ argList ] ")" ;
 argList    = arg { "," arg } [ "," ] ;
@@ -432,6 +434,10 @@ Let `n` denote a number (int or float).
   both are strings, concatenation. If both are arrays, a new concatenated array.
   Any other combination is a runtime type error.
 - `a - b`, `a * b`: numeric; int when both int (overflow throws), else float.
+- `a ** b`: exponentiation. If both are int and `b >= 0`, the result is int (with
+  the same overflow check as `*`); otherwise (a float operand, or a negative
+  integer exponent) the result is a float. `**` is right-associative and binds
+  tighter than unary minus, so `-2 ** 2` is `-4` and `2 ** 3 ** 2` is `512`.
 - `a / b`: if both operands are int, **truncating** integer division; otherwise
   float division. Divisor zero throws `DivisionByZero`.
 - `a % b`: remainder with the sign of the dividend; divisor zero throws.

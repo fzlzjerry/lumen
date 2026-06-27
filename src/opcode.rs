@@ -224,6 +224,10 @@ pub enum OpCode {
     /// other callee it acts as `Call`, with the following `RETURN` returning the
     /// result (DESIGN D30).
     TailCall,
+
+    /// `Pow` — exponentiation `a ** b`. `int ** nonneg-int` is int (overflow
+    /// throws, like `*`); otherwise the result is a float.
+    Pow,
 }
 
 impl OpCode {
@@ -231,7 +235,7 @@ impl OpCode {
     pub fn from_u8(b: u8) -> Option<OpCode> {
         // Safe because the range check guarantees `b` is a valid discriminant of
         // this contiguous `#[repr(u8)]` enum.
-        if b <= OpCode::TailCall as u8 {
+        if b <= OpCode::Pow as u8 {
             Some(unsafe { std::mem::transmute::<u8, OpCode>(b) })
         } else {
             None
@@ -314,6 +318,7 @@ impl OpCode {
             OpCode::MatchError => "MATCH_ERROR",
             OpCode::Yield => "YIELD",
             OpCode::TailCall => "TAIL_CALL",
+            OpCode::Pow => "POW",
         }
     }
 }
@@ -325,7 +330,7 @@ mod tests {
     #[test]
     fn roundtrip_all_opcodes() {
         // Every discriminant from 0..=Is must decode back to itself.
-        for b in 0..=(OpCode::TailCall as u8) {
+        for b in 0..=(OpCode::Pow as u8) {
             let op = OpCode::from_u8(b).expect("valid opcode");
             assert_eq!(op as u8, b);
         }
@@ -333,7 +338,7 @@ mod tests {
 
     #[test]
     fn invalid_byte_is_none() {
-        assert!(OpCode::from_u8(OpCode::TailCall as u8 + 1).is_none());
+        assert!(OpCode::from_u8(OpCode::Pow as u8 + 1).is_none());
         assert!(OpCode::from_u8(255).is_none());
     }
 }

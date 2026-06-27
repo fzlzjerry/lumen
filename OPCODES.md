@@ -51,6 +51,7 @@ All pop two operands (one for `NEG`/`NOT`) and push one result, per SPEC §6.4.
 | Opcode | Stack | Effect |
 |---|---|---|
 | `ADD` `SUB` `MUL` `DIV` `REM` | `…, a, b -> …, c` | Numeric (or `+` on strings/arrays); int×int stays int; `/` by 0 throws. |
+| `POW` | `…, a, b -> …, c` | Exponentiation `a ** b`; `int ** nonneg-int` stays int (overflow throws), else float. |
 | `NEG` | `…, a -> …, b` | Numeric negation. |
 | `NOT` | `…, a -> …, b` | Logical negation (always a bool). |
 | `EQ` `NE` | `…, a, b -> …, c` | Equality per SPEC §6.2. |
