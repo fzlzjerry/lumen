@@ -16,7 +16,10 @@ pub fn build(vm: &mut Vm) -> Value {
     use crate::object::Arity::{Exact, Range};
     let parse_fn = vm.make_native_value("parse", Exact(1), parse);
     let stringify_fn = vm.make_native_value("stringify", Range(1, 2), stringify);
-    vm.make_module("json", vec![("parse", parse_fn), ("stringify", stringify_fn)])
+    vm.make_module(
+        "json",
+        vec![("parse", parse_fn), ("stringify", stringify_fn)],
+    )
 }
 
 // ---- parsing ---------------------------------------------------------------
@@ -45,7 +48,10 @@ fn skip_ws(chars: &[char], pos: &mut usize) {
 }
 
 fn json_err(vm: &mut Vm, msg: &str, pos: usize) -> Value {
-    vm.make_error(error_kind::VALUE, format!("invalid JSON at character {pos}: {msg}"))
+    vm.make_error(
+        error_kind::VALUE,
+        format!("invalid JSON at character {pos}: {msg}"),
+    )
 }
 
 fn parse_value(vm: &mut Vm, chars: &[char], pos: &mut usize) -> Result<Value, Value> {
@@ -64,7 +70,13 @@ fn parse_value(vm: &mut Vm, chars: &[char], pos: &mut usize) -> Result<Value, Va
     }
 }
 
-fn expect_literal(vm: &mut Vm, chars: &[char], pos: &mut usize, lit: &str, value: Value) -> Result<Value, Value> {
+fn expect_literal(
+    vm: &mut Vm,
+    chars: &[char],
+    pos: &mut usize,
+    lit: &str,
+    value: Value,
+) -> Result<Value, Value> {
     for ch in lit.chars() {
         if chars.get(*pos) != Some(&ch) {
             return Err(json_err(vm, &format!("expected '{lit}'"), *pos));
@@ -111,7 +123,10 @@ fn parse_number(vm: &mut Vm, chars: &[char], pos: &mut usize) -> Result<Value, V
         match text.parse::<i64>() {
             Ok(n) => Ok(Value::Int(n)),
             // Integer too big for i64 — fall back to float.
-            Err(_) => text.parse::<f64>().map(Value::Float).map_err(|_| json_err(vm, "malformed number", start)),
+            Err(_) => text
+                .parse::<f64>()
+                .map(Value::Float)
+                .map_err(|_| json_err(vm, "malformed number", start)),
         }
     }
 }
@@ -226,13 +241,23 @@ fn parse_object(vm: &mut Vm, chars: &[char], pos: &mut usize) -> Result<Value, V
 // ---- serializing -----------------------------------------------------------
 
 fn stringify(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
-    let indent = if a.len() == 2 { Some(int(vm, a[1])?.max(0) as usize) } else { None };
+    let indent = if a.len() == 2 {
+        Some(int(vm, a[1])?.max(0) as usize)
+    } else {
+        None
+    };
     let mut out = String::new();
     write_value(vm, a[0], indent, 0, &mut out)?;
     Ok(vm.new_string(&out))
 }
 
-fn write_value(vm: &mut Vm, v: Value, indent: Option<usize>, depth: usize, out: &mut String) -> Result<(), Value> {
+fn write_value(
+    vm: &mut Vm,
+    v: Value,
+    indent: Option<usize>,
+    depth: usize,
+    out: &mut String,
+) -> Result<(), Value> {
     match v {
         Value::Nil => out.push_str("null"),
         Value::Bool(b) => out.push_str(if b { "true" } else { "false" }),
@@ -261,7 +286,9 @@ fn write_value(vm: &mut Vm, v: Value, indent: Option<usize>, depth: usize, out: 
             }
             other => {
                 let t = other.type_name();
-                return Err(vm.make_error(error_kind::TYPE, format!("cannot serialize {t} to JSON")));
+                return Err(
+                    vm.make_error(error_kind::TYPE, format!("cannot serialize {t} to JSON"))
+                );
             }
         },
     }
@@ -277,7 +304,13 @@ fn newline_indent(out: &mut String, indent: Option<usize>, depth: usize) {
     }
 }
 
-fn write_array(vm: &mut Vm, items: &[Value], indent: Option<usize>, depth: usize, out: &mut String) -> Result<(), Value> {
+fn write_array(
+    vm: &mut Vm,
+    items: &[Value],
+    indent: Option<usize>,
+    depth: usize,
+    out: &mut String,
+) -> Result<(), Value> {
     if items.is_empty() {
         out.push_str("[]");
         return Ok(());
@@ -295,7 +328,13 @@ fn write_array(vm: &mut Vm, items: &[Value], indent: Option<usize>, depth: usize
     Ok(())
 }
 
-fn write_object(vm: &mut Vm, entries: &[(Value, Value)], indent: Option<usize>, depth: usize, out: &mut String) -> Result<(), Value> {
+fn write_object(
+    vm: &mut Vm,
+    entries: &[(Value, Value)],
+    indent: Option<usize>,
+    depth: usize,
+    out: &mut String,
+) -> Result<(), Value> {
     if entries.is_empty() {
         out.push_str("{}");
         return Ok(());

@@ -83,12 +83,24 @@ fn resolver_errors() {
     assert_static("fn f() { continue; }", "'continue' outside of a loop");
     assert_static("return 1;", "'return' outside of a function");
     assert_static("print(this);", "'this' can only be used inside a method");
-    assert_static("class A { m() { return super.m(); } }", "'super' can only be used");
+    assert_static(
+        "class A { m() { return super.m(); } }",
+        "'super' can only be used",
+    );
     assert_static("class A < A { }", "cannot inherit from itself");
-    assert_static("fn f() { let x = 1; let x = 2; }", "already declared in this scope");
+    assert_static(
+        "fn f() { let x = 1; let x = 2; }",
+        "already declared in this scope",
+    );
     assert_static("let x = 1; let x = 2;", "already declared at the top level");
-    assert_static("fn f() { export let x = 1; }", "'export' is only allowed at the top level");
-    assert_static("class A { init() { return 5; } }", "cannot return a value from an 'init'");
+    assert_static(
+        "fn f() { export let x = 1; }",
+        "'export' is only allowed at the top level",
+    );
+    assert_static(
+        "class A { init() { return 5; } }",
+        "cannot return a value from an 'init'",
+    );
 }
 
 // ---- runtime errors --------------------------------------------------------
@@ -113,7 +125,10 @@ fn runtime_error_kinds() {
     assert_eq!(caught_kind("print(1 + \"x\");"), "TypeError");
     assert_eq!(caught_kind("print([1,2][9]);"), "IndexError");
     assert_eq!(caught_kind("print(1 / 0);"), "DivisionByZero");
-    assert_eq!(caught_kind("fn f(a) { return a; } f(1, 2, 3);"), "ArityError");
+    assert_eq!(
+        caught_kind("fn f(a) { return a; } f(1, 2, 3);"),
+        "ArityError"
+    );
     assert_eq!(caught_kind("print(9223372036854775807 + 1);"), "ValueError"); // overflow
     assert_eq!(caught_kind("let m = {}; m[[1,2]] = 3;"), "TypeError"); // unhashable key
 }

@@ -160,13 +160,18 @@ impl Resolver {
 
     fn collect_global_decl(&mut self, stmt: &Stmt) {
         match stmt {
-            Stmt::Let { name, name_span, .. } => self.add_global(name, *name_span, false),
-            Stmt::Const { name, name_span, .. } => self.add_global(name, *name_span, true),
+            Stmt::Let {
+                name, name_span, ..
+            } => self.add_global(name, *name_span, false),
+            Stmt::Const {
+                name, name_span, ..
+            } => self.add_global(name, *name_span, true),
             Stmt::Destructure { pattern, .. } => self.collect_pattern_globals(pattern),
             Stmt::Function(f) => {
                 let name = f.name.as_deref().unwrap_or("");
                 self.add_global(name, f.name_span, false);
-                self.global_sigs.insert(name.to_string(), compute_sig(&f.params));
+                self.global_sigs
+                    .insert(name.to_string(), compute_sig(&f.params));
             }
             Stmt::Class(c) => self.add_global(&c.name, c.name_span, false),
             Stmt::Import(im) => match &im.kind {
@@ -184,7 +189,10 @@ impl Resolver {
 
     fn add_global(&mut self, name: &str, span: Span, is_const: bool) {
         if self.globals.contains_key(name) {
-            self.error(span, format!("'{name}' is already declared at the top level"));
+            self.error(
+                span,
+                format!("'{name}' is already declared at the top level"),
+            );
         } else {
             self.globals.insert(name.to_string(), is_const);
         }
@@ -217,7 +225,9 @@ impl Resolver {
             .current_ref()
             .locals
             .iter()
-            .filter(|l| l.depth == depth && l.track_unused && !l.is_read && !l.name.starts_with('_'))
+            .filter(|l| {
+                l.depth == depth && l.track_unused && !l.is_read && !l.name.starts_with('_')
+            })
             .map(|l| (l.decl_span, l.name.clone()))
             .collect();
         for (span, name) in unused {
@@ -326,7 +336,13 @@ impl Resolver {
     /// Mark the nearest binding named `name` (current function first, then
     /// enclosing functions) as read, for the unused-variable warning.
     fn mark_read(&mut self, name: &str) {
-        if let Some(l) = self.current().locals.iter_mut().rev().find(|l| l.name == name) {
+        if let Some(l) = self
+            .current()
+            .locals
+            .iter_mut()
+            .rev()
+            .find(|l| l.name == name)
+        {
             l.is_read = true;
             return;
         }
@@ -341,13 +357,25 @@ impl Resolver {
 
     fn assignability(&self, name: &str) -> Assignability {
         if let Some((_, is_const)) = self.find_local_current(name) {
-            return if is_const { Assignability::Constant } else { Assignability::Mutable };
+            return if is_const {
+                Assignability::Constant
+            } else {
+                Assignability::Mutable
+            };
         }
         if let Some(is_const) = self.find_upvalue(name) {
-            return if is_const { Assignability::Constant } else { Assignability::Mutable };
+            return if is_const {
+                Assignability::Constant
+            } else {
+                Assignability::Mutable
+            };
         }
         if let Some(&is_const) = self.globals.get(name) {
-            return if is_const { Assignability::Constant } else { Assignability::Mutable };
+            return if is_const {
+                Assignability::Constant
+            } else {
+                Assignability::Mutable
+            };
         }
         if self.predefined.contains(name) || is_builtin(name) {
             return Assignability::Mutable;
@@ -382,7 +410,12 @@ impl Resolver {
 
     fn resolve_stmt(&mut self, stmt: &Stmt) {
         match stmt {
-            Stmt::Let { name, name_span, init, .. } => {
+            Stmt::Let {
+                name,
+                name_span,
+                init,
+                ..
+            } => {
                 if self.is_global_scope() {
                     if let Some(e) = init {
                         self.resolve_expr(e);
@@ -395,7 +428,12 @@ impl Resolver {
                     self.define_last();
                 }
             }
-            Stmt::Const { name, name_span, init, .. } => {
+            Stmt::Const {
+                name,
+                name_span,
+                init,
+                ..
+            } => {
                 if self.is_global_scope() {
                     self.resolve_expr(init);
                 } else {
@@ -444,7 +482,12 @@ impl Resolver {
             }
             Stmt::Expr { expr, .. } => self.resolve_expr(expr),
             Stmt::Block(b) => self.resolve_block(b),
-            Stmt::If { cond, then_block, else_branch, .. } => {
+            Stmt::If {
+                cond,
+                then_block,
+                else_branch,
+                ..
+            } => {
                 self.resolve_expr(cond);
                 self.resolve_block(then_block);
                 if let Some(else_) = else_branch {
@@ -457,7 +500,13 @@ impl Resolver {
                 self.resolve_block(body);
                 self.current().loop_depth -= 1;
             }
-            Stmt::ForIn { var, var_span, iter, body, .. } => {
+            Stmt::ForIn {
+                var,
+                var_span,
+                iter,
+                body,
+                ..
+            } => {
                 self.resolve_expr(iter);
                 self.begin_scope();
                 self.declare_defined(var, *var_span, false);
@@ -466,7 +515,13 @@ impl Resolver {
                 self.current().loop_depth -= 1;
                 self.end_scope();
             }
-            Stmt::ForC { init, cond, step, body, .. } => {
+            Stmt::ForC {
+                init,
+                cond,
+                step,
+                body,
+                ..
+            } => {
                 self.begin_scope();
                 if let Some(i) = init {
                     self.resolve_stmt(i);
@@ -518,7 +573,12 @@ impl Resolver {
                 }
                 self.resolve_expr(value);
             }
-            Stmt::Try { body, catches, finally, .. } => {
+            Stmt::Try {
+                body,
+                catches,
+                finally,
+                ..
+            } => {
                 self.resolve_block(body);
                 let mut seen_bare = false;
                 for c in catches {
@@ -545,7 +605,10 @@ impl Resolver {
         let has_super = c.superclass.is_some();
         if let Some(sc) = &c.superclass {
             if sc.value == c.name {
-                self.error(sc.span, format!("class '{}' cannot inherit from itself", c.name));
+                self.error(
+                    sc.span,
+                    format!("class '{}' cannot inherit from itself", c.name),
+                );
             } else {
                 self.resolve_read(&sc.value, sc.span);
             }
@@ -580,7 +643,8 @@ impl Resolver {
     ) {
         let this = self.current_ref().allows_this;
         let supr = self.current_ref().allows_super;
-        self.funcs.push(FuncCtx::new(FuncKind::Function, this, supr));
+        self.funcs
+            .push(FuncCtx::new(FuncKind::Function, this, supr));
         self.begin_scope();
         self.declare_defined(var, var_span, false);
         if let Some(c) = cond {
@@ -600,7 +664,8 @@ impl Resolver {
         allows_this: bool,
         allows_super: bool,
     ) {
-        self.funcs.push(FuncCtx::new(kind, allows_this, allows_super));
+        self.funcs
+            .push(FuncCtx::new(kind, allows_this, allows_super));
         self.begin_scope();
         let mut seen_default = false;
         for p in &f.params {
@@ -617,7 +682,10 @@ impl Resolver {
             } else if seen_default {
                 self.error(
                     p.span,
-                    format!("required parameter '{}' cannot follow a parameter with a default", p.name),
+                    format!(
+                        "required parameter '{}' cannot follow a parameter with a default",
+                        p.name
+                    ),
                 );
             }
             self.declare_defined(&p.name, p.span, false);
@@ -680,7 +748,10 @@ impl Resolver {
                         self.reassigned.insert(name.clone());
                         match self.assignability(name) {
                             Assignability::Constant => {
-                                self.error(target.span, format!("cannot assign to constant '{name}'"));
+                                self.error(
+                                    target.span,
+                                    format!("cannot assign to constant '{name}'"),
+                                );
                             }
                             Assignability::Undefined => {
                                 self.error(
@@ -703,7 +774,10 @@ impl Resolver {
                         self.reassigned.insert(name.clone());
                         match self.assignability(name) {
                             Assignability::Constant => {
-                                self.error(target.span, format!("cannot assign to constant '{name}'"));
+                                self.error(
+                                    target.span,
+                                    format!("cannot assign to constant '{name}'"),
+                                );
                             }
                             Assignability::Undefined => {
                                 self.error(
@@ -727,12 +801,20 @@ impl Resolver {
                 self.resolve_expr(left);
                 self.resolve_expr(right);
             }
-            ExprKind::Ternary { cond, then_branch, else_branch } => {
+            ExprKind::Ternary {
+                cond,
+                then_branch,
+                else_branch,
+            } => {
                 self.resolve_expr(cond);
                 self.resolve_expr(then_branch);
                 self.resolve_expr(else_branch);
             }
-            ExprKind::Call { callee, args, paren_span } => {
+            ExprKind::Call {
+                callee,
+                args,
+                paren_span,
+            } => {
                 self.resolve_expr(callee);
                 for a in args {
                     match a {
@@ -763,16 +845,34 @@ impl Resolver {
                     self.end_scope();
                 }
             }
-            ExprKind::ArrayComp { element, var, var_span, iter, cond } => {
+            ExprKind::ArrayComp {
+                element,
+                var,
+                var_span,
+                iter,
+                cond,
+            } => {
                 // The iterable is evaluated in the enclosing scope; the body runs in
                 // its own function scope (matching the compiler's IIFE — DESIGN D31),
                 // inheriting `this`/`super` like a lambda.
                 self.resolve_expr(iter);
                 self.resolve_comprehension_body(*var_span, var, &[Some(element)], cond.as_deref());
             }
-            ExprKind::MapComp { key, value, var, var_span, iter, cond } => {
+            ExprKind::MapComp {
+                key,
+                value,
+                var,
+                var_span,
+                iter,
+                cond,
+            } => {
                 self.resolve_expr(iter);
-                self.resolve_comprehension_body(*var_span, var, &[Some(key), Some(value)], cond.as_deref());
+                self.resolve_comprehension_body(
+                    *var_span,
+                    var,
+                    &[Some(key), Some(value)],
+                    cond.as_deref(),
+                );
             }
         }
     }
@@ -818,12 +918,18 @@ impl Resolver {
             if p.argc < p.required {
                 self.warning(
                     p.span,
-                    format!("'{}' expects at least {} argument(s), but got {}", p.name, p.required, p.argc),
+                    format!(
+                        "'{}' expects at least {} argument(s), but got {}",
+                        p.name, p.required, p.argc
+                    ),
                 );
             } else if !p.has_rest && p.argc > p.arity {
                 self.warning(
                     p.span,
-                    format!("'{}' expects at most {} argument(s), but got {}", p.name, p.arity, p.argc),
+                    format!(
+                        "'{}' expects at most {} argument(s), but got {}",
+                        p.name, p.arity, p.argc
+                    ),
                 );
             }
         }
@@ -870,7 +976,10 @@ impl Resolver {
             PatternKind::Map(entries) => {
                 for (_, p) in entries {
                     if !matches!(p.kind, PatternKind::Binding(_) | PatternKind::Wildcard) {
-                        self.error(p.span, "destructuring map values must be variable names or '_'");
+                        self.error(
+                            p.span,
+                            "destructuring map values must be variable names or '_'",
+                        );
                     }
                 }
             }
@@ -988,8 +1097,15 @@ fn is_terminator(stmt: &Stmt) -> bool {
 /// compiler so the static arity check agrees with the runtime check.
 fn compute_sig(params: &[Param]) -> (usize, usize, bool) {
     let has_rest = params.last().map(|p| p.is_rest).unwrap_or(false);
-    let fixed = if has_rest { params.len() - 1 } else { params.len() };
-    let required = params.iter().take_while(|p| p.default.is_none() && !p.is_rest).count();
+    let fixed = if has_rest {
+        params.len() - 1
+    } else {
+        params.len()
+    };
+    let required = params
+        .iter()
+        .take_while(|p| p.default.is_none() && !p.is_rest)
+        .count();
     (required, fixed, has_rest)
 }
 
@@ -1028,7 +1144,9 @@ mod tests {
         ok("for let i = 0; i < 10; i = i + 1 { print(i); }");
         ok("for x in [1,2,3] { print(x); }");
         ok("class A { m() { return this.x; } } class B < A { m() { return super.m(); } }");
-        ok(r#"let r = match v { [a, b] => a + b, {k: x} => x, n if n > 0 => n, _ => 0 }; let v = 1;"#);
+        ok(
+            r#"let r = match v { [a, b] => a + b, {k: x} => x, n if n > 0 => n, _ => 0 }; let v = 1;"#,
+        );
         ok("try { throw 1; } catch (e) { print(e); }");
     }
 
@@ -1050,9 +1168,15 @@ mod tests {
 
     #[test]
     fn duplicate_in_same_scope() {
-        has_error("fn f() { let x = 1; let x = 2; }", "already declared in this scope");
+        has_error(
+            "fn f() { let x = 1; let x = 2; }",
+            "already declared in this scope",
+        );
         has_error("fn f(a, a) { return a; }", "already declared in this scope");
-        has_error("let r = match v { [a, a] => a, _ => 0 }; let v = 1;", "already declared");
+        has_error(
+            "let r = match v { [a, a] => a, _ => 0 }; let v = 1;",
+            "already declared",
+        );
     }
 
     #[test]
@@ -1063,7 +1187,10 @@ mod tests {
     #[test]
     fn const_reassignment() {
         has_error("const PI = 3; PI = 4;", "cannot assign to constant 'PI'");
-        has_error("fn f() { const c = 1; c = 2; }", "cannot assign to constant 'c'");
+        has_error(
+            "fn f() { const c = 1; c = 2; }",
+            "cannot assign to constant 'c'",
+        );
     }
 
     #[test]
@@ -1073,13 +1200,19 @@ mod tests {
 
     #[test]
     fn this_outside_method() {
-        has_error("fn f() { return this; }", "'this' can only be used inside a method");
+        has_error(
+            "fn f() { return this; }",
+            "'this' can only be used inside a method",
+        );
         has_error("print(this);", "'this'");
     }
 
     #[test]
     fn super_rules() {
-        has_error("class A { m() { return super.m(); } }", "'super' can only be used");
+        has_error(
+            "class A { m() { return super.m(); } }",
+            "'super' can only be used",
+        );
         ok("class A { m() { return 1; } } class B < A { m() { return super.m(); } }");
     }
 
@@ -1088,13 +1221,19 @@ mod tests {
         has_error("break;", "'break' outside of a loop");
         has_error("fn f() { continue; }", "'continue' outside of a loop");
         // A function inside a loop does not inherit the loop context.
-        has_error("while true { fn f() { break; } }", "'break' outside of a loop");
+        has_error(
+            "while true { fn f() { break; } }",
+            "'break' outside of a loop",
+        );
     }
 
     #[test]
     fn return_context() {
         has_error("return 1;", "'return' outside of a function");
-        has_error("class A { init() { return 5; } }", "cannot return a value from an 'init'");
+        has_error(
+            "class A { init() { return 5; } }",
+            "cannot return a value from an 'init'",
+        );
         ok("class A { init() { return; } }"); // bare return in init is fine
     }
 
@@ -1105,7 +1244,10 @@ mod tests {
 
     #[test]
     fn export_only_top_level() {
-        has_error("fn f() { export let x = 1; }", "'export' is only allowed at the top level");
+        has_error(
+            "fn f() { export let x = 1; }",
+            "'export' is only allowed at the top level",
+        );
         ok("export fn f() { return 1; }");
     }
 

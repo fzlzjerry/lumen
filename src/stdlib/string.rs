@@ -90,7 +90,11 @@ fn format(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
                     k
                 } else {
                     index_part.parse::<usize>().map_err(|_| {
-                        err(vm, error_kind::VALUE, format!("format: invalid placeholder '{{{field}}}'"))
+                        err(
+                            vm,
+                            error_kind::VALUE,
+                            format!("format: invalid placeholder '{{{field}}}'"),
+                        )
                     })?
                 };
                 let val = *args.get(idx).ok_or_else(|| {
@@ -247,13 +251,22 @@ impl FormatSpec {
                     Some('b') => (format!("{mag:b}"), "0b"),
                     _ => (mag.to_string(), ""),
                 };
-                let prefix = if self.alternate { pre.to_string() } else { String::new() };
+                let prefix = if self.alternate {
+                    pre.to_string()
+                } else {
+                    String::new()
+                };
                 (digits, prefix, true, n < 0)
             }
             Some('s') => (vm.to_display(val, false)?, String::new(), false, false),
             Some(_) => unreachable!("format type validated in FormatSpec::parse"),
             None => match val {
-                Value::Int(n) => ((n as i128).unsigned_abs().to_string(), String::new(), true, n < 0),
+                Value::Int(n) => (
+                    (n as i128).unsigned_abs().to_string(),
+                    String::new(),
+                    true,
+                    n < 0,
+                ),
                 Value::Float(x) => {
                     let body = match self.precision {
                         Some(p) => format!("{:.*}", p, x.abs()),
@@ -287,7 +300,9 @@ impl FormatSpec {
         if self.zero_pad && self.align.is_none() {
             return Ok(format!("{sign}{prefix}{}{body}", "0".repeat(pad)));
         }
-        let align = self.align.unwrap_or(if numeric { Align::Right } else { Align::Left });
+        let align = self
+            .align
+            .unwrap_or(if numeric { Align::Right } else { Align::Left });
         let fillstr = |n: usize| self.fill.to_string().repeat(n);
         let core = format!("{sign}{prefix}{body}");
         Ok(match align {
@@ -358,7 +373,11 @@ fn ends_with(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
 }
 
 fn replace(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
-    let (s, from, to) = (string_of(vm, a[0])?, string_of(vm, a[1])?, string_of(vm, a[2])?);
+    let (s, from, to) = (
+        string_of(vm, a[0])?,
+        string_of(vm, a[1])?,
+        string_of(vm, a[2])?,
+    );
     Ok(vm.new_string(&s.replace(&from, &to)))
 }
 
@@ -366,7 +385,11 @@ fn repeat(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
     let s = string_of(vm, a[0])?;
     let n = int(vm, a[1])?;
     if n < 0 {
-        return Err(err(vm, error_kind::VALUE, "repeat count cannot be negative"));
+        return Err(err(
+            vm,
+            error_kind::VALUE,
+            "repeat count cannot be negative",
+        ));
     }
     Ok(vm.new_string(&s.repeat(n as usize)))
 }
@@ -385,11 +408,19 @@ fn substring(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
     let chars: Vec<char> = s.chars().collect();
     let len = chars.len() as i64;
     let norm = |i: i64| -> usize {
-        if i < 0 { ((len + i).max(0)) as usize } else { (i.min(len)) as usize }
+        if i < 0 {
+            ((len + i).max(0)) as usize
+        } else {
+            (i.min(len)) as usize
+        }
     };
     let start = norm(int(vm, a[1])?);
     let end = norm(int(vm, a[2])?);
-    let slice: String = if start < end { chars[start..end].iter().collect() } else { String::new() };
+    let slice: String = if start < end {
+        chars[start..end].iter().collect()
+    } else {
+        String::new()
+    };
     Ok(vm.new_string(&slice))
 }
 
@@ -400,7 +431,11 @@ fn char_at(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
     let len = chars.len() as i64;
     let idx = if i < 0 { len + i } else { i };
     if idx < 0 || idx >= len {
-        return Err(err(vm, error_kind::INDEX, format!("char_at: index {i} out of bounds")));
+        return Err(err(
+            vm,
+            error_kind::INDEX,
+            format!("char_at: index {i} out of bounds"),
+        ));
     }
     Ok(vm.new_string(&chars[idx as usize].to_string()))
 }
@@ -431,8 +466,16 @@ fn pad(vm: &mut Vm, a: &[Value], left: bool) -> Result<Value, Value> {
         return Ok(vm.new_string(&s));
     }
     let padding: String = std::iter::repeat_n(fill, (width - cur) as usize).collect();
-    let result = if left { format!("{padding}{s}") } else { format!("{s}{padding}") };
+    let result = if left {
+        format!("{padding}{s}")
+    } else {
+        format!("{s}{padding}")
+    };
     Ok(vm.new_string(&result))
 }
-fn pad_left(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> { pad(vm, a, true) }
-fn pad_right(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> { pad(vm, a, false) }
+fn pad_left(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    pad(vm, a, true)
+}
+fn pad_right(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    pad(vm, a, false)
+}

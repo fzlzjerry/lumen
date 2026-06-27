@@ -144,7 +144,11 @@ fn read_input_raw(history: &[String]) -> Option<String> {
                 }
             }
             Input::Eof => {
-                return if buf.trim().is_empty() { None } else { Some(buf) };
+                return if buf.trim().is_empty() {
+                    None
+                } else {
+                    Some(buf)
+                };
             }
             Input::Interrupt => {
                 // Ctrl-C abandons the current (possibly multi-line) input.
@@ -164,7 +168,11 @@ fn read_input_cooked(handle: &mut impl BufRead) -> Option<String> {
         let n = handle.read_line(&mut line).ok()?;
         if n == 0 {
             // EOF: return any buffered partial input, else signal exit.
-            return if buf.trim().is_empty() { None } else { Some(buf) };
+            return if buf.trim().is_empty() {
+                None
+            } else {
+                Some(buf)
+            };
         }
         buf.push_str(&line);
         if !is_incomplete(&buf) {
@@ -220,7 +228,11 @@ fn handle_command(cmd: &str, history: &[String]) -> bool {
 }
 
 fn disasm_input(src: &str) {
-    let wrapped = if src.trim_end().ends_with(';') { src.to_string() } else { format!("{src};") };
+    let wrapped = if src.trim_end().ends_with(';') {
+        src.to_string()
+    } else {
+        format!("{src};")
+    };
     let (program, errs) = crate::check_source(&wrapped);
     if !errs.is_empty() {
         for d in &errs {

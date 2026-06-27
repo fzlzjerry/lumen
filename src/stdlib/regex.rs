@@ -133,7 +133,11 @@ impl Parser {
             self.pos += 1;
             branches.push(self.parse_concat()?);
         }
-        Ok(if branches.len() == 1 { branches.pop().unwrap() } else { Node::Alt(branches) })
+        Ok(if branches.len() == 1 {
+            branches.pop().unwrap()
+        } else {
+            Node::Alt(branches)
+        })
     }
 
     fn parse_concat(&mut self) -> Result<Node, String> {
@@ -227,7 +231,11 @@ impl Parser {
         if self.pos == start {
             return None;
         }
-        self.chars[start..self.pos].iter().collect::<String>().parse().ok()
+        self.chars[start..self.pos]
+            .iter()
+            .collect::<String>()
+            .parse()
+            .ok()
     }
 
     fn parse_atom(&mut self) -> Result<Node, String> {
@@ -378,7 +386,10 @@ enum ClassAtom {
 }
 
 fn pred_node(p: Pred) -> Node {
-    Node::Class(Class { negated: false, items: vec![ClassItem::Pred(p)] })
+    Node::Class(Class {
+        negated: false,
+        items: vec![ClassItem::Pred(p)],
+    })
 }
 
 // ---- compilation ----------------------------------------------------------
@@ -473,8 +484,11 @@ impl Asm {
         self.prog.push(Inst::AssertProgress(mark));
         self.prog.push(Inst::Jmp(split));
         let exit = self.prog.len();
-        self.prog[split] =
-            if greedy { Inst::Split(body, exit) } else { Inst::Split(exit, body) };
+        self.prog[split] = if greedy {
+            Inst::Split(body, exit)
+        } else {
+            Inst::Split(exit, body)
+        };
     }
 
     fn emit_quest(&mut self, inner: &Node, greedy: bool) {
@@ -483,8 +497,11 @@ impl Asm {
         let body = self.prog.len();
         self.emit(inner);
         let exit = self.prog.len();
-        self.prog[split] =
-            if greedy { Inst::Split(body, exit) } else { Inst::Split(exit, body) };
+        self.prog[split] = if greedy {
+            Inst::Split(body, exit)
+        } else {
+            Inst::Split(exit, body)
+        };
     }
 }
 
@@ -495,14 +512,27 @@ struct Compiled {
 }
 
 fn compile_regex(pattern: &str) -> Result<Compiled, String> {
-    let mut p = Parser { chars: pattern.chars().collect(), pos: 0, ngroups: 0, depth: 0 };
+    let mut p = Parser {
+        chars: pattern.chars().collect(),
+        pos: 0,
+        ngroups: 0,
+        depth: 0,
+    };
     let node = p.parse()?;
     let base = 2 * (p.ngroups + 1);
-    let mut asm = Asm { prog: vec![Inst::Save(0)], base, marks: 0 };
+    let mut asm = Asm {
+        prog: vec![Inst::Save(0)],
+        base,
+        marks: 0,
+    };
     asm.emit(&node);
     asm.prog.push(Inst::Save(1));
     asm.prog.push(Inst::Match);
-    Ok(Compiled { prog: asm.prog, ngroups: p.ngroups, slots: base + asm.marks })
+    Ok(Compiled {
+        prog: asm.prog,
+        ngroups: p.ngroups,
+        slots: base + asm.marks,
+    })
 }
 
 // ---- matcher --------------------------------------------------------------
@@ -522,7 +552,12 @@ struct Matcher<'a> {
 
 impl<'a> Matcher<'a> {
     fn new(chars: &'a [char], prog: &'a [Inst]) -> Self {
-        Matcher { chars, prog, budget: Cell::new(2_000_000), overflow: Cell::new(false) }
+        Matcher {
+            chars,
+            prog,
+            budget: Cell::new(2_000_000),
+            overflow: Cell::new(false),
+        }
     }
 
     fn run(&self, mut pc: usize, mut sp: usize, saves: &mut [Option<usize>], depth: u32) -> bool {
@@ -673,7 +708,11 @@ fn compiled(vm: &mut Vm, pattern: &str) -> Result<Compiled, Value> {
 }
 
 fn complexity_error(vm: &mut Vm) -> Value {
-    err(vm, error_kind::VALUE, "regex too complex (backtracking limit exceeded)")
+    err(
+        vm,
+        error_kind::VALUE,
+        "regex too complex (backtracking limit exceeded)",
+    )
 }
 
 fn test(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {

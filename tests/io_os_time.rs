@@ -30,7 +30,8 @@ fn run_args(src: &str, args: &[&str]) -> String {
     let mut vm = Vm::with_output(Box::new(buf.clone()));
     lumen::stdlib::install(&mut vm);
     vm.set_args(args.iter().map(|s| s.to_string()).collect());
-    vm.interpret(proto).unwrap_or_else(|e| panic!("runtime error:\n{e}"));
+    vm.interpret(proto)
+        .unwrap_or_else(|e| panic!("runtime error:\n{e}"));
     let bytes = buf.0.borrow().clone();
     String::from_utf8(bytes).unwrap()
 }
@@ -132,25 +133,32 @@ fn io_handle_errors() {
     // Reading from a writer and writing to a reader are TypeErrors; a closed
     // handle and a bad mode are ValueErrors.
     let prog = |body: &str| format!("import \"io\"; io.write_file(\"{p}\", \"x\\n\"); {body}");
-    assert!(run_expect_throw(&prog(&format!("io.open(\"{p}\", \"w\").read_line();"))).contains("TypeError"));
-    assert!(run_expect_throw(&prog(&format!("io.open(\"{p}\", \"r\").write(\"x\");"))).contains("TypeError"));
+    assert!(
+        run_expect_throw(&prog(&format!("io.open(\"{p}\", \"w\").read_line();")))
+            .contains("TypeError")
+    );
+    assert!(
+        run_expect_throw(&prog(&format!("io.open(\"{p}\", \"r\").write(\"x\");")))
+            .contains("TypeError")
+    );
     assert!(run_expect_throw(&prog(&format!("io.open(\"{p}\", \"z\");"))).contains("ValueError"));
-    assert!(run_expect_throw(&prog(&format!("let h = io.open(\"{p}\", \"r\"); h.close(); h.read_line();"))).contains("ValueError"));
+    assert!(run_expect_throw(&prog(&format!(
+        "let h = io.open(\"{p}\", \"r\"); h.close(); h.read_line();"
+    )))
+    .contains("ValueError"));
     std::fs::remove_dir_all(&dir).ok();
 }
 
 #[test]
 fn os_exec_runs_a_command() {
     // `echo` is available on the POSIX test platforms; capture status + stdout.
-    let out = run(
-        r#"import "os" as os;
+    let out = run(r#"import "os" as os;
         let r = os.exec("echo", ["hello", "world"]);
         println(r["status"]);
         print(r["stdout"]);
         let f = os.exec("false", []);
         println(f["status"]);
-        "#,
-    );
+        "#);
     assert_eq!(out, "0\nhello world\n1\n");
 }
 
@@ -159,42 +167,43 @@ fn os_exec_missing_command_throws() {
     let msg = run_expect_throw(
         r#"import "os" as os; os.exec("definitely_not_a_real_command_xyzzy", []);"#,
     );
-    assert!(msg.contains("ValueError") || msg.contains("failed to run"), "got: {msg}");
+    assert!(
+        msg.contains("ValueError") || msg.contains("failed to run"),
+        "got: {msg}"
+    );
 }
 
 #[test]
 fn io_exists_is_false_for_missing() {
-    let out = run(
-        r#"import "io";
-        println(io.exists("/this/path/does/not/exist/lumen_xyz"));"#,
-    );
+    let out = run(r#"import "io";
+        println(io.exists("/this/path/does/not/exist/lumen_xyz"));"#);
     assert_eq!(out, "false\n");
 }
 
 #[test]
 fn io_read_missing_file_throws() {
-    let msg = run_expect_throw(
-        r#"import "io"; io.read_file("/no/such/lumen/file/here");"#,
+    let msg = run_expect_throw(r#"import "io"; io.read_file("/no/such/lumen/file/here");"#);
+    assert!(
+        msg.contains("cannot read") || msg.contains("ValueError"),
+        "got: {msg}"
     );
-    assert!(msg.contains("cannot read") || msg.contains("ValueError"), "got: {msg}");
 }
 
 #[test]
 fn io_write_to_bad_path_throws() {
-    let msg = run_expect_throw(
-        r#"import "io"; io.write_file("/no/such/dir/lumen/out.txt", "x");"#,
+    let msg = run_expect_throw(r#"import "io"; io.write_file("/no/such/dir/lumen/out.txt", "x");"#);
+    assert!(
+        msg.contains("cannot write") || msg.contains("ValueError"),
+        "got: {msg}"
     );
-    assert!(msg.contains("cannot write") || msg.contains("ValueError"), "got: {msg}");
 }
 
 #[test]
 fn os_platform_and_cwd() {
-    let out = run(
-        r#"import "os";
+    let out = run(r#"import "os";
         let p = os.platform();
         println(type(p));
-        println(len(os.cwd()) > 0);"#,
-    );
+        println(len(os.cwd()) > 0);"#);
     // platform is a non-empty string; cwd is non-empty.
     assert_eq!(out, "string\ntrue\n");
 }
@@ -215,38 +224,32 @@ fn os_args_reflects_set_args() {
 #[test]
 fn os_env_reads_and_defaults() {
     std::env::set_var("LUMEN_TEST_ENV_VAR", "present");
-    let out = run(
-        r#"import "os";
+    let out = run(r#"import "os";
         println(os.env("LUMEN_TEST_ENV_VAR"));
         println(os.env("LUMEN_DEFINITELY_UNSET_VAR_123", "fallback"));
-        println(os.env("LUMEN_DEFINITELY_UNSET_VAR_123"));"#,
-    );
+        println(os.env("LUMEN_DEFINITELY_UNSET_VAR_123"));"#);
     assert_eq!(out, "present\nfallback\nnil\n");
     std::env::remove_var("LUMEN_TEST_ENV_VAR");
 }
 
 #[test]
 fn time_now_is_positive_and_monotonic_enough() {
-    let out = run(
-        r#"import "time";
+    let out = run(r#"import "time";
         let t = time.now();
         let m = time.now_millis();
         println(t > 0.0);
         println(m > 0);
         println(type(t));
-        println(type(m));"#,
-    );
+        println(type(m));"#);
     assert_eq!(out, "true\ntrue\nfloat\nint\n");
 }
 
 #[test]
 fn time_sleep_returns_and_advances_clock() {
-    let out = run(
-        r#"import "time";
+    let out = run(r#"import "time";
         let before = time.now_millis();
         time.sleep(0.01);
         let after = time.now_millis();
-        println(after >= before);"#,
-    );
+        println(after >= before);"#);
     assert_eq!(out, "true\n");
 }

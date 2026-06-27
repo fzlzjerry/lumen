@@ -24,13 +24,23 @@ pub struct Span {
 
 impl Span {
     pub fn new(offset: u32, len: u32, line: u32, col: u32) -> Self {
-        Span { offset, len, line, col }
+        Span {
+            offset,
+            len,
+            line,
+            col,
+        }
     }
 
     /// A zero-length span at the very start of a file; useful as a placeholder
     /// for synthesized nodes that have no real source location.
     pub fn dummy() -> Self {
-        Span { offset: 0, len: 0, line: 1, col: 1 }
+        Span {
+            offset: 0,
+            len: 0,
+            line: 1,
+            col: 1,
+        }
     }
 
     /// The byte offset one past the end of this span.
@@ -51,7 +61,12 @@ impl Span {
         } else {
             (other.line, other.col)
         };
-        Span { offset: start, len: end - start, line, col }
+        Span {
+            offset: start,
+            len: end - start,
+            line,
+            col,
+        }
     }
 }
 

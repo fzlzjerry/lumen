@@ -249,21 +249,35 @@ fn parse_cond(s: &str) -> Option<Cond> {
         return None;
     }
     // Two-character operators must be checked before single-character ones.
-    for (sym, op) in [("==", CmpOp::Eq), ("!=", CmpOp::Ne), ("<=", CmpOp::Le), (">=", CmpOp::Ge)] {
+    for (sym, op) in [
+        ("==", CmpOp::Eq),
+        ("!=", CmpOp::Ne),
+        ("<=", CmpOp::Le),
+        (">=", CmpOp::Ge),
+    ] {
         if let Some(idx) = s.find(sym) {
             let lhs = s[..idx].trim().to_string();
             let rhs = s[idx + sym.len()..].trim();
-            return Some(Cond { lhs, cmp: Some((op, parse_operand(rhs))) });
+            return Some(Cond {
+                lhs,
+                cmp: Some((op, parse_operand(rhs))),
+            });
         }
     }
     for (sym, op) in [("<", CmpOp::Lt), (">", CmpOp::Gt)] {
         if let Some(idx) = s.find(sym) {
             let lhs = s[..idx].trim().to_string();
             let rhs = s[idx + sym.len()..].trim();
-            return Some(Cond { lhs, cmp: Some((op, parse_operand(rhs))) });
+            return Some(Cond {
+                lhs,
+                cmp: Some((op, parse_operand(rhs))),
+            });
         }
     }
-    Some(Cond { lhs: s.to_string(), cmp: None })
+    Some(Cond {
+        lhs: s.to_string(),
+        cmp: None,
+    })
 }
 
 fn parse_operand(s: &str) -> Operand {
@@ -321,7 +335,10 @@ fn print_watches(vm: &Vm, watches: &[(String, Option<Value>)]) {
 }
 
 fn print_position(fname: &str, line: u32, source_lines: &[&str]) {
-    let text = source_lines.get(line.saturating_sub(1) as usize).copied().unwrap_or("");
+    let text = source_lines
+        .get(line.saturating_sub(1) as usize)
+        .copied()
+        .unwrap_or("");
     println!("\x1b[33m{fname}\x1b[0m at line {line}:");
     println!("  {line:>4} | {text}");
 }
@@ -436,7 +453,11 @@ fn disasm_current(vm: &Vm) {
         while offset < proto.chunk.code.len() {
             let mut line = String::new();
             let next = disassemble_instruction(&proto.chunk, offset, &mut line);
-            let marker = if offset == ip { "\x1b[1;31m>\x1b[0m " } else { "  " };
+            let marker = if offset == ip {
+                "\x1b[1;31m>\x1b[0m "
+            } else {
+                "  "
+            };
             print!("  {marker}{line}");
             offset = next;
         }
@@ -494,7 +515,10 @@ mod tests {
         let (_l, cond) = parse_breakpoint("3 if total >= 100").unwrap();
         let cond = cond.unwrap();
         assert_eq!(cond.lhs, "total");
-        assert!(matches!(cond.cmp, Some((CmpOp::Ge, Operand::Val(Value::Int(100))))));
+        assert!(matches!(
+            cond.cmp,
+            Some((CmpOp::Ge, Operand::Val(Value::Int(100))))
+        ));
     }
 
     #[test]
@@ -534,6 +558,9 @@ mod tests {
     fn step_into_pauses_on_depth_change() {
         let into = Mode::StepInto { line: 5, depth: 2 };
         assert!(into.should_pause(9, 3), "entering a callee pauses");
-        assert!(!into.should_pause(5, 2), "same line, same depth: keep running");
+        assert!(
+            !into.should_pause(5, 2),
+            "same line, same depth: keep running"
+        );
     }
 }

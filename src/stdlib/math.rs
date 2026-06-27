@@ -52,18 +52,42 @@ fn unary(vm: &mut Vm, args: &[Value], op: fn(f64) -> f64) -> Result<Value, Value
     Ok(Value::Float(op(x)))
 }
 
-fn sqrt(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> { unary(vm, a, f64::sqrt) }
-fn cbrt(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> { unary(vm, a, f64::cbrt) }
-fn exp(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> { unary(vm, a, f64::exp) }
-fn log(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> { unary(vm, a, f64::ln) }
-fn log2(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> { unary(vm, a, f64::log2) }
-fn log10(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> { unary(vm, a, f64::log10) }
-fn sin(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> { unary(vm, a, f64::sin) }
-fn cos(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> { unary(vm, a, f64::cos) }
-fn tan(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> { unary(vm, a, f64::tan) }
-fn asin(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> { unary(vm, a, f64::asin) }
-fn acos(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> { unary(vm, a, f64::acos) }
-fn atan(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> { unary(vm, a, f64::atan) }
+fn sqrt(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    unary(vm, a, f64::sqrt)
+}
+fn cbrt(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    unary(vm, a, f64::cbrt)
+}
+fn exp(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    unary(vm, a, f64::exp)
+}
+fn log(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    unary(vm, a, f64::ln)
+}
+fn log2(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    unary(vm, a, f64::log2)
+}
+fn log10(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    unary(vm, a, f64::log10)
+}
+fn sin(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    unary(vm, a, f64::sin)
+}
+fn cos(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    unary(vm, a, f64::cos)
+}
+fn tan(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    unary(vm, a, f64::tan)
+}
+fn asin(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    unary(vm, a, f64::asin)
+}
+fn acos(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    unary(vm, a, f64::acos)
+}
+fn atan(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    unary(vm, a, f64::atan)
+}
 
 fn pow(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
     let (x, y) = (num(vm, a[0])?, num(vm, a[1])?);
@@ -97,8 +121,12 @@ fn to_int(vm: &mut Vm, args: &[Value], op: fn(f64) -> f64) -> Result<Value, Valu
         _ => Err(vm.make_error(crate::value::error_kind::TYPE, "expected a number")),
     }
 }
-fn floor(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> { to_int(vm, a, f64::floor) }
-fn ceil(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> { to_int(vm, a, f64::ceil) }
+fn floor(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    to_int(vm, a, f64::floor)
+}
+fn ceil(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    to_int(vm, a, f64::ceil)
+}
 /// `round(x)` rounds to the nearest integer; `round(x, ndigits)` rounds to
 /// `ndigits` decimal places and returns a float (`round(3.14159, 2) == 3.14`).
 fn round(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
@@ -110,11 +138,19 @@ fn round(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
     let factor = 10f64.powi(ndigits as i32);
     Ok(Value::Float((x * factor).round() / factor))
 }
-fn trunc(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> { to_int(vm, a, f64::trunc) }
+fn trunc(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
+    to_int(vm, a, f64::trunc)
+}
 
 fn sign(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
     let x = num(vm, a[0])?;
-    Ok(Value::Int(if x > 0.0 { 1 } else if x < 0.0 { -1 } else { 0 }))
+    Ok(Value::Int(if x > 0.0 {
+        1
+    } else if x < 0.0 {
+        -1
+    } else {
+        0
+    }))
 }
 
 /// `min`/`max` return the smaller/larger argument unchanged (preserving type).

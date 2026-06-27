@@ -64,7 +64,16 @@ fn components(secs: i64) -> (i64, i64, i64, i64, i64, i64, i64, i64) {
     // 1970-01-01 was a Thursday (4, with Sunday = 0).
     let weekday = (days.rem_euclid(7) + 4) % 7;
     let yearday = days - days_from_civil(y, 1, 1) + 1;
-    (y, m, d, sod / 3600, (sod % 3600) / 60, sod % 60, weekday, yearday)
+    (
+        y,
+        m,
+        d,
+        sod / 3600,
+        (sod % 3600) / 60,
+        sod % 60,
+        weekday,
+        yearday,
+    )
 }
 
 // ---- native functions -----------------------------------------------------
@@ -85,7 +94,11 @@ fn days_in_month(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
     let y = int(vm, a[0])?;
     let m = int(vm, a[1])?;
     if !(1..=12).contains(&m) {
-        return Err(err(vm, error_kind::VALUE, format!("month must be 1..=12, got {m}")));
+        return Err(err(
+            vm,
+            error_kind::VALUE,
+            format!("month must be 1..=12, got {m}"),
+        ));
     }
     let days = match m {
         1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
@@ -124,9 +137,15 @@ fn to_epoch(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
     let mi = int(vm, a[4])?;
     let s = int(vm, a[5])?;
     if !(1..=12).contains(&mo) {
-        return Err(err(vm, error_kind::VALUE, format!("month must be 1..=12, got {mo}")));
+        return Err(err(
+            vm,
+            error_kind::VALUE,
+            format!("month must be 1..=12, got {mo}"),
+        ));
     }
-    Ok(Value::Int(days_from_civil(y, mo, d) * 86_400 + h * 3600 + mi * 60 + s))
+    Ok(Value::Int(
+        days_from_civil(y, mo, d) * 86_400 + h * 3600 + mi * 60 + s,
+    ))
 }
 
 fn weekday(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {

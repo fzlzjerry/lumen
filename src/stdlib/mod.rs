@@ -64,7 +64,8 @@ fn load(vm: &mut Vm, name: &str) -> Option<Result<Value, Value>> {
 
 /// Extract a number argument as `f64`.
 fn num(vm: &mut Vm, v: Value) -> Result<f64, Value> {
-    v.as_f64().ok_or_else(|| vm.make_error(error_kind::TYPE, "expected a number"))
+    v.as_f64()
+        .ok_or_else(|| vm.make_error(error_kind::TYPE, "expected a number"))
 }
 
 /// Extract an integer argument.

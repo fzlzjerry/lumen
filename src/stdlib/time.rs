@@ -18,12 +18,18 @@ pub fn build(vm: &mut Vm) -> Value {
 }
 
 fn now(_vm: &mut Vm, _a: &[Value]) -> Result<Value, Value> {
-    let secs = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs_f64()).unwrap_or(0.0);
+    let secs = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs_f64())
+        .unwrap_or(0.0);
     Ok(Value::Float(secs))
 }
 
 fn now_millis(_vm: &mut Vm, _a: &[Value]) -> Result<Value, Value> {
-    let ms = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0);
+    let ms = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
     Ok(Value::Int(ms as i64))
 }
 

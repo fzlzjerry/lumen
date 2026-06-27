@@ -37,9 +37,20 @@ fn exec(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
             let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
             let sout = vm.new_string(&stdout);
             let serr = vm.new_string(&stderr);
-            make_map(vm, &[("status", Value::Int(status)), ("stdout", sout), ("stderr", serr)])
+            make_map(
+                vm,
+                &[
+                    ("status", Value::Int(status)),
+                    ("stdout", sout),
+                    ("stderr", serr),
+                ],
+            )
         }
-        Err(e) => Err(err(vm, error_kind::VALUE, format!("failed to run '{cmd}': {e}"))),
+        Err(e) => Err(err(
+            vm,
+            error_kind::VALUE,
+            format!("failed to run '{cmd}': {e}"),
+        )),
     }
 }
 
@@ -87,12 +98,18 @@ fn platform(vm: &mut Vm, _a: &[Value]) -> Result<Value, Value> {
 }
 
 fn cwd(vm: &mut Vm, _a: &[Value]) -> Result<Value, Value> {
-    let dir = std::env::current_dir().map(|p| p.to_string_lossy().to_string()).unwrap_or_default();
+    let dir = std::env::current_dir()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_default();
     Ok(vm.new_string(&dir))
 }
 
 fn exit(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
-    let code = if a.is_empty() { 0 } else { int(vm, a[0])? as i32 };
+    let code = if a.is_empty() {
+        0
+    } else {
+        int(vm, a[0])? as i32
+    };
     vm.flush_out();
     std::process::exit(code);
 }

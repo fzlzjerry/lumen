@@ -19,7 +19,9 @@ fn main() -> ExitCode {
         }
         Some("run") if args.len() > 1 => cmd_run(args.get(1).map(String::as_str)),
         Some("run") => ExitCode::from(lumen::project::cmd_run() as u8),
-        Some("new") => ExitCode::from(lumen::project::cmd_new(args.get(1).map(String::as_str)) as u8),
+        Some("new") => {
+            ExitCode::from(lumen::project::cmd_new(args.get(1).map(String::as_str)) as u8)
+        }
         Some("add") => ExitCode::from(lumen::project::cmd_add(&args[1..]) as u8),
         Some("build") => ExitCode::from(lumen::project::cmd_build() as u8),
         Some("test") => ExitCode::from(lumen::project::cmd_test() as u8),
@@ -80,7 +82,10 @@ fn cmd_run(path: Option<&str>) -> ExitCode {
         print_diagnostics(&diags, &src, &file);
     }
     if lumen::has_errors(&diags) {
-        let errs = diags.iter().filter(|d| d.severity == lumen::Severity::Error).count();
+        let errs = diags
+            .iter()
+            .filter(|d| d.severity == lumen::Severity::Error)
+            .count();
         eprintln!("{errs} error(s)");
         return ExitCode::FAILURE;
     }
@@ -125,7 +130,14 @@ fn cmd_bench() -> ExitCode {
         ("string build x100k", "let s = \"\"; for let i = 0; i < 100000; i = i + 1 { s = s + \"x\"; } len(s);"),
         ("method dispatch x1M", "class C { init() { this.n = 0; } inc() { this.n = this.n + 1; } } let c = C(); for let i = 0; i < 1000000; i = i + 1 { c.inc(); } c.n;"),
     ];
-    println!("Lumen benchmarks (build: {})", if cfg!(debug_assertions) { "debug" } else { "release" });
+    println!(
+        "Lumen benchmarks (build: {})",
+        if cfg!(debug_assertions) {
+            "debug"
+        } else {
+            "release"
+        }
+    );
     println!("{:<24} {:>12}", "benchmark", "time");
     println!("{}", "-".repeat(38));
     for (name, src) in benches {
@@ -189,7 +201,11 @@ fn cmd_parse(path: Option<&str>) -> ExitCode {
     };
     let (program, errors) = lumen::check_source(&src);
     if errors.is_empty() {
-        println!("{}: checked {} top-level item(s), no errors", file, program.items.len());
+        println!(
+            "{}: checked {} top-level item(s), no errors",
+            file,
+            program.items.len()
+        );
         ExitCode::SUCCESS
     } else {
         print_diagnostics(&errors, &src, &file);
@@ -202,7 +218,10 @@ fn cmd_parse(path: Option<&str>) -> ExitCode {
 /// is rewritten in place; otherwise the formatted source is printed to stdout.
 fn cmd_fmt(args: &[String]) -> ExitCode {
     let write = args.iter().any(|a| a == "--write" || a == "-w");
-    let path = args.iter().find(|a| !a.starts_with('-')).map(String::as_str);
+    let path = args
+        .iter()
+        .find(|a| !a.starts_with('-'))
+        .map(String::as_str);
     let (file, src) = match read_source(path) {
         Ok(v) => v,
         Err(code) => return code,

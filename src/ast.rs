@@ -69,10 +69,16 @@ impl Field {
             .clone()
             .unwrap_or_else(|| Expr::new(ExprKind::Nil, self.span));
         let assign = Expr::new(
-            ExprKind::Assign { target: Box::new(target), value: Box::new(value) },
+            ExprKind::Assign {
+                target: Box::new(target),
+                value: Box::new(value),
+            },
             self.span,
         );
-        Stmt::Expr { expr: assign, span: self.span }
+        Stmt::Expr {
+            expr: assign,
+            span: self.span,
+        }
     }
 }
 
@@ -95,7 +101,10 @@ impl ClassDecl {
     /// but no `init`, or `None` when there are neither (DESIGN D27). Computed once
     /// and used by both the resolver and the compiler so they never diverge.
     pub fn effective_init(&self) -> Option<Function> {
-        let user_init = self.methods.iter().find(|m| m.name.as_deref() == Some("init"));
+        let user_init = self
+            .methods
+            .iter()
+            .find(|m| m.name.as_deref() == Some("init"));
         if self.fields.is_empty() {
             return user_init.cloned();
         }
@@ -111,7 +120,10 @@ impl ClassDecl {
                 name: Some("init".to_string()),
                 name_span: self.name_span,
                 params: Vec::new(),
-                body: Block { stmts, span: self.span },
+                body: Block {
+                    stmts,
+                    span: self.span,
+                },
                 span: self.span,
             }),
         }

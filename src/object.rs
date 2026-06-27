@@ -6,8 +6,8 @@
 //! that pairs the code with captured upvalues — only the latter is GC-managed.
 
 use crate::chunk::FnProto;
-use crate::value::{GcRef, MapKey, Value};
 use crate::fxhash::FxHashMap;
+use crate::value::{GcRef, MapKey, Value};
 use std::fs::File;
 use std::io::{BufReader, BufWriter};
 use std::rc::Rc;
@@ -158,7 +158,12 @@ pub struct ExecContext {
 
 impl ExecContext {
     pub fn new() -> Self {
-        ExecContext { stack: Vec::new(), frames: Vec::new(), handlers: Vec::new(), open_upvalues: Vec::new() }
+        ExecContext {
+            stack: Vec::new(),
+            frames: Vec::new(),
+            handlers: Vec::new(),
+            open_upvalues: Vec::new(),
+        }
     }
 }
 
@@ -214,7 +219,10 @@ impl Default for LumMap {
 
 impl LumMap {
     pub fn new() -> Self {
-        LumMap { entries: Vec::new(), index: FxHashMap::default() }
+        LumMap {
+            entries: Vec::new(),
+            index: FxHashMap::default(),
+        }
     }
 
     pub fn len(&self) -> usize {
@@ -232,7 +240,10 @@ impl LumMap {
             self.entries[pos].value = value;
         } else {
             self.index.insert(key, self.entries.len());
-            self.entries.push(Entry { key: key_val, value });
+            self.entries.push(Entry {
+                key: key_val,
+                value,
+            });
         }
     }
 

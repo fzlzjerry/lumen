@@ -77,46 +77,46 @@ pub enum TokenKind {
     Yield,
 
     // ---- Operators & punctuation ----
-    Plus,       // +
-    Minus,      // -
-    Star,       // *
-    StarStar,   // ** (exponentiation)
-    Slash,      // /
-    Percent,    // %
-    PlusEq,     // +=
-    MinusEq,    // -=
-    StarEq,     // *=
-    SlashEq,    // /=
-    PercentEq,  // %=
-    Eq,         // =
-    EqEq,       // ==
-    BangEq,     // !=
-    Lt,         // <
-    LtEq,       // <=
-    Gt,         // >
-    GtEq,       // >=
-    AmpAmp,     // &&
-    PipePipe,   // ||
-    Amp,        // &  (bitwise and)
-    Pipe,       // |  (bitwise or)
-    Caret,      // ^  (bitwise xor)
-    Tilde,      // ~  (bitwise not)
-    Shl,        // << (shift left)
-    Shr,        // >> (shift right)
-    Bang,       // !
-    Dot,        // .
-    DotDot,     // ..
-    Comma,      // ,
-    Semicolon,  // ;
-    Colon,      // :
-    Question,   // ?
-    LParen,     // (
-    RParen,     // )
-    LBracket,   // [
-    RBracket,   // ]
-    LBrace,     // {
-    RBrace,     // }
-    FatArrow,   // =>
+    Plus,      // +
+    Minus,     // -
+    Star,      // *
+    StarStar,  // ** (exponentiation)
+    Slash,     // /
+    Percent,   // %
+    PlusEq,    // +=
+    MinusEq,   // -=
+    StarEq,    // *=
+    SlashEq,   // /=
+    PercentEq, // %=
+    Eq,        // =
+    EqEq,      // ==
+    BangEq,    // !=
+    Lt,        // <
+    LtEq,      // <=
+    Gt,        // >
+    GtEq,      // >=
+    AmpAmp,    // &&
+    PipePipe,  // ||
+    Amp,       // &  (bitwise and)
+    Pipe,      // |  (bitwise or)
+    Caret,     // ^  (bitwise xor)
+    Tilde,     // ~  (bitwise not)
+    Shl,       // << (shift left)
+    Shr,       // >> (shift right)
+    Bang,      // !
+    Dot,       // .
+    DotDot,    // ..
+    Comma,     // ,
+    Semicolon, // ;
+    Colon,     // :
+    Question,  // ?
+    LParen,    // (
+    RParen,    // )
+    LBracket,  // [
+    RBracket,  // ]
+    LBrace,    // {
+    RBrace,    // }
+    FatArrow,  // =>
 
     /// End of input.
     Eof,

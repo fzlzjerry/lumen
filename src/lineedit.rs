@@ -21,7 +21,10 @@ struct LineBuffer {
 
 impl LineBuffer {
     fn new() -> Self {
-        LineBuffer { chars: Vec::new(), cursor: 0 }
+        LineBuffer {
+            chars: Vec::new(),
+            cursor: 0,
+        }
     }
 
     fn set(&mut self, text: &str) {
@@ -154,8 +157,8 @@ pub fn read_line(prompt: &str, history: &[String]) -> io::Result<Input> {
                 }
                 buf.delete();
             }
-            1 => buf.home(),       // Ctrl-A
-            5 => buf.end(),        // Ctrl-E
+            1 => buf.home(), // Ctrl-A
+            5 => buf.end(),  // Ctrl-E
             2 => {
                 buf.left();
             } // Ctrl-B
@@ -163,8 +166,8 @@ pub fn read_line(prompt: &str, history: &[String]) -> io::Result<Input> {
                 buf.right();
             } // Ctrl-F
             23 => buf.kill_prev_word(), // Ctrl-W
-            21 => buf.kill_to_start(),  // Ctrl-U
-            11 => buf.kill_to_end(),    // Ctrl-K
+            21 => buf.kill_to_start(), // Ctrl-U
+            11 => buf.kill_to_end(), // Ctrl-K
             8 | 127 => {
                 buf.backspace();
             }
@@ -226,7 +229,10 @@ fn decode_char(first: u8, input: &mut impl Read) -> io::Result<char> {
         }
         bytes.push(b[0]);
     }
-    Ok(std::str::from_utf8(&bytes).ok().and_then(|s| s.chars().next()).unwrap_or('\u{FFFD}'))
+    Ok(std::str::from_utf8(&bytes)
+        .ok()
+        .and_then(|s| s.chars().next())
+        .unwrap_or('\u{FFFD}'))
 }
 
 fn history_prev(buf: &mut LineBuffer, history: &[String], idx: &mut usize, stash: &mut String) {

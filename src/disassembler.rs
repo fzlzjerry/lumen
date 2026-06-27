@@ -147,7 +147,9 @@ pub fn disassemble_instruction(chunk: &Chunk, offset: usize, out: &mut String) -
             let param = chunk.code[offset + 1];
             let dist = chunk.read_u16(offset + 2) as usize;
             let target = offset + 4 + dist;
-            out.push_str(&format!("{prefix}{name:<14} param={param} -> {target:04}\n"));
+            out.push_str(&format!(
+                "{prefix}{name:<14} param={param} -> {target:04}\n"
+            ));
             offset + 4
         }
         // INVOKE / SUPER_INVOKE: u16 method-name constant + u8 argc.

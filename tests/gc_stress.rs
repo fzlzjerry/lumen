@@ -134,8 +134,14 @@ fn correctness_under_stress() {
     ];
     for (src, expected) in cases {
         let o = run_with(src, true);
-        assert_eq!(&o.output, expected, "wrong output under stress GC for:\n{src}");
-        assert!(o.collections > 0, "stress GC should have collected for:\n{src}");
+        assert_eq!(
+            &o.output, expected,
+            "wrong output under stress GC for:\n{src}"
+        );
+        assert!(
+            o.collections > 0,
+            "stress GC should have collected for:\n{src}"
+        );
     }
 }
 
@@ -152,9 +158,17 @@ fn allocation_pressure_is_bounded() {
                println(acc);";
     let o = run_with(src, false);
     assert_eq!(o.output, "20000100000\n");
-    assert!(o.collections > 5, "expected several collections, got {}", o.collections);
+    assert!(
+        o.collections > 5,
+        "expected several collections, got {}",
+        o.collections
+    );
     // 200k arrays were allocated; if they were leaking, live would be ~200k+.
-    assert!(o.live < 5000, "live set not bounded: {} live objects", o.live);
+    assert!(
+        o.live < 5000,
+        "live set not bounded: {} live objects",
+        o.live
+    );
 }
 
 /// Unique garbage strings must be reclaimed from the intern table (it is weak).
@@ -167,7 +181,11 @@ fn interned_garbage_strings_are_reclaimed() {
     assert!(o.collections > 0);
     // 100k distinct strings were interned and dropped; the table must not retain
     // them all.
-    assert!(o.interned < 5000, "intern table not pruned: {} entries", o.interned);
+    assert!(
+        o.interned < 5000,
+        "intern table not pruned: {} entries",
+        o.interned
+    );
 }
 
 /// A program that keeps growing a reachable structure should *not* have its data

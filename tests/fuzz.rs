@@ -61,7 +61,9 @@ fn random_text_never_panics() {
     let mut rng = Rng::new(0xC0FFEE);
     for _ in 0..4000 {
         let len = rng.below(60);
-        let s: String = (0..len).map(|_| ALPHABET[rng.below(ALPHABET.len())]).collect();
+        let s: String = (0..len)
+            .map(|_| ALPHABET[rng.below(ALPHABET.len())])
+            .collect();
         check_no_panic(&s);
     }
     panic::set_hook(prev);

@@ -83,7 +83,6 @@ impl Json {
             }
         }
     }
-
 }
 
 impl std::fmt::Display for Json {
@@ -286,7 +285,10 @@ pub fn run() -> i32 {
                         "serverInfo".into(),
                         Json::Obj(vec![
                             ("name".into(), Json::Str("lumen-lsp".into())),
-                            ("version".into(), Json::Str(env!("CARGO_PKG_VERSION").into())),
+                            (
+                                "version".into(),
+                                Json::Str(env!("CARGO_PKG_VERSION").into()),
+                            ),
                         ]),
                     ),
                 ]);
@@ -306,7 +308,11 @@ pub fn run() -> i32 {
                 }
             }
             "textDocument/didClose" => {
-                if let Some(uri) = params.get("textDocument").and_then(|d| d.get("uri")).and_then(Json::as_str) {
+                if let Some(uri) = params
+                    .get("textDocument")
+                    .and_then(|d| d.get("uri"))
+                    .and_then(Json::as_str)
+                {
                     docs.remove(uri);
                 }
             }
@@ -366,7 +372,11 @@ fn doc_open(params: &Json) -> Option<(String, String)> {
 }
 
 fn doc_change(params: &Json) -> Option<(String, String)> {
-    let uri = params.get("textDocument")?.get("uri")?.as_str()?.to_string();
+    let uri = params
+        .get("textDocument")?
+        .get("uri")?
+        .as_str()?
+        .to_string();
     // Full-sync: the last content change holds the whole document.
     let changes = params.get("contentChanges")?;
     if let Json::Arr(items) = changes {
@@ -402,7 +412,10 @@ fn publish_diagnostics(writer: &mut impl Write, uri: &str, text: &str) {
         .collect();
     let note = Json::Obj(vec![
         ("jsonrpc".into(), Json::Str("2.0".into())),
-        ("method".into(), Json::Str("textDocument/publishDiagnostics".into())),
+        (
+            "method".into(),
+            Json::Str("textDocument/publishDiagnostics".into()),
+        ),
         (
             "params".into(),
             Json::Obj(vec![
@@ -524,9 +537,9 @@ fn collect_defs(program: &Program) -> Vec<Def> {
 fn lambdas_in_stmt(stmt: &Stmt, out: &mut Vec<Def>) {
     match stmt {
         Stmt::Let { init: Some(e), .. } => lambdas_in_expr(e, out),
-        Stmt::Const { init, .. } | Stmt::Destructure { init, .. } | Stmt::Throw { value: init, .. } => {
-            lambdas_in_expr(init, out)
-        }
+        Stmt::Const { init, .. }
+        | Stmt::Destructure { init, .. }
+        | Stmt::Throw { value: init, .. } => lambdas_in_expr(init, out),
         Stmt::Function(f) => lambdas_in_function(f, out),
         Stmt::Class(c) => {
             for m in &c.methods {
@@ -540,7 +553,12 @@ fn lambdas_in_stmt(stmt: &Stmt, out: &mut Vec<Def>) {
                 lambdas_in_stmt(s, out);
             }
         }
-        Stmt::If { cond, then_block, else_branch, .. } => {
+        Stmt::If {
+            cond,
+            then_block,
+            else_branch,
+            ..
+        } => {
             lambdas_in_expr(cond, out);
             for s in &then_block.stmts {
                 lambdas_in_stmt(s, out);
@@ -561,7 +579,13 @@ fn lambdas_in_stmt(stmt: &Stmt, out: &mut Vec<Def>) {
                 lambdas_in_stmt(s, out);
             }
         }
-        Stmt::ForC { init, cond, step, body, .. } => {
+        Stmt::ForC {
+            init,
+            cond,
+            step,
+            body,
+            ..
+        } => {
             if let Some(i) = init {
                 lambdas_in_stmt(i, out);
             }
@@ -576,7 +600,12 @@ fn lambdas_in_stmt(stmt: &Stmt, out: &mut Vec<Def>) {
             }
         }
         Stmt::Return { value: Some(e), .. } => lambdas_in_expr(e, out),
-        Stmt::Try { body, catches, finally, .. } => {
+        Stmt::Try {
+            body,
+            catches,
+            finally,
+            ..
+        } => {
             for s in &body.stmts {
                 lambdas_in_stmt(s, out);
             }
@@ -617,7 +646,11 @@ fn lambdas_in_expr(e: &Expr, out: &mut Vec<Def>) {
             // visible only inside it.
             let scope = (f.span.offset, f.span.offset + f.span.len);
             for p in &f.params {
-                out.push(Def { name: p.name.clone(), name_span: p.span, scope });
+                out.push(Def {
+                    name: p.name.clone(),
+                    name_span: p.span,
+                    scope,
+                });
             }
             for s in &f.body.stmts {
                 walk_stmt(s, scope, out);
@@ -638,7 +671,11 @@ fn lambdas_in_expr(e: &Expr, out: &mut Vec<Def>) {
             lambdas_in_expr(left, out);
             lambdas_in_expr(right, out);
         }
-        ExprKind::Ternary { cond, then_branch, else_branch } => {
+        ExprKind::Ternary {
+            cond,
+            then_branch,
+            else_branch,
+        } => {
             lambdas_in_expr(cond, out);
             lambdas_in_expr(then_branch, out);
             lambdas_in_expr(else_branch, out);
@@ -687,14 +724,25 @@ fn lambdas_in_expr(e: &Expr, out: &mut Vec<Def>) {
                 lambdas_in_expr(&arm.body, out);
             }
         }
-        ExprKind::ArrayComp { element, iter, cond, .. } => {
+        ExprKind::ArrayComp {
+            element,
+            iter,
+            cond,
+            ..
+        } => {
             lambdas_in_expr(element, out);
             lambdas_in_expr(iter, out);
             if let Some(c) = cond {
                 lambdas_in_expr(c, out);
             }
         }
-        ExprKind::MapComp { key, value, iter, cond, .. } => {
+        ExprKind::MapComp {
+            key,
+            value,
+            iter,
+            cond,
+            ..
+        } => {
             lambdas_in_expr(key, out);
             lambdas_in_expr(value, out);
             lambdas_in_expr(iter, out);
@@ -721,11 +769,19 @@ fn walk_block(b: &Block, out: &mut Vec<Def>) {
 fn walk_function(f: &Function, enclosing: (u32, u32), out: &mut Vec<Def>) {
     // The name (if any) is visible to siblings; params and locals are not.
     if let Some(name) = &f.name {
-        out.push(Def { name: name.clone(), name_span: f.name_span, scope: enclosing });
+        out.push(Def {
+            name: name.clone(),
+            name_span: f.name_span,
+            scope: enclosing,
+        });
     }
     let inner = (f.span.offset, f.span.offset + f.span.len);
     for p in &f.params {
-        out.push(Def { name: p.name.clone(), name_span: p.span, scope: inner });
+        out.push(Def {
+            name: p.name.clone(),
+            name_span: p.span,
+            scope: inner,
+        });
     }
     for s in &f.body.stmts {
         walk_stmt(s, inner, out);
@@ -735,14 +791,22 @@ fn walk_function(f: &Function, enclosing: (u32, u32), out: &mut Vec<Def>) {
 fn bind_pattern(pat: &Pattern, scope: (u32, u32), out: &mut Vec<Def>) {
     match &pat.kind {
         PatternKind::Binding(name) => {
-            out.push(Def { name: name.clone(), name_span: pat.span, scope });
+            out.push(Def {
+                name: name.clone(),
+                name_span: pat.span,
+                scope,
+            });
         }
         PatternKind::Array(elems) => {
             for e in elems {
                 match e {
                     crate::ast::PatElem::Pattern(p) => bind_pattern(p, scope, out),
                     crate::ast::PatElem::Rest(Some(name)) => {
-                        out.push(Def { name: name.clone(), name_span: pat.span, scope });
+                        out.push(Def {
+                            name: name.clone(),
+                            name_span: pat.span,
+                            scope,
+                        });
                     }
                     crate::ast::PatElem::Rest(None) => {}
                 }
@@ -759,47 +823,87 @@ fn bind_pattern(pat: &Pattern, scope: (u32, u32), out: &mut Vec<Def>) {
 
 fn walk_stmt(stmt: &Stmt, scope: (u32, u32), out: &mut Vec<Def>) {
     match stmt {
-        Stmt::Let { name, name_span, .. } => {
-            out.push(Def { name: name.clone(), name_span: *name_span, scope });
+        Stmt::Let {
+            name, name_span, ..
+        } => {
+            out.push(Def {
+                name: name.clone(),
+                name_span: *name_span,
+                scope,
+            });
         }
-        Stmt::Const { name, name_span, .. } => {
-            out.push(Def { name: name.clone(), name_span: *name_span, scope });
+        Stmt::Const {
+            name, name_span, ..
+        } => {
+            out.push(Def {
+                name: name.clone(),
+                name_span: *name_span,
+                scope,
+            });
         }
         Stmt::Destructure { pattern, .. } => bind_pattern(pattern, scope, out),
         Stmt::Function(f) => walk_function(f, scope, out),
         Stmt::Class(c) => {
-            out.push(Def { name: c.name.clone(), name_span: c.name_span, scope });
+            out.push(Def {
+                name: c.name.clone(),
+                name_span: c.name_span,
+                scope,
+            });
             for m in &c.methods {
                 walk_function(m, (m.span.offset, m.span.offset + m.span.len), out);
             }
         }
         Stmt::Import(i) => match &i.kind {
             crate::ast::ImportKind::Module { alias } => {
-                out.push(Def { name: alias.value.clone(), name_span: alias.span, scope });
+                out.push(Def {
+                    name: alias.value.clone(),
+                    name_span: alias.span,
+                    scope,
+                });
             }
             crate::ast::ImportKind::Named(items) => {
                 for it in items {
-                    out.push(Def { name: it.value.clone(), name_span: it.span, scope });
+                    out.push(Def {
+                        name: it.value.clone(),
+                        name_span: it.span,
+                        scope,
+                    });
                 }
             }
         },
         Stmt::Export { decl, .. } => walk_stmt(decl, scope, out),
         Stmt::Block(b) => walk_block(b, out),
-        Stmt::If { then_block, else_branch, .. } => {
+        Stmt::If {
+            then_block,
+            else_branch,
+            ..
+        } => {
             walk_block(then_block, out);
             if let Some(e) = else_branch {
                 walk_stmt(e, scope, out);
             }
         }
         Stmt::While { body, .. } => walk_block(body, out),
-        Stmt::ForIn { var, var_span, body, span, .. } => {
+        Stmt::ForIn {
+            var,
+            var_span,
+            body,
+            span,
+            ..
+        } => {
             let loop_scope = (span.offset, span.offset + span.len);
-            out.push(Def { name: var.clone(), name_span: *var_span, scope: loop_scope });
+            out.push(Def {
+                name: var.clone(),
+                name_span: *var_span,
+                scope: loop_scope,
+            });
             for s in &body.stmts {
                 walk_stmt(s, loop_scope, out);
             }
         }
-        Stmt::ForC { init, body, span, .. } => {
+        Stmt::ForC {
+            init, body, span, ..
+        } => {
             let loop_scope = (span.offset, span.offset + span.len);
             if let Some(init) = init {
                 walk_stmt(init, loop_scope, out);
@@ -808,11 +912,20 @@ fn walk_stmt(stmt: &Stmt, scope: (u32, u32), out: &mut Vec<Def>) {
                 walk_stmt(s, loop_scope, out);
             }
         }
-        Stmt::Try { body, catches, finally, .. } => {
+        Stmt::Try {
+            body,
+            catches,
+            finally,
+            ..
+        } => {
             walk_block(body, out);
             for c in catches {
                 let cscope = block_scope(&c.body);
-                out.push(Def { name: c.name.clone(), name_span: c.name_span, scope: cscope });
+                out.push(Def {
+                    name: c.name.clone(),
+                    name_span: c.name_span,
+                    scope: cscope,
+                });
                 walk_block(&c.body, out);
             }
             if let Some(f) = finally {
@@ -1014,7 +1127,11 @@ fn collect_signatures(program: &Program) -> HashMap<String, Vec<String>> {
                     walk(s, sigs);
                 }
             }
-            Stmt::If { then_block, else_branch, .. } => {
+            Stmt::If {
+                then_block,
+                else_branch,
+                ..
+            } => {
                 for s in &then_block.stmts {
                     walk(s, sigs);
                 }
@@ -1027,7 +1144,12 @@ fn collect_signatures(program: &Program) -> HashMap<String, Vec<String>> {
                     walk(s, sigs);
                 }
             }
-            Stmt::Try { body, catches, finally, .. } => {
+            Stmt::Try {
+                body,
+                catches,
+                finally,
+                ..
+            } => {
                 for s in &body.stmts {
                     walk(s, sigs);
                 }
@@ -1057,8 +1179,10 @@ fn collect_signatures(program: &Program) -> HashMap<String, Vec<String>> {
 /// 0). `None` when the cursor isn't inside a call's parentheses.
 fn call_context(text: &str, cursor_off: u32) -> Option<(String, usize)> {
     let (tokens, _errs) = crate::lexer::lex(text);
-    let toks: Vec<&crate::token::Token> =
-        tokens.iter().filter(|t| !t.is_eof() && t.span.offset < cursor_off).collect();
+    let toks: Vec<&crate::token::Token> = tokens
+        .iter()
+        .filter(|t| !t.is_eof() && t.span.offset < cursor_off)
+        .collect();
     let mut depth = 0i32;
     let mut commas = 0usize;
     let mut i = toks.len();
@@ -1148,7 +1272,9 @@ fn completion(params: &Json, docs: &HashMap<String, String>) -> Option<Json> {
         }
     }
     // Built-in stdlib modules (kind 9 = Module).
-    for m in ["math", "string", "array", "map", "io", "os", "time", "json", "random"] {
+    for m in [
+        "math", "string", "array", "map", "io", "os", "time", "json", "random",
+    ] {
         if seen.insert(m.to_string()) {
             items.push(completion_item(m, 9, "stdlib module"));
         }
@@ -1193,10 +1319,20 @@ fn symbol_for(stmt: &Stmt, text: &str, out: &mut Vec<Json>) {
             }
         }
         Stmt::Class(c) => out.push(class_symbol(c, text)),
-        Stmt::Let { name, name_span, span, .. } => {
+        Stmt::Let {
+            name,
+            name_span,
+            span,
+            ..
+        } => {
             out.push(symbol(name, 13, text, *span, *name_span, vec![]));
         }
-        Stmt::Const { name, name_span, span, .. } => {
+        Stmt::Const {
+            name,
+            name_span,
+            span,
+            ..
+        } => {
             out.push(symbol(name, 14, text, *span, *name_span, vec![]));
         }
         Stmt::Export { decl, .. } => symbol_for(decl, text, out),
@@ -1324,7 +1460,13 @@ mod tests {
         let v = parse_json(r#"{"a": 1, "b": [true, null, "x"], "c": 2.5}"#).unwrap();
         assert_eq!(v.get("a").unwrap().as_i64(), Some(1));
         assert_eq!(v.get("b").unwrap().to_string(), r#"[true,null,"x"]"#);
-        assert_eq!(v.get("c").and_then(|c| match c { Json::Num(n) => Some(*n), _ => None }), Some(2.5));
+        assert_eq!(
+            v.get("c").and_then(|c| match c {
+                Json::Num(n) => Some(*n),
+                _ => None,
+            }),
+            Some(2.5)
+        );
     }
 
     #[test]
@@ -1360,10 +1502,26 @@ mod tests {
     }
 
     fn start_line(result: &Json) -> i64 {
-        result.get("range").unwrap().get("start").unwrap().get("line").unwrap().as_i64().unwrap()
+        result
+            .get("range")
+            .unwrap()
+            .get("start")
+            .unwrap()
+            .get("line")
+            .unwrap()
+            .as_i64()
+            .unwrap()
     }
     fn start_char(result: &Json) -> i64 {
-        result.get("range").unwrap().get("start").unwrap().get("character").unwrap().as_i64().unwrap()
+        result
+            .get("range")
+            .unwrap()
+            .get("start")
+            .unwrap()
+            .get("character")
+            .unwrap()
+            .as_i64()
+            .unwrap()
     }
 
     #[test]
@@ -1398,7 +1556,8 @@ mod tests {
 
     #[test]
     fn document_symbols_lists_decls() {
-        let src = "fn greet() { return 1; }\nclass Point { fn dist() { return 0; } }\nlet count = 3;\n";
+        let src =
+            "fn greet() { return 1; }\nclass Point { fn dist() { return 0; } }\nlet count = 3;\n";
         let result = document_symbols(
             &Json::Obj(vec![(
                 "textDocument".into(),
@@ -1407,14 +1566,18 @@ mod tests {
             &docs(src),
         )
         .expect("symbols");
-        let Json::Arr(syms) = result else { panic!("expected array") };
+        let Json::Arr(syms) = result else {
+            panic!("expected array")
+        };
         assert_eq!(syms.len(), 3, "function, class, variable");
         assert_eq!(syms[0].get("name").unwrap().as_str(), Some("greet"));
         assert_eq!(syms[0].get("kind").unwrap().as_i64(), Some(12)); // Function
         assert_eq!(syms[1].get("name").unwrap().as_str(), Some("Point"));
         assert_eq!(syms[1].get("kind").unwrap().as_i64(), Some(5)); // Class
-        // The class carries its method as a child symbol.
-        let Json::Arr(children) = syms[1].get("children").unwrap() else { panic!() };
+                                                                    // The class carries its method as a child symbol.
+        let Json::Arr(children) = syms[1].get("children").unwrap() else {
+            panic!()
+        };
         assert_eq!(children[0].get("name").unwrap().as_str(), Some("dist"));
         assert_eq!(children[0].get("kind").unwrap().as_i64(), Some(6)); // Method
         assert_eq!(syms[2].get("name").unwrap().as_str(), Some("count"));
@@ -1428,9 +1591,13 @@ mod tests {
             fields.retain(|(k, _)| k != "position"); // also exercise the no-position path
         }
         let result = completion(&params, &docs(src)).expect("completion");
-        let Json::Arr(items) = result else { panic!("expected array") };
-        let labels: Vec<&str> =
-            items.iter().filter_map(|i| i.get("label").and_then(Json::as_str)).collect();
+        let Json::Arr(items) = result else {
+            panic!("expected array")
+        };
+        let labels: Vec<&str> = items
+            .iter()
+            .filter_map(|i| i.get("label").and_then(Json::as_str))
+            .collect();
         assert!(labels.contains(&"apple"), "in-scope var");
         assert!(labels.contains(&"banana"), "in-scope fn");
         assert!(labels.contains(&"math"), "stdlib module");
@@ -1449,7 +1616,10 @@ mod tests {
         if let Json::Obj(fields) = &mut p {
             fields.push((
                 "context".into(),
-                Json::Obj(vec![("includeDeclaration".into(), Json::Bool(include_decl))]),
+                Json::Obj(vec![(
+                    "includeDeclaration".into(),
+                    Json::Bool(include_decl),
+                )]),
             ));
         }
         p
@@ -1467,13 +1637,22 @@ mod tests {
     fn formatting_replaces_whole_document() {
         let src = "let   x=1;\n";
         let result = formatting(&td_params(), &docs(src)).expect("formatting");
-        let Json::Arr(edits) = result else { panic!("expected array") };
+        let Json::Arr(edits) = result else {
+            panic!("expected array")
+        };
         assert_eq!(edits.len(), 1);
         let (program, _) = crate::parse_source(src);
         let expected = crate::ast_printer::print_program(&program);
-        assert_eq!(edits[0].get("newText").unwrap().as_str(), Some(expected.as_str()));
+        assert_eq!(
+            edits[0].get("newText").unwrap().as_str(),
+            Some(expected.as_str())
+        );
         assert_ne!(expected, src, "the messy input is actually reformatted");
-        assert_eq!(start_line(&edits[0]), 0, "edit covers from the document start");
+        assert_eq!(
+            start_line(&edits[0]),
+            0,
+            "edit covers from the document start"
+        );
         assert_eq!(start_char(&edits[0]), 0);
     }
 
@@ -1534,7 +1713,9 @@ mod tests {
         let src = "fn add(a, b) { return a + b; }\nlet s = add(1, 2);\n";
         // Cursor on the second argument `2` (line 1, char 15).
         let result = signature_help(&pos_params(1, 15), &docs(src)).expect("sighelp");
-        let Json::Arr(sigs) = result.get("signatures").unwrap() else { panic!() };
+        let Json::Arr(sigs) = result.get("signatures").unwrap() else {
+            panic!()
+        };
         assert_eq!(sigs.len(), 1);
         assert_eq!(sigs[0].get("label").unwrap().as_str(), Some("add(a, b)"));
         assert_eq!(result.get("activeParameter").unwrap().as_i64(), Some(1));
@@ -1555,7 +1736,9 @@ mod tests {
         // Cursor on the second argument `3` (line 1, char 18). The commas inside
         // the array literal `[1, 2]` must NOT be counted as argument separators.
         let result = signature_help(&pos_params(1, 18), &docs(src)).expect("sighelp");
-        let Json::Arr(sigs) = result.get("signatures").unwrap() else { panic!() };
+        let Json::Arr(sigs) = result.get("signatures").unwrap() else {
+            panic!()
+        };
         assert_eq!(sigs[0].get("label").unwrap().as_str(), Some("g(a, b)"));
         assert_eq!(result.get("activeParameter").unwrap().as_i64(), Some(1));
         // Cursor inside the array literal itself (char 11, on `1`): no signature.
@@ -1577,7 +1760,11 @@ mod tests {
         let src = "let x = 1;\nlet f = x => x + 1;\n";
         let result = references(&ref_params(0, 4, true), &docs(src)).expect("references");
         let Json::Arr(locs) = result else { panic!() };
-        assert_eq!(locs.len(), 1, "outer x only; the arrow parameter x is separate");
+        assert_eq!(
+            locs.len(),
+            1,
+            "outer x only; the arrow parameter x is separate"
+        );
     }
 
     #[test]

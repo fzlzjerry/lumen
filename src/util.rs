@@ -11,7 +11,11 @@ pub fn format_float(f: f64) -> String {
         return "nan".to_string();
     }
     if f.is_infinite() {
-        return if f < 0.0 { "-inf".to_string() } else { "inf".to_string() };
+        return if f < 0.0 {
+            "-inf".to_string()
+        } else {
+            "inf".to_string()
+        };
     }
     let s = format!("{f}");
     if s.contains('.') || s.contains('e') || s.contains('E') {

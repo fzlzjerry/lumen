@@ -13,6 +13,7 @@
 //! `str()` methods, and the like.
 
 use crate::chunk::{Constant, FnProto};
+use crate::fxhash::FxHashMap;
 use crate::gc::Heap;
 use crate::object::{
     Arity, BoundMethod, BoundNative, CallFrame, Class, Closure, ExecContext, FileHandle, GenState,
@@ -21,7 +22,6 @@ use crate::object::{
 use crate::opcode::OpCode;
 use crate::util::{escape_string, format_float};
 use crate::value::{error_kind, GcRef, MapKey, Value};
-use crate::fxhash::FxHashMap;
 use std::io::Write;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -284,7 +284,11 @@ impl Vm {
 
     /// Register a native global function.
     pub fn define_native(&mut self, name: &str, arity: Arity, func: crate::object::NativeFn) {
-        let r = self.heap.alloc(Obj::Native(Native { name: name.to_string(), arity, func }));
+        let r = self.heap.alloc(Obj::Native(Native {
+            name: name.to_string(),
+            arity,
+            func,
+        }));
         self.builtins.insert(name.to_string(), Value::Obj(r));
     }
 
@@ -294,13 +298,25 @@ impl Vm {
     }
 
     /// Allocate a native-function value (for building stdlib modules).
-    pub fn make_native_value(&mut self, name: &str, arity: Arity, func: crate::object::NativeFn) -> Value {
-        Value::Obj(self.heap.alloc(Obj::Native(Native { name: name.to_string(), arity, func })))
+    pub fn make_native_value(
+        &mut self,
+        name: &str,
+        arity: Arity,
+        func: crate::object::NativeFn,
+    ) -> Value {
+        Value::Obj(self.heap.alloc(Obj::Native(Native {
+            name: name.to_string(),
+            arity,
+            func,
+        })))
     }
 
     /// Build a module value from a list of `(export name, value)` pairs.
     pub fn make_module(&mut self, name: &str, exports: Vec<(&str, Value)>) -> Value {
-        let map: FxHashMap<String, Value> = exports.into_iter().map(|(k, v)| (k.to_string(), v)).collect();
+        let map: FxHashMap<String, Value> = exports
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), v))
+            .collect();
         Value::Obj(self.heap.alloc(Obj::Module(Module {
             name: name.to_string(),
             path: format!("native:{name}"),
@@ -314,11 +330,19 @@ impl Vm {
         let (program, errs) = crate::check_source(src);
         if !errs.is_empty() {
             let first = errs[0].message.clone();
-            return Err(self.throw(error_kind::VALUE, format!("module '{name}' has errors: {first}")));
+            return Err(self.throw(
+                error_kind::VALUE,
+                format!("module '{name}' has errors: {first}"),
+            ));
         }
         let proto = match crate::compiler::compile(&program) {
             Ok(p) => p,
-            Err(_) => return Err(self.throw(error_kind::VALUE, format!("module '{name}' failed to compile"))),
+            Err(_) => {
+                return Err(self.throw(
+                    error_kind::VALUE,
+                    format!("module '{name}' failed to compile"),
+                ))
+            }
         };
         let module_obj = self.heap.alloc(Obj::Module(Module {
             name: name.to_string(),
@@ -329,7 +353,11 @@ impl Vm {
         let module_idx = self.module_globals.len();
         self.module_globals.push(FxHashMap::default());
         let run_result = self.run_module_body(proto.clone(), module_idx);
-        let exports = collect_exports(&self.module_globals[module_idx], &proto.exports, &run_result);
+        let exports = collect_exports(
+            &self.module_globals[module_idx],
+            &proto.exports,
+            &run_result,
+        );
         run_result?;
         if let Obj::Module(m) = self.heap.get_mut(module_obj) {
             m.exports = exports;
@@ -373,7 +401,11 @@ impl Vm {
     /// Run a top-level script prototype to completion. On an uncaught throw,
     /// returns `Err(message)` with a formatted value + stack trace.
     pub fn interpret(&mut self, proto: Rc<FnProto>) -> Result<(), String> {
-        let closure = self.heap.alloc_closure(Closure { proto, upvalues: Vec::new(), module: 0 });
+        let closure = self.heap.alloc_closure(Closure {
+            proto,
+            upvalues: Vec::new(),
+            module: 0,
+        });
         self.stack.push(Value::Obj(closure));
         let callee_idx = self.stack.len() - 1;
         if let Err(thrown) = self.call_value(Value::Obj(closure), 0, callee_idx) {
@@ -390,7 +422,11 @@ impl Vm {
     /// *and* resets the transient state (stack/frames/handlers) so the VM stays
     /// usable for the next input, while globals persist.
     pub fn eval(&mut self, proto: Rc<FnProto>) -> Result<Value, String> {
-        let closure = self.heap.alloc_closure(Closure { proto, upvalues: Vec::new(), module: 0 });
+        let closure = self.heap.alloc_closure(Closure {
+            proto,
+            upvalues: Vec::new(),
+            module: 0,
+        });
         self.stack.push(Value::Obj(closure));
         let callee_idx = self.stack.len() - 1;
         let result = self
@@ -427,7 +463,11 @@ impl Vm {
     /// Set up the top-level frame for a script without running it (the debugger
     /// then drives execution one instruction at a time).
     pub fn debug_start(&mut self, proto: Rc<FnProto>) -> Result<(), String> {
-        let closure = self.heap.alloc_closure(Closure { proto, upvalues: Vec::new(), module: 0 });
+        let closure = self.heap.alloc_closure(Closure {
+            proto,
+            upvalues: Vec::new(),
+            module: 0,
+        });
         self.stack.push(Value::Obj(closure));
         let callee_idx = self.stack.len() - 1;
         self.call_value(Value::Obj(closure), 0, callee_idx)
@@ -464,7 +504,9 @@ impl Vm {
     /// `(function name, current line, instruction pointer)` of the next
     /// instruction to execute, or `None` if execution has finished.
     pub fn debug_location(&self) -> Option<(String, u32, usize)> {
-        self.frames.last().map(|f| (f.proto.display_name(), f.proto.chunk.line_at(f.ip), f.ip))
+        self.frames
+            .last()
+            .map(|f| (f.proto.display_name(), f.proto.chunk.line_at(f.ip), f.ip))
     }
 
     /// The call stack as `(function name, line)`, innermost first.
@@ -575,11 +617,15 @@ impl Vm {
                 Obj::Map(m) => {
                     let parts: Vec<String> = m
                         .iter()
-                        .map(|(k, val)| format!("{}: {}", self.debug_display(k), self.debug_display(val)))
+                        .map(|(k, val)| {
+                            format!("{}: {}", self.debug_display(k), self.debug_display(val))
+                        })
                         .collect();
                     format!("{{{}}}", parts.join(", "))
                 }
-                Obj::Closure(c) => format!("<fn {}>", c.proto.name.as_deref().unwrap_or("anonymous")),
+                Obj::Closure(c) => {
+                    format!("<fn {}>", c.proto.name.as_deref().unwrap_or("anonymous"))
+                }
                 Obj::Native(n) => format!("<fn {}>", n.name),
                 Obj::Class(c) => format!("<class {}>", c.name),
                 Obj::Bound(_) => "<bound method>".to_string(),
@@ -752,12 +798,17 @@ impl Vm {
                 let fi = self.frames.len() - 1;
                 let m = self.frames[fi].module;
                 let name = const_str(&self.frames[fi].proto, idx);
-                let found = self.module_globals[m].get(name).or_else(|| self.builtins.get(name)).copied();
+                let found = self.module_globals[m]
+                    .get(name)
+                    .or_else(|| self.builtins.get(name))
+                    .copied();
                 match found {
                     Some(v) => self.push(v),
                     None => {
                         let owned = name.to_string();
-                        return Err(self.throw(error_kind::NAME, format!("undefined variable '{owned}'")));
+                        return Err(
+                            self.throw(error_kind::NAME, format!("undefined variable '{owned}'"))
+                        );
                     }
                 }
             }
@@ -775,7 +826,9 @@ impl Vm {
                     self.module_globals[m].insert(owned, v);
                 } else {
                     let owned = name.to_string();
-                    return Err(self.throw(error_kind::NAME, format!("undefined variable '{owned}'")));
+                    return Err(
+                        self.throw(error_kind::NAME, format!("undefined variable '{owned}'"))
+                    );
                 }
             }
             OpCode::GetLocal => {
@@ -836,7 +889,9 @@ impl Vm {
                             let res = r?;
                             self.push(res);
                         }
-                        None => return Err(self.throw(error_kind::TYPE, "cannot negate a non-number")),
+                        None => {
+                            return Err(self.throw(error_kind::TYPE, "cannot negate a non-number"))
+                        }
                     },
                 }
             }
@@ -860,7 +915,11 @@ impl Vm {
                 let v = self.pop();
                 match v {
                     Value::Int(n) => self.push(Value::Int(!n)),
-                    _ => return Err(self.throw(error_kind::TYPE, "cannot apply '~' to a non-integer")),
+                    _ => {
+                        return Err(
+                            self.throw(error_kind::TYPE, "cannot apply '~' to a non-integer")
+                        )
+                    }
                 }
             }
             OpCode::Jump => {
@@ -1019,7 +1078,11 @@ impl Vm {
                 let off = self.read_u16() as usize;
                 let frame = self.frames.len() - 1;
                 let catch_ip = self.frames.last().unwrap().ip + off;
-                self.handlers.push(Handler { catch_ip, stack_len: self.stack.len(), frame });
+                self.handlers.push(Handler {
+                    catch_ip,
+                    stack_len: self.stack.len(),
+                    frame,
+                });
             }
             OpCode::PopHandler => {
                 self.handlers.pop();
@@ -1166,9 +1229,10 @@ impl Vm {
                     return self.call_closure(method, proto, argc, receiver_idx);
                 }
                 let owned = name.to_string();
-                return Err(
-                    self.throw(error_kind::NAME, format!("undefined method '{owned}' in superclass"))
-                );
+                return Err(self.throw(
+                    error_kind::NAME,
+                    format!("undefined method '{owned}' in superclass"),
+                ));
             }
             OpCode::DefaultArg => {
                 let param_index = self.read_byte() as usize;
@@ -1209,7 +1273,10 @@ impl Vm {
     ) -> Option<Result<Value, Value>> {
         let class = self.instance_class_of(recv)?;
         let m = self.find_method(class, method)?;
-        let bound = self.heap.alloc(Obj::Bound(BoundMethod { receiver: recv, method: m }));
+        let bound = self.heap.alloc(Obj::Bound(BoundMethod {
+            receiver: recv,
+            method: m,
+        }));
         Some(self.call_and_run(Value::Obj(bound), args))
     }
 
@@ -1428,7 +1495,9 @@ impl Vm {
                 match u32::try_from(exp).ok().and_then(|e| base.checked_pow(e)) {
                     Some(r) => Value::Int(r),
                     None => {
-                        return Err(self.throw(error_kind::VALUE, "integer overflow in exponentiation"))
+                        return Err(
+                            self.throw(error_kind::VALUE, "integer overflow in exponentiation")
+                        )
                     }
                 }
             }
@@ -1486,7 +1555,10 @@ impl Vm {
     fn type_error_binary(&mut self, op: &str, a: Value, b: Value) -> Value {
         let ta = self.type_name(a);
         let tb = self.type_name(b);
-        self.throw(error_kind::TYPE, format!("operator '{op}' cannot be applied to {ta} and {tb}"))
+        self.throw(
+            error_kind::TYPE,
+            format!("operator '{op}' cannot be applied to {ta} and {tb}"),
+        )
     }
 
     pub fn values_equal(&self, a: Value, b: Value) -> bool {
@@ -1621,7 +1693,9 @@ impl Vm {
                 self.write_barrier(r, index);
                 self.write_barrier(r, value);
             }
-            _ => return Err(self.throw(error_kind::TYPE, "value does not support index assignment")),
+            _ => {
+                return Err(self.throw(error_kind::TYPE, "value does not support index assignment"))
+            }
         }
         self.push(value);
         Ok(())
@@ -1654,7 +1728,10 @@ impl Vm {
                 }
                 let class = inst.class;
                 if let Some(method) = self.find_method(class, name) {
-                    let bound = self.heap.alloc(Obj::Bound(BoundMethod { receiver: obj, method }));
+                    let bound = self.heap.alloc(Obj::Bound(BoundMethod {
+                        receiver: obj,
+                        method,
+                    }));
                     return Ok(Value::Obj(bound));
                 }
                 Ok(Value::Nil) // missing field reads as nil
@@ -1663,7 +1740,10 @@ impl Vm {
                 Some(m) => Ok(Value::Obj(*m)), // static methods have no receiver
                 None => {
                     let cn = c.name.clone();
-                    Err(self.throw(error_kind::NAME, format!("class '{cn}' has no static '{name}'")))
+                    Err(self.throw(
+                        error_kind::NAME,
+                        format!("class '{cn}' has no static '{name}'"),
+                    ))
                 }
             },
             Obj::FileHandle(_) => {
@@ -1673,17 +1753,26 @@ impl Vm {
                     "write" => NativeMethod::FileWrite,
                     "close" => NativeMethod::FileClose,
                     _ => {
-                        return Err(self.throw(error_kind::NAME, format!("a file handle has no method '{name}'")))
+                        return Err(self.throw(
+                            error_kind::NAME,
+                            format!("a file handle has no method '{name}'"),
+                        ))
                     }
                 };
-                let bn = self.heap.alloc(Obj::BoundNative(BoundNative { receiver: r, method }));
+                let bn = self.heap.alloc(Obj::BoundNative(BoundNative {
+                    receiver: r,
+                    method,
+                }));
                 Ok(Value::Obj(bn))
             }
             Obj::Module(m) => match m.exports.get(name) {
                 Some(v) => Ok(*v),
                 None => {
                     let mn = m.name.clone();
-                    Err(self.throw(error_kind::NAME, format!("module '{mn}' has no export '{name}'")))
+                    Err(self.throw(
+                        error_kind::NAME,
+                        format!("module '{mn}' has no export '{name}'"),
+                    ))
                 }
             },
             Obj::Error(e) => match name {
@@ -1724,14 +1813,24 @@ impl Vm {
         }
     }
 
-    fn bind_super(&mut self, superclass: Value, receiver: Value, name: &str) -> Result<Value, Value> {
+    fn bind_super(
+        &mut self,
+        superclass: Value,
+        receiver: Value,
+        name: &str,
+    ) -> Result<Value, Value> {
         let sr = superclass.as_obj().unwrap();
         match self.find_method(sr, name) {
             Some(method) => {
-                let bound = self.heap.alloc(Obj::Bound(BoundMethod { receiver, method }));
+                let bound = self
+                    .heap
+                    .alloc(Obj::Bound(BoundMethod { receiver, method }));
                 Ok(Value::Obj(bound))
             }
-            None => Err(self.throw(error_kind::NAME, format!("undefined method '{name}' in superclass"))),
+            None => Err(self.throw(
+                error_kind::NAME,
+                format!("undefined method '{name}' in superclass"),
+            )),
         }
     }
 
@@ -1782,7 +1881,11 @@ impl Vm {
             upvalues.push(uv);
         }
         let module = self.frames.last().unwrap().module;
-        let r = self.heap.alloc_closure(Closure { proto, upvalues, module });
+        let r = self.heap.alloc_closure(Closure {
+            proto,
+            upvalues,
+            module,
+        });
         self.push(Value::Obj(r));
         Ok(())
     }
@@ -1832,7 +1935,12 @@ impl Vm {
     fn call_value(&mut self, callee: Value, argc: usize, callee_idx: usize) -> Result<(), Value> {
         let r = match callee {
             Value::Obj(r) => r,
-            _ => return Err(self.throw(error_kind::TYPE, "can only call functions, classes, and methods")),
+            _ => {
+                return Err(self.throw(
+                    error_kind::TYPE,
+                    "can only call functions, classes, and methods",
+                ))
+            }
         };
         // Inspect the callee's kind without holding the borrow across mutation.
         enum Kind {
@@ -1845,7 +1953,11 @@ impl Vm {
         }
         let kind = match self.heap.get(r) {
             Obj::Closure(c) => Kind::Closure(c.proto.clone()),
-            Obj::Native(n) => Kind::Native(Native { name: n.name.clone(), arity: n.arity, func: n.func }),
+            Obj::Native(n) => Kind::Native(Native {
+                name: n.name.clone(),
+                arity: n.arity,
+                func: n.func,
+            }),
             Obj::Class(_) => Kind::Class,
             Obj::Bound(b) => Kind::Bound(b.receiver, b.method),
             Obj::BoundNative(b) => Kind::BoundNative(b.receiver, b.method),
@@ -1857,7 +1969,11 @@ impl Vm {
                 if !n.arity.accepts(argc) {
                     return Err(self.throw(
                         error_kind::ARITY,
-                        format!("'{}' expects {} argument(s), got {argc}", n.name, n.arity.describe()),
+                        format!(
+                            "'{}' expects {} argument(s), got {argc}",
+                            n.name,
+                            n.arity.describe()
+                        ),
                     ));
                 }
                 let args: Vec<Value> = self.stack[callee_idx + 1..].to_vec();
@@ -1879,13 +1995,21 @@ impl Vm {
                 self.push(result);
                 Ok(())
             }
-            Kind::Bad => Err(self.throw(error_kind::TYPE, "can only call functions, classes, and methods")),
+            Kind::Bad => Err(self.throw(
+                error_kind::TYPE,
+                "can only call functions, classes, and methods",
+            )),
         }
     }
 
     /// Dispatch a file-handle method (`read_line`/`read`/`write`/`close`) — the
     /// Rust side of the bound-native methods (DESIGN D32).
-    fn call_file_method(&mut self, handle: GcRef, method: NativeMethod, args: &[Value]) -> Result<Value, Value> {
+    fn call_file_method(
+        &mut self,
+        handle: GcRef,
+        method: NativeMethod,
+        args: &[Value],
+    ) -> Result<Value, Value> {
         use std::io::{Read, Write};
         match method {
             NativeMethod::FileReadLine => {
@@ -1917,7 +2041,9 @@ impl Vm {
                 };
                 match r {
                     R::Text(s) => Ok(self.new_string(&s)),
-                    R::NotReader => Err(self.throw(error_kind::TYPE, "file is open for writing, not reading")),
+                    R::NotReader => {
+                        Err(self.throw(error_kind::TYPE, "file is open for writing, not reading"))
+                    }
                     R::Closed => Err(self.throw(error_kind::VALUE, "file handle is closed")),
                     R::Io(e) => Err(self.throw(error_kind::VALUE, format!("read failed: {e}"))),
                 }
@@ -1943,7 +2069,9 @@ impl Vm {
                 };
                 match r {
                     R::Ok => Ok(Value::Nil),
-                    R::NotWriter => Err(self.throw(error_kind::TYPE, "file is open for reading, not writing")),
+                    R::NotWriter => {
+                        Err(self.throw(error_kind::TYPE, "file is open for reading, not writing"))
+                    }
                     R::Closed => Err(self.throw(error_kind::VALUE, "file handle is closed")),
                     R::Io(e) => Err(self.throw(error_kind::VALUE, format!("write failed: {e}"))),
                 }
@@ -1994,7 +2122,9 @@ impl Vm {
         match r {
             R::Line(s) => Ok(self.new_string(&s)),
             R::Eof => Ok(Value::Nil),
-            R::NotReader => Err(self.throw(error_kind::TYPE, "file is open for writing, not reading")),
+            R::NotReader => {
+                Err(self.throw(error_kind::TYPE, "file is open for writing, not reading"))
+            }
             R::Closed => Err(self.throw(error_kind::VALUE, "file handle is closed")),
             R::Io(e) => Err(self.throw(error_kind::VALUE, format!("read failed: {e}"))),
         }
@@ -2019,7 +2149,10 @@ impl Vm {
         let required = proto.required_arity;
         let has_rest = proto.has_rest;
         if argc < required || (!has_rest && argc > fixed) {
-            let name = proto.name.clone().unwrap_or_else(|| "<anonymous>".to_string());
+            let name = proto
+                .name
+                .clone()
+                .unwrap_or_else(|| "<anonymous>".to_string());
             let expected = if has_rest {
                 format!("at least {required}")
             } else if required == fixed {
@@ -2095,12 +2228,15 @@ impl Vm {
         let fixed = proto.arity;
         let has_rest = proto.has_rest;
         if self.frames.len() >= MAX_FRAMES {
-            return Err(self.throw(error_kind::STACK_OVERFLOW, "call stack overflow (recursion too deep)"));
+            return Err(self.throw(
+                error_kind::STACK_OVERFLOW,
+                "call stack overflow (recursion too deep)",
+            ));
         }
         self.charge_budget()?; // bound runaway recursion (fuzzing)
-        // Lay out the parameter slots: collect a rest array from the overflow,
-        // and fill omitted optionals with nil (the `DefaultArg` prologue replaces
-        // them with their default values).
+                               // Lay out the parameter slots: collect a rest array from the overflow,
+                               // and fill omitted optionals with nil (the `DefaultArg` prologue replaces
+                               // them with their default values).
         let provided = argc.min(fixed);
         if has_rest {
             let overflow_start = callee_idx + 1 + fixed;
@@ -2120,7 +2256,11 @@ impl Vm {
                 self.stack.push(Value::Nil);
             }
         }
-        let module = if let Obj::Closure(c) = self.heap.get(closure) { c.module } else { 0 };
+        let module = if let Obj::Closure(c) = self.heap.get(closure) {
+            c.module
+        } else {
+            0
+        };
         self.frames.push(CallFrame {
             closure,
             proto,
@@ -2136,12 +2276,21 @@ impl Vm {
     /// Build a suspended generator from a generator-function call. Its initial
     /// context stack is `[closure, args…]`; the parameter layout and first frame
     /// are deferred to the first resume (DESIGN D29).
-    fn make_generator(&mut self, closure: GcRef, argc: usize, callee_idx: usize) -> Result<(), Value> {
+    fn make_generator(
+        &mut self,
+        closure: GcRef,
+        argc: usize,
+        callee_idx: usize,
+    ) -> Result<(), Value> {
         let gen_stack: Vec<Value> = self.stack[callee_idx..callee_idx + 1 + argc].to_vec();
         self.stack.truncate(callee_idx);
         let mut ctx = ExecContext::new();
         ctx.stack = gen_stack;
-        let r = self.heap.alloc(Obj::Generator(Generator { closure, state: GenState::Start, ctx }));
+        let r = self.heap.alloc(Obj::Generator(Generator {
+            closure,
+            state: GenState::Start,
+            ctx,
+        }));
         self.push(Value::Obj(r));
         Ok(())
     }
@@ -2193,7 +2342,7 @@ impl Vm {
         let yielded = self.pending_yield.take();
         let outcome = match run {
             Ok(()) if yielded.is_some() => Ok(Some(yielded.unwrap())),
-            Ok(()) => Ok(None),  // the generator returned
+            Ok(()) => Ok(None), // the generator returned
             Err(e) => Err(e),
         };
         let saved = self.saved_contexts.pop().unwrap();
@@ -2206,20 +2355,34 @@ impl Vm {
         let done = !matches!(outcome, Ok(Some(_)));
         if let Obj::Generator(g) = self.heap.get_mut(gen_ref) {
             g.ctx = gen_ctx_back;
-            g.state = if done { GenState::Done } else { GenState::Suspended };
+            g.state = if done {
+                GenState::Done
+            } else {
+                GenState::Suspended
+            };
         }
         outcome
     }
 
     fn instantiate(&mut self, class: GcRef, argc: usize, callee_idx: usize) -> Result<(), Value> {
-        let instance = self.heap.alloc(Obj::Instance(Instance { class, fields: FxHashMap::default() }));
+        let instance = self.heap.alloc(Obj::Instance(Instance {
+            class,
+            fields: FxHashMap::default(),
+        }));
         self.stack[callee_idx] = Value::Obj(instance); // slot 0 = the new instance (`this`)
         if let Some(init) = self.find_method(class, "init") {
             let proto = self.closure_proto(init);
             self.call_closure(init, proto, argc, callee_idx)
         } else if argc != 0 {
-            let cname = if let Obj::Class(c) = self.heap.get(class) { c.name.clone() } else { String::new() };
-            Err(self.throw(error_kind::ARITY, format!("'{cname}' takes no arguments (no init method), got {argc}")))
+            let cname = if let Obj::Class(c) = self.heap.get(class) {
+                c.name.clone()
+            } else {
+                String::new()
+            };
+            Err(self.throw(
+                error_kind::ARITY,
+                format!("'{cname}' takes no arguments (no init method), got {argc}"),
+            ))
         } else {
             self.stack.truncate(callee_idx + 1); // leave the instance as the result
             Ok(())
@@ -2331,7 +2494,10 @@ impl Vm {
                 Obj::Map(m) => Ok(m.keys()),
                 Obj::Str(s) => {
                     let chars: Vec<String> = s.chars().map(|c| c.to_string()).collect();
-                    Ok(chars.into_iter().map(|c| Value::Obj(self.heap.intern(&c))).collect())
+                    Ok(chars
+                        .into_iter()
+                        .map(|c| Value::Obj(self.heap.intern(&c)))
+                        .collect())
                 }
                 _ => Err(self.throw(error_kind::TYPE, "value is not iterable for spread")),
             },
@@ -2358,7 +2524,8 @@ impl Vm {
             Value::Bool(b) => MapKey::Bool(b),
             Value::Int(n) => MapKey::Int(n),
             Value::Float(f) => {
-                if f.is_finite() && f.fract() == 0.0 && f >= i64::MIN as f64 && f <= i64::MAX as f64 {
+                if f.is_finite() && f.fract() == 0.0 && f >= i64::MIN as f64 && f <= i64::MAX as f64
+                {
                     MapKey::Int(f as i64)
                 } else {
                     MapKey::FloatBits(f.to_bits())
@@ -2419,7 +2586,9 @@ impl Vm {
                     }
                     format!("{{{}}}", parts.join(", "))
                 }
-                Obj::Closure(c) => format!("<fn {}>", c.proto.name.as_deref().unwrap_or("anonymous")),
+                Obj::Closure(c) => {
+                    format!("<fn {}>", c.proto.name.as_deref().unwrap_or("anonymous"))
+                }
                 Obj::Native(n) => format!("<fn {}>", n.name),
                 Obj::Class(c) => format!("<class {}>", c.name),
                 Obj::Bound(_) => "<fn bound method>".to_string(),
@@ -2428,9 +2597,16 @@ impl Vm {
                 Obj::Upvalue(_) => "<upvalue>".to_string(),
                 Obj::Instance(inst) => {
                     let class = inst.class;
-                    let cname = if let Obj::Class(c) = self.heap.get(class) { c.name.clone() } else { "?".into() };
+                    let cname = if let Obj::Class(c) = self.heap.get(class) {
+                        c.name.clone()
+                    } else {
+                        "?".into()
+                    };
                     if let Some(method) = self.find_method(class, "str") {
-                        let bound = Value::Obj(self.heap.alloc(Obj::Bound(BoundMethod { receiver: v, method })));
+                        let bound = Value::Obj(self.heap.alloc(Obj::Bound(BoundMethod {
+                            receiver: v,
+                            method,
+                        })));
                         let result = self.call_and_run(bound, &[])?;
                         // Use the str() result directly (unquoted).
                         return self.to_display(result, false);
@@ -2489,16 +2665,26 @@ impl Vm {
         // 3. Read + compile.
         let src = match std::fs::read_to_string(&resolved) {
             Ok(s) => s,
-            Err(_) => return Err(self.throw(error_kind::NAME, format!("cannot find module '{path}'"))),
+            Err(_) => {
+                return Err(self.throw(error_kind::NAME, format!("cannot find module '{path}'")))
+            }
         };
         let (program, errs) = crate::check_source(&src);
         if !errs.is_empty() {
             let first = errs[0].message.clone();
-            return Err(self.throw(error_kind::VALUE, format!("module '{path}' has errors: {first}")));
+            return Err(self.throw(
+                error_kind::VALUE,
+                format!("module '{path}' has errors: {first}"),
+            ));
         }
         let proto = match crate::compiler::compile(&program) {
             Ok(p) => p,
-            Err(_) => return Err(self.throw(error_kind::VALUE, format!("module '{path}' failed to compile"))),
+            Err(_) => {
+                return Err(self.throw(
+                    error_kind::VALUE,
+                    format!("module '{path}' failed to compile"),
+                ))
+            }
         };
         // 4. Pre-cache an empty module (supports cyclic imports), then run it
         //    with fresh globals and a base dir set to the module's directory.
@@ -2521,7 +2707,11 @@ impl Vm {
         }
 
         let run_result = self.run_module_body(proto.clone(), module_idx);
-        let exports = collect_exports(&self.module_globals[module_idx], &proto.exports, &run_result);
+        let exports = collect_exports(
+            &self.module_globals[module_idx],
+            &proto.exports,
+            &run_result,
+        );
         self.base_dir = saved_base;
         run_result?;
 
@@ -2532,7 +2722,11 @@ impl Vm {
     }
 
     fn run_module_body(&mut self, proto: Rc<FnProto>, module: usize) -> Result<(), Value> {
-        let closure = self.heap.alloc_closure(Closure { proto, upvalues: Vec::new(), module });
+        let closure = self.heap.alloc_closure(Closure {
+            proto,
+            upvalues: Vec::new(),
+            module,
+        });
         let base = self.frames.len();
         let callee_idx = self.stack.len();
         self.push(Value::Obj(closure));
@@ -2568,7 +2762,9 @@ impl Vm {
     // ---- diagnostics -------------------------------------------------------
 
     fn format_uncaught(&mut self, thrown: Value) -> String {
-        let value_str = self.to_display(thrown, false).unwrap_or_else(|_| "<error>".to_string());
+        let value_str = self
+            .to_display(thrown, false)
+            .unwrap_or_else(|_| "<error>".to_string());
         let kind = match thrown {
             Value::Obj(r) => matches!(self.heap.get(r), Obj::Error(_)),
             _ => false,
@@ -2584,7 +2780,11 @@ impl Vm {
         out.push_str("Stack trace (most recent call first):\n");
         for frame in self.frames.iter().rev() {
             let line = frame.proto.chunk.line_at(frame.ip.saturating_sub(1));
-            out.push_str(&format!("  at {} (line {})\n", frame.proto.display_name(), line));
+            out.push_str(&format!(
+                "  at {} (line {})\n",
+                frame.proto.display_name(),
+                line
+            ));
         }
         out
     }

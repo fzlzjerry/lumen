@@ -32,7 +32,8 @@ fn run_minor_stress(src: &str) -> String {
     lumen::stdlib::install(&mut vm);
     vm.set_minor_stress_gc(true); // a minor collection before every instruction
     vm.set_base_dir(Path::new("examples").to_path_buf());
-    vm.interpret(proto).unwrap_or_else(|e| panic!("runtime error:\n{e}"));
+    vm.interpret(proto)
+        .unwrap_or_else(|e| panic!("runtime error:\n{e}"));
     let out = String::from_utf8(buf.0.borrow().clone()).unwrap();
     out
 }
@@ -81,7 +82,11 @@ fn write_barriers_under_minor_stress() {
         ),
     ];
     for (src, expected) in cases {
-        assert_eq!(&run_minor_stress(src), expected, "wrong output (or freed live object) for:\n{src}");
+        assert_eq!(
+            &run_minor_stress(src),
+            expected,
+            "wrong output (or freed live object) for:\n{src}"
+        );
     }
 }
 
@@ -94,7 +99,10 @@ fn examples_correct_under_minor_stress() {
         .map(|e| e.path())
         .filter(|p| {
             p.extension().and_then(|e| e.to_str()) == Some("lum")
-                && p.file_name().and_then(|n| n.to_str()).map(|n| n.chars().next().unwrap().is_ascii_digit()).unwrap_or(false)
+                && p.file_name()
+                    .and_then(|n| n.to_str())
+                    .map(|n| n.chars().next().unwrap().is_ascii_digit())
+                    .unwrap_or(false)
         })
         .collect();
     paths.sort();
@@ -102,7 +110,12 @@ fn examples_correct_under_minor_stress() {
         let stem = path.file_stem().unwrap().to_str().unwrap();
         let expected = std::fs::read_to_string(format!("tests/expected/{stem}.txt")).unwrap();
         let src = std::fs::read_to_string(&path).unwrap();
-        assert_eq!(run_minor_stress(&src), expected, "minor-stress drift for {}", path.display());
+        assert_eq!(
+            run_minor_stress(&src),
+            expected,
+            "minor-stress drift for {}",
+            path.display()
+        );
     }
 }
 
@@ -120,9 +133,17 @@ fn minor_and_major_collections_engage() {
     lumen::stdlib::install(&mut vm);
     vm.interpret(proto).unwrap();
     // Lots of nursery garbage => many minor collections.
-    assert!(vm.heap.minor_collections > 5, "expected minor GCs, got {}", vm.heap.minor_collections);
+    assert!(
+        vm.heap.minor_collections > 5,
+        "expected minor GCs, got {}",
+        vm.heap.minor_collections
+    );
     // Force a major and confirm the live set is tiny (no leak through promotion).
     vm.collect_major();
     assert!(vm.heap.major_collections >= 1);
-    assert!(vm.heap.live_count() < 5000, "live set not bounded: {}", vm.heap.live_count());
+    assert!(
+        vm.heap.live_count() < 5000,
+        "live set not bounded: {}",
+        vm.heap.live_count()
+    );
 }

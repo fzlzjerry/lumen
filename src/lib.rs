@@ -62,7 +62,10 @@ pub fn parse_source(src: &str) -> (ast::Program, Vec<Diagnostic>) {
 /// would only produce noise on a malformed tree).
 pub fn check_source(src: &str) -> (ast::Program, Vec<Diagnostic>) {
     let (program, diags) = check_all(src);
-    let errors = diags.into_iter().filter(|d| d.severity == Severity::Error).collect();
+    let errors = diags
+        .into_iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
     (program, errors)
 }
 

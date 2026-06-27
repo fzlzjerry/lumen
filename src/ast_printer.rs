@@ -12,7 +12,10 @@ use crate::util::{escape_string, format_float, is_identifier};
 
 /// Print a whole program to canonical source (ends with a trailing newline).
 pub fn print_program(program: &Program) -> String {
-    let mut p = Printer { out: String::new(), indent: 0 };
+    let mut p = Printer {
+        out: String::new(),
+        indent: 0,
+    };
     for (i, item) in program.items.iter().enumerate() {
         if i > 0 && needs_blank_line(&program.items[i - 1], item) {
             p.out.push('\n');
@@ -24,7 +27,10 @@ pub fn print_program(program: &Program) -> String {
 
 /// Print a single expression (used by the REPL / hover tooltips).
 pub fn print_expr(expr: &Expr) -> String {
-    let mut p = Printer { out: String::new(), indent: 0 };
+    let mut p = Printer {
+        out: String::new(),
+        indent: 0,
+    };
     p.expr(expr, 0)
 }
 
@@ -118,7 +124,12 @@ impl Printer {
                 self.out.push(';');
             }
             Stmt::Block(b) => self.append_block(b),
-            Stmt::If { cond, then_block, else_branch, .. } => {
+            Stmt::If {
+                cond,
+                then_block,
+                else_branch,
+                ..
+            } => {
                 let c = self.expr(cond, 0);
                 self.out.push_str("if ");
                 self.out.push_str(&c);
@@ -140,7 +151,9 @@ impl Printer {
                 self.out.push(' ');
                 self.append_block(body);
             }
-            Stmt::ForIn { var, iter, body, .. } => {
+            Stmt::ForIn {
+                var, iter, body, ..
+            } => {
                 let it = self.expr(iter, 0);
                 self.out.push_str("for ");
                 self.out.push_str(var);
@@ -149,7 +162,13 @@ impl Printer {
                 self.out.push(' ');
                 self.append_block(body);
             }
-            Stmt::ForC { init, cond, step, body, .. } => {
+            Stmt::ForC {
+                init,
+                cond,
+                step,
+                body,
+                ..
+            } => {
                 self.out.push_str("for ");
                 match init {
                     Some(s) => self.append_stmt(s), // includes its ';'
@@ -192,7 +211,12 @@ impl Printer {
                 self.out.push_str(&v);
                 self.out.push(';');
             }
-            Stmt::Try { body, catches, finally, .. } => {
+            Stmt::Try {
+                body,
+                catches,
+                finally,
+                ..
+            } => {
                 self.out.push_str("try ");
                 self.append_block(body);
                 for c in catches {
@@ -413,7 +437,12 @@ impl Printer {
                 format!("{} = {}", self.expr(target, 14), self.expr(value, 1))
             }
             ExprKind::CompoundAssign { target, op, value } => {
-                format!("{} {}= {}", self.expr(target, 14), binary_sym(*op), self.expr(value, 1))
+                format!(
+                    "{} {}= {}",
+                    self.expr(target, 14),
+                    binary_sym(*op),
+                    self.expr(value, 1)
+                )
             }
             ExprKind::Unary { op, operand } => {
                 let sym = match op {
@@ -431,7 +460,12 @@ impl Printer {
                 } else {
                     (p, p + 1)
                 };
-                format!("{} {} {}", self.expr(left, lctx), binary_sym(*op), self.expr(right, rctx))
+                format!(
+                    "{} {} {}",
+                    self.expr(left, lctx),
+                    binary_sym(*op),
+                    self.expr(right, rctx)
+                )
             }
             ExprKind::Logical { op, left, right } => {
                 let p = expr_prec(e);
@@ -441,7 +475,11 @@ impl Printer {
                 };
                 format!("{} {} {}", self.expr(left, p), sym, self.expr(right, p + 1))
             }
-            ExprKind::Ternary { cond, then_branch, else_branch } => {
+            ExprKind::Ternary {
+                cond,
+                then_branch,
+                else_branch,
+            } => {
                 format!(
                     "{} ? {} : {}",
                     self.expr(cond, 2),
@@ -497,13 +535,29 @@ impl Printer {
                 });
                 format!("match {subj} {arms_str}")
             }
-            ExprKind::ArrayComp { element, var, iter, cond, .. } => {
+            ExprKind::ArrayComp {
+                element,
+                var,
+                iter,
+                cond,
+                ..
+            } => {
                 let el = self.expr(element, 0);
                 let it = self.expr(iter, 0);
-                let guard = cond.as_ref().map(|c| format!(" if {}", self.expr(c, 0))).unwrap_or_default();
+                let guard = cond
+                    .as_ref()
+                    .map(|c| format!(" if {}", self.expr(c, 0)))
+                    .unwrap_or_default();
                 format!("[{el} for {var} in {it}{guard}]")
             }
-            ExprKind::MapComp { key, value, var, iter, cond, .. } => {
+            ExprKind::MapComp {
+                key,
+                value,
+                var,
+                iter,
+                cond,
+                ..
+            } => {
                 // A bare identifier key is the loop variable; a string is a literal
                 // key; anything else must be bracketed as a computed key so it
                 // re-parses (DESIGN D31).
@@ -514,7 +568,10 @@ impl Printer {
                 };
                 let v = self.expr(value, 0);
                 let it = self.expr(iter, 0);
-                let guard = cond.as_ref().map(|c| format!(" if {}", self.expr(c, 0))).unwrap_or_default();
+                let guard = cond
+                    .as_ref()
+                    .map(|c| format!(" if {}", self.expr(c, 0)))
+                    .unwrap_or_default();
                 format!("{{{k}: {v} for {var} in {it}{guard}}}")
             }
         }
@@ -593,8 +650,12 @@ fn expr_prec(e: &Expr) -> u8 {
         ExprKind::Assign { .. } => 1,
         ExprKind::CompoundAssign { .. } => 1,
         ExprKind::Ternary { .. } => 1,
-        ExprKind::Logical { op: LogicalOp::Or, .. } => 2,
-        ExprKind::Logical { op: LogicalOp::And, .. } => 3,
+        ExprKind::Logical {
+            op: LogicalOp::Or, ..
+        } => 2,
+        ExprKind::Logical {
+            op: LogicalOp::And, ..
+        } => 3,
         ExprKind::Binary { op, .. } => match op {
             BinaryOp::Eq | BinaryOp::Ne => 4,
             BinaryOp::Lt | BinaryOp::Le | BinaryOp::Gt | BinaryOp::Ge | BinaryOp::Is => 5,
@@ -630,7 +691,10 @@ mod tests {
     fn assert_roundtrip(src: &str) {
         let once = print_src(src);
         let twice = print_src(&once);
-        assert_eq!(once, twice, "\n--- once ---\n{once}\n--- twice ---\n{twice}");
+        assert_eq!(
+            once, twice,
+            "\n--- once ---\n{once}\n--- twice ---\n{twice}"
+        );
     }
 
     #[test]
@@ -646,7 +710,9 @@ mod tests {
         assert_roundtrip(r#"let m={x:1,"y-z":2,[k]:3};"#);
         assert_roundtrip("let a=[1,2,..rest,3];");
         assert_roundtrip(r#"let s="hi ${name}, ${1+2}!";"#);
-        assert_roundtrip(r#"let r=match v{0=>"z",[a,..rest]=>"arr",{k:x}=>"map",n if n>0=>"pos",_=>"other"};"#);
+        assert_roundtrip(
+            r#"let r=match v{0=>"z",[a,..rest]=>"arr",{k:x}=>"map",n if n>0=>"pos",_=>"other"};"#,
+        );
         assert_roundtrip("try{throw \"x\";}catch(e){print(e);}finally{done();}");
         assert_roundtrip("import \"math\" as m; import \"x\".{a,b}; export fn p(){return 1;}");
         assert_roundtrip("let f = fn(x){return x*2;};");

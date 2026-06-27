@@ -27,7 +27,8 @@ fn run_with(src: &str, stress: bool) -> String {
     let mut vm = Vm::with_output(Box::new(buf.clone()));
     lumen::stdlib::install(&mut vm);
     vm.set_stress_gc(stress);
-    vm.interpret(proto).unwrap_or_else(|e| panic!("runtime error:\n{e}"));
+    vm.interpret(proto)
+        .unwrap_or_else(|e| panic!("runtime error:\n{e}"));
     let out = String::from_utf8(buf.0.borrow().clone()).unwrap();
     out
 }
@@ -39,7 +40,10 @@ fn out(src: &str) -> String {
 #[test]
 fn math_module() {
     assert_eq!(out("import \"math\" as m; println(m.sqrt(144));"), "12.0\n");
-    assert_eq!(out("import \"math\" as m; println(m.pow(2, 10));"), "1024.0\n");
+    assert_eq!(
+        out("import \"math\" as m; println(m.pow(2, 10));"),
+        "1024.0\n"
+    );
     assert_eq!(out("import \"math\" as m; println(m.floor(3.7));"), "3\n");
     assert_eq!(out("import \"math\" as m; println(m.ceil(3.2));"), "4\n");
     assert_eq!(out("import \"math\" as m; println(m.abs(-5));"), "5\n"); // preserves int
@@ -49,34 +53,79 @@ fn math_module() {
 
 #[test]
 fn selective_import() {
-    assert_eq!(out("import \"math\".{sqrt, pow}; println(sqrt(81)); println(pow(3, 3));"), "9.0\n27.0\n");
+    assert_eq!(
+        out("import \"math\".{sqrt, pow}; println(sqrt(81)); println(pow(3, 3));"),
+        "9.0\n27.0\n"
+    );
 }
 
 #[test]
 fn string_module() {
-    assert_eq!(out("import \"string\" as s; println(s.upper(\"abc\"));"), "ABC\n");
-    assert_eq!(out("import \"string\" as s; println(s.split(\"a,b,c\", \",\"));"), "[\"a\", \"b\", \"c\"]\n");
-    assert_eq!(out("import \"string\" as s; println(s.join([\"a\",\"b\"], \"-\"));"), "a-b\n");
-    assert_eq!(out("import \"string\" as s; println(s.replace(\"a.b.c\", \".\", \"/\"));"), "a/b/c\n");
-    assert_eq!(out("import \"string\" as s; println(s.pad_left(\"7\", 3));"), "  7\n");
-    assert_eq!(out("import \"string\" as s; println(s.repeat(\"ab\", 3));"), "ababab\n");
-    assert_eq!(out("import \"string\" as s; println(s.index_of(\"hello\", \"ll\"));"), "2\n");
-    assert_eq!(out("import \"string\" as s; println(s.reverse(\"abc\"));"), "cba\n");
+    assert_eq!(
+        out("import \"string\" as s; println(s.upper(\"abc\"));"),
+        "ABC\n"
+    );
+    assert_eq!(
+        out("import \"string\" as s; println(s.split(\"a,b,c\", \",\"));"),
+        "[\"a\", \"b\", \"c\"]\n"
+    );
+    assert_eq!(
+        out("import \"string\" as s; println(s.join([\"a\",\"b\"], \"-\"));"),
+        "a-b\n"
+    );
+    assert_eq!(
+        out("import \"string\" as s; println(s.replace(\"a.b.c\", \".\", \"/\"));"),
+        "a/b/c\n"
+    );
+    assert_eq!(
+        out("import \"string\" as s; println(s.pad_left(\"7\", 3));"),
+        "  7\n"
+    );
+    assert_eq!(
+        out("import \"string\" as s; println(s.repeat(\"ab\", 3));"),
+        "ababab\n"
+    );
+    assert_eq!(
+        out("import \"string\" as s; println(s.index_of(\"hello\", \"ll\"));"),
+        "2\n"
+    );
+    assert_eq!(
+        out("import \"string\" as s; println(s.reverse(\"abc\"));"),
+        "cba\n"
+    );
 }
 
 #[test]
 fn array_module() {
-    assert_eq!(out("import \"array\" as a; println(a.sum([1,2,3,4]));"), "10\n");
-    assert_eq!(out("import \"array\" as a; println(a.map([1,2,3], fn(x) { return x*x; }));"), "[1, 4, 9]\n");
-    assert_eq!(out("import \"array\" as a; println(a.filter([1,2,3,4], fn(x) { return x % 2 == 0; }));"), "[2, 4]\n");
+    assert_eq!(
+        out("import \"array\" as a; println(a.sum([1,2,3,4]));"),
+        "10\n"
+    );
+    assert_eq!(
+        out("import \"array\" as a; println(a.map([1,2,3], fn(x) { return x*x; }));"),
+        "[1, 4, 9]\n"
+    );
+    assert_eq!(
+        out("import \"array\" as a; println(a.filter([1,2,3,4], fn(x) { return x % 2 == 0; }));"),
+        "[2, 4]\n"
+    );
     assert_eq!(out("import \"array\" as a; println(a.reduce([1,2,3,4], fn(acc, x) { return acc + x; }, 0));"), "10\n");
-    assert_eq!(out("import \"array\" as a; println(a.sort([3,1,2]));"), "[1, 2, 3]\n");
+    assert_eq!(
+        out("import \"array\" as a; println(a.sort([3,1,2]));"),
+        "[1, 2, 3]\n"
+    );
     assert_eq!(
         out("import \"array\" as a; println(a.sort([3,1,2], fn(x, y) { return y - x; }));"),
         "[3, 2, 1]\n"
     );
-    assert_eq!(out("import \"array\" as a; println(a.reverse([1,2,3]));"), "[3, 2, 1]\n");
-    assert_eq!(out("import \"array\" as a; println(a.flatten([[1,2],[3],[4,5]]));"), "[1, 2, 3, 4, 5]\n");
+    assert_eq!(
+        out("import \"array\" as a; println(a.reverse([1,2,3]));"),
+        "[3, 2, 1]\n"
+    );
+    assert_eq!(
+        out("import \"array\" as a; println(a.flatten([[1,2],[3],[4,5]]));"),
+        "[1, 2, 3, 4, 5]\n"
+    );
 }
 
 #[test]
@@ -112,8 +161,14 @@ fn random_is_deterministic_after_seed() {
 
 #[test]
 fn self_hosted_seq_module() {
-    assert_eq!(out("import \"seq\" as q; println(q.take([1,2,3,4], 2));"), "[1, 2]\n");
-    assert_eq!(out("import \"seq\" as q; println(q.enumerate([\"a\",\"b\"]));"), "[[0, \"a\"], [1, \"b\"]]\n");
+    assert_eq!(
+        out("import \"seq\" as q; println(q.take([1,2,3,4], 2));"),
+        "[1, 2]\n"
+    );
+    assert_eq!(
+        out("import \"seq\" as q; println(q.enumerate([\"a\",\"b\"]));"),
+        "[[0, \"a\"], [1, \"b\"]]\n"
+    );
     assert_eq!(
         out("import \"seq\" as q; println(q.all([2,4,6], fn(x) { return x % 2 == 0; }));"),
         "true\n"
@@ -196,28 +251,58 @@ fn self_hosted_testing_module() {
                  s.truthy("truthy", 5);
                  s.eq("fails", 1, 2);
                  println(s.report());"#;
-    assert_eq!(out(src), "true\nfalse\ndemo: 3/4 passed\n  FAIL: fails: expected 2, got 1\nfalse\n");
+    assert_eq!(
+        out(src),
+        "true\nfalse\ndemo: 3/4 passed\n  FAIL: fails: expected 2, got 1\nfalse\n"
+    );
 }
 
 #[test]
 fn array_find_family() {
-    assert_eq!(out("import \"array\" as a; println(a.find([1,2,3,4], fn(x) { return x > 2; }));"), "3\n");
-    assert_eq!(out("import \"array\" as a; println(a.find([1,2], fn(x) { return x > 9; }));"), "nil\n");
+    assert_eq!(
+        out("import \"array\" as a; println(a.find([1,2,3,4], fn(x) { return x > 2; }));"),
+        "3\n"
+    );
+    assert_eq!(
+        out("import \"array\" as a; println(a.find([1,2], fn(x) { return x > 9; }));"),
+        "nil\n"
+    );
     assert_eq!(
         out("import \"array\" as a; println(a.find_index([1,2,3,4], fn(x) { return x > 2; }));"),
         "2\n"
     );
-    assert_eq!(out("import \"array\" as a; println(a.find_index([1,2], fn(x) { return x > 9; }));"), "-1\n");
-    assert_eq!(out("import \"array\" as a; println(a.any([1,2,3], fn(x) { return x == 2; }));"), "true\n");
-    assert_eq!(out("import \"array\" as a; println(a.any([1,2,3], fn(x) { return x == 9; }));"), "false\n");
-    assert_eq!(out("import \"array\" as a; println(a.all([2,4,6], fn(x) { return x % 2 == 0; }));"), "true\n");
-    assert_eq!(out("import \"array\" as a; println(a.all([2,3], fn(x) { return x % 2 == 0; }));"), "false\n");
+    assert_eq!(
+        out("import \"array\" as a; println(a.find_index([1,2], fn(x) { return x > 9; }));"),
+        "-1\n"
+    );
+    assert_eq!(
+        out("import \"array\" as a; println(a.any([1,2,3], fn(x) { return x == 2; }));"),
+        "true\n"
+    );
+    assert_eq!(
+        out("import \"array\" as a; println(a.any([1,2,3], fn(x) { return x == 9; }));"),
+        "false\n"
+    );
+    assert_eq!(
+        out("import \"array\" as a; println(a.all([2,4,6], fn(x) { return x % 2 == 0; }));"),
+        "true\n"
+    );
+    assert_eq!(
+        out("import \"array\" as a; println(a.all([2,3], fn(x) { return x % 2 == 0; }));"),
+        "false\n"
+    );
 }
 
 #[test]
 fn array_unique_and_zip() {
-    assert_eq!(out("import \"array\" as a; println(a.unique([1,2,2,3,1,3]));"), "[1, 2, 3]\n");
-    assert_eq!(out("import \"array\" as a; println(a.unique([\"a\",\"b\",\"a\"]));"), "[\"a\", \"b\"]\n");
+    assert_eq!(
+        out("import \"array\" as a; println(a.unique([1,2,2,3,1,3]));"),
+        "[1, 2, 3]\n"
+    );
+    assert_eq!(
+        out("import \"array\" as a; println(a.unique([\"a\",\"b\",\"a\"]));"),
+        "[\"a\", \"b\"]\n"
+    );
     assert_eq!(
         out("import \"array\" as a; println(a.zip([1,2,3], [\"a\",\"b\"]));"),
         "[[1, \"a\"], [2, \"b\"]]\n"
@@ -247,12 +332,30 @@ fn new_higher_order_natives_are_gc_safe_under_stress() {
 fn math_extras() {
     assert_eq!(out("import \"math\" as m; println(m.lcm(4, 6));"), "12\n");
     assert_eq!(out("import \"math\" as m; println(m.lcm(0, 5));"), "0\n");
-    assert_eq!(out("import \"math\" as m; println(m.is_nan(m.nan));"), "true\n");
-    assert_eq!(out("import \"math\" as m; println(m.is_nan(1.0));"), "false\n");
-    assert_eq!(out("import \"math\" as m; println(m.is_finite(1.0));"), "true\n");
-    assert_eq!(out("import \"math\" as m; println(m.is_finite(m.inf));"), "false\n");
-    assert_eq!(out("import \"math\" as m; println(m.round(m.degrees(m.pi)));"), "180\n");
-    assert_eq!(out("import \"math\" as m; println(m.round(m.degrees(m.radians(90))));"), "90\n");
+    assert_eq!(
+        out("import \"math\" as m; println(m.is_nan(m.nan));"),
+        "true\n"
+    );
+    assert_eq!(
+        out("import \"math\" as m; println(m.is_nan(1.0));"),
+        "false\n"
+    );
+    assert_eq!(
+        out("import \"math\" as m; println(m.is_finite(1.0));"),
+        "true\n"
+    );
+    assert_eq!(
+        out("import \"math\" as m; println(m.is_finite(m.inf));"),
+        "false\n"
+    );
+    assert_eq!(
+        out("import \"math\" as m; println(m.round(m.degrees(m.pi)));"),
+        "180\n"
+    );
+    assert_eq!(
+        out("import \"math\" as m; println(m.round(m.degrees(m.radians(90))));"),
+        "90\n"
+    );
 }
 
 #[test]
@@ -295,21 +398,42 @@ fn io_directory_ops() {
     );
     let result = out(&src);
     let _ = std::fs::remove_dir_all(&dir);
-    assert_eq!(result, "true\ntrue\nfalse\n[\"a.txt\", \"b.txt\", \"sub\"]\nfalse\nfalse\n");
+    assert_eq!(
+        result,
+        "true\ntrue\nfalse\n[\"a.txt\", \"b.txt\", \"sub\"]\nfalse\nfalse\n"
+    );
 }
 
 #[test]
 fn string_format() {
     // `{}` consumes the next positional argument; `{N}` is indexed; `{{`/`}}` are
     // literal braces.
-    assert_eq!(out("import \"string\" as s; println(s.format(\"{} + {} = {}\", [1, 2, 3]));"), "1 + 2 = 3\n");
-    assert_eq!(out("import \"string\" as s; println(s.format(\"{0} {0} {1}\", [\"a\", \"b\"]));"), "a a b\n");
-    assert_eq!(out("import \"string\" as s; println(s.format(\"100% {{x}}\", []));"), "100% {x}\n");
-    assert_eq!(out("import \"string\" as s; println(s.format(\"no slots\", [1]));"), "no slots\n");
+    assert_eq!(
+        out("import \"string\" as s; println(s.format(\"{} + {} = {}\", [1, 2, 3]));"),
+        "1 + 2 = 3\n"
+    );
+    assert_eq!(
+        out("import \"string\" as s; println(s.format(\"{0} {0} {1}\", [\"a\", \"b\"]));"),
+        "a a b\n"
+    );
+    assert_eq!(
+        out("import \"string\" as s; println(s.format(\"100% {{x}}\", []));"),
+        "100% {x}\n"
+    );
+    assert_eq!(
+        out("import \"string\" as s; println(s.format(\"no slots\", [1]));"),
+        "no slots\n"
+    );
     // Values render the same way `str()`/`println` would (no surrounding quotes).
-    assert_eq!(out("import \"string\" as s; println(s.format(\"<{}>\", [[1, 2]]));"), "<[1, 2]>\n");
+    assert_eq!(
+        out("import \"string\" as s; println(s.format(\"<{}>\", [[1, 2]]));"),
+        "<[1, 2]>\n"
+    );
     // Errors are ValueErrors: too few args, index out of range, unmatched brace.
-    assert_eq!(out("import \"string\" as s; try { s.format(\"{}\", []); } catch (e) { println(e.kind); }"), "ValueError\n");
+    assert_eq!(
+        out("import \"string\" as s; try { s.format(\"{}\", []); } catch (e) { println(e.kind); }"),
+        "ValueError\n"
+    );
     assert_eq!(out("import \"string\" as s; try { s.format(\"{9}\", [1]); } catch (e) { println(e.kind); }"), "ValueError\n");
     assert_eq!(out("import \"string\" as s; try { s.format(\"a { b\", []); } catch (e) { println(e.kind); }"), "ValueError\n");
 }
@@ -344,7 +468,9 @@ fn string_format_specifiers() {
     assert_eq!(fmtout(r#""[{:8.2f}]", [3.14159]"#), "[    3.14]\n");
     // An invalid spec is a ValueError.
     assert_eq!(
-        out(r#"import "string" as s; try { s.format("{:q}", [1]); } catch (e) { println(e.kind); }"#),
+        out(
+            r#"import "string" as s; try { s.format("{:q}", [1]); } catch (e) { println(e.kind); }"#
+        ),
         "ValueError\n"
     );
 }
@@ -352,38 +478,107 @@ fn string_format_specifiers() {
 #[test]
 fn hash_module() {
     // Non-cryptographic hashes are deterministic and distinguish inputs.
-    assert_eq!(out("import \"hash\" as h; println(h.fnv1a(\"hello\") == h.fnv1a(\"hello\"));"), "true\n");
-    assert_eq!(out("import \"hash\" as h; println(h.fnv1a(\"hello\") == h.fnv1a(\"world\"));"), "false\n");
-    assert_eq!(out("import \"hash\" as h; println(type(h.fnv1a(\"x\")));"), "int\n");
-    assert_eq!(out("import \"hash\" as h; println(type(h.djb2(\"x\")));"), "int\n");
+    assert_eq!(
+        out("import \"hash\" as h; println(h.fnv1a(\"hello\") == h.fnv1a(\"hello\"));"),
+        "true\n"
+    );
+    assert_eq!(
+        out("import \"hash\" as h; println(h.fnv1a(\"hello\") == h.fnv1a(\"world\"));"),
+        "false\n"
+    );
+    assert_eq!(
+        out("import \"hash\" as h; println(type(h.fnv1a(\"x\")));"),
+        "int\n"
+    );
+    assert_eq!(
+        out("import \"hash\" as h; println(type(h.djb2(\"x\")));"),
+        "int\n"
+    );
     // Hex is lowercase, two characters per byte.
-    assert_eq!(out("import \"hash\" as h; println(h.hex_encode(\"abc\"));"), "616263\n");
-    assert_eq!(out("import \"hash\" as h; println(h.hex_decode(\"616263\"));"), "abc\n");
+    assert_eq!(
+        out("import \"hash\" as h; println(h.hex_encode(\"abc\"));"),
+        "616263\n"
+    );
+    assert_eq!(
+        out("import \"hash\" as h; println(h.hex_decode(\"616263\"));"),
+        "abc\n"
+    );
     // Base64 uses the standard alphabet and `=` padding.
-    assert_eq!(out("import \"hash\" as h; println(h.base64_encode(\"Man\"));"), "TWFu\n");
-    assert_eq!(out("import \"hash\" as h; println(h.base64_encode(\"Ma\"));"), "TWE=\n");
-    assert_eq!(out("import \"hash\" as h; println(h.base64_encode(\"M\"));"), "TQ==\n");
-    assert_eq!(out("import \"hash\" as h; println(h.base64_decode(\"YWJj\"));"), "abc\n");
+    assert_eq!(
+        out("import \"hash\" as h; println(h.base64_encode(\"Man\"));"),
+        "TWFu\n"
+    );
+    assert_eq!(
+        out("import \"hash\" as h; println(h.base64_encode(\"Ma\"));"),
+        "TWE=\n"
+    );
+    assert_eq!(
+        out("import \"hash\" as h; println(h.base64_encode(\"M\"));"),
+        "TQ==\n"
+    );
+    assert_eq!(
+        out("import \"hash\" as h; println(h.base64_decode(\"YWJj\"));"),
+        "abc\n"
+    );
     // Round-trips preserve multi-byte UTF-8.
-    assert_eq!(out("import \"hash\" as h; println(h.hex_decode(h.hex_encode(\"héllo 🚀\")));"), "héllo 🚀\n");
-    assert_eq!(out("import \"hash\" as h; println(h.base64_decode(h.base64_encode(\"héllo 🚀\")));"), "héllo 🚀\n");
+    assert_eq!(
+        out("import \"hash\" as h; println(h.hex_decode(h.hex_encode(\"héllo 🚀\")));"),
+        "héllo 🚀\n"
+    );
+    assert_eq!(
+        out("import \"hash\" as h; println(h.base64_decode(h.base64_encode(\"héllo 🚀\")));"),
+        "héllo 🚀\n"
+    );
     // Malformed input throws ValueError.
-    assert_eq!(out("import \"hash\" as h; try { h.hex_decode(\"xyz\"); } catch (e) { println(e.kind); }"), "ValueError\n");
+    assert_eq!(
+        out("import \"hash\" as h; try { h.hex_decode(\"xyz\"); } catch (e) { println(e.kind); }"),
+        "ValueError\n"
+    );
     assert_eq!(out("import \"hash\" as h; try { h.base64_decode(\"@@@@\"); } catch (e) { println(e.kind); }"), "ValueError\n");
 }
 
 #[test]
 fn regex_test_and_anchors() {
-    assert_eq!(out("import \"regex\" as re; println(re.test(\"\\\\d+\", \"abc123\"));"), "true\n");
-    assert_eq!(out("import \"regex\" as re; println(re.test(\"^\\\\d+$\", \"abc123\"));"), "false\n");
-    assert_eq!(out("import \"regex\" as re; println(re.test(\"^[a-z]+$\", \"hello\"));"), "true\n");
-    assert_eq!(out("import \"regex\" as re; println(re.test(\"^[a-z]+$\", \"Hello\"));"), "false\n");
-    assert_eq!(out("import \"regex\" as re; println(re.test(\"colou?r\", \"color\"));"), "true\n");
-    assert_eq!(out("import \"regex\" as re; println(re.test(\"colou?r\", \"colour\"));"), "true\n");
-    assert_eq!(out("import \"regex\" as re; println(re.test(\"cat|dog\", \"i have a dog\"));"), "true\n");
-    assert_eq!(out("import \"regex\" as re; println(re.test(\"^a{2,3}$\", \"aaa\"));"), "true\n");
-    assert_eq!(out("import \"regex\" as re; println(re.test(\"^a{2,3}$\", \"aaaa\"));"), "false\n");
-    assert_eq!(out("import \"regex\" as re; println(re.test(\"[^0-9]+\", \"123\"));"), "false\n");
+    assert_eq!(
+        out("import \"regex\" as re; println(re.test(\"\\\\d+\", \"abc123\"));"),
+        "true\n"
+    );
+    assert_eq!(
+        out("import \"regex\" as re; println(re.test(\"^\\\\d+$\", \"abc123\"));"),
+        "false\n"
+    );
+    assert_eq!(
+        out("import \"regex\" as re; println(re.test(\"^[a-z]+$\", \"hello\"));"),
+        "true\n"
+    );
+    assert_eq!(
+        out("import \"regex\" as re; println(re.test(\"^[a-z]+$\", \"Hello\"));"),
+        "false\n"
+    );
+    assert_eq!(
+        out("import \"regex\" as re; println(re.test(\"colou?r\", \"color\"));"),
+        "true\n"
+    );
+    assert_eq!(
+        out("import \"regex\" as re; println(re.test(\"colou?r\", \"colour\"));"),
+        "true\n"
+    );
+    assert_eq!(
+        out("import \"regex\" as re; println(re.test(\"cat|dog\", \"i have a dog\"));"),
+        "true\n"
+    );
+    assert_eq!(
+        out("import \"regex\" as re; println(re.test(\"^a{2,3}$\", \"aaa\"));"),
+        "true\n"
+    );
+    assert_eq!(
+        out("import \"regex\" as re; println(re.test(\"^a{2,3}$\", \"aaaa\"));"),
+        "false\n"
+    );
+    assert_eq!(
+        out("import \"regex\" as re; println(re.test(\"[^0-9]+\", \"123\"));"),
+        "false\n"
+    );
 }
 
 #[test]
@@ -391,7 +586,10 @@ fn regex_find_and_captures() {
     let m = "import \"regex\" as re; let m = re.find(\"\\\\d+\", \"abc123def\");
              println(m[\"text\"]); println(m[\"start\"]); println(m[\"end\"]);";
     assert_eq!(out(m), "123\n3\n6\n");
-    assert_eq!(out("import \"regex\" as re; println(re.find(\"xyz\", \"abc\"));"), "nil\n");
+    assert_eq!(
+        out("import \"regex\" as re; println(re.find(\"xyz\", \"abc\"));"),
+        "nil\n"
+    );
     let c = "import \"regex\" as re; let c = re.captures(\"(\\\\d+)-(\\\\d+)\", \"12-34\");
              println(c[0]); println(c[1]); println(c[2]);";
     assert_eq!(out(c), "12-34\n12\n34\n");
@@ -406,49 +604,103 @@ fn regex_replace_and_split() {
         out("import \"regex\" as re; println(re.replace(\"(\\\\w+)@(\\\\w+)\", \"ab@cd\", \"$2.$1\"));"),
         "cd.ab\n"
     );
-    assert_eq!(out("import \"regex\" as re; println(re.replace(\"\\\\s+\", \"a  b   c\", \"_\"));"), "a_b_c\n");
-    assert_eq!(out("import \"regex\" as re; println(re.split(\",\", \"a,b,c\"));"), "[\"a\", \"b\", \"c\"]\n");
-    assert_eq!(out("import \"regex\" as re; println(re.split(\"\\\\s+\", \"a  b c\"));"), "[\"a\", \"b\", \"c\"]\n");
+    assert_eq!(
+        out("import \"regex\" as re; println(re.replace(\"\\\\s+\", \"a  b   c\", \"_\"));"),
+        "a_b_c\n"
+    );
+    assert_eq!(
+        out("import \"regex\" as re; println(re.split(\",\", \"a,b,c\"));"),
+        "[\"a\", \"b\", \"c\"]\n"
+    );
+    assert_eq!(
+        out("import \"regex\" as re; println(re.split(\"\\\\s+\", \"a  b c\"));"),
+        "[\"a\", \"b\", \"c\"]\n"
+    );
 }
 
 #[test]
 fn regex_backtracking_and_quantifiers() {
     // Greedy vs lazy `.*`.
-    assert_eq!(out("import \"regex\" as re; println(re.find(\"a.*b\", \"axbxb\")[\"text\"]);"), "axbxb\n");
-    assert_eq!(out("import \"regex\" as re; println(re.find(\"a.*?b\", \"axbxb\")[\"text\"]);"), "axb\n");
+    assert_eq!(
+        out("import \"regex\" as re; println(re.find(\"a.*b\", \"axbxb\")[\"text\"]);"),
+        "axbxb\n"
+    );
+    assert_eq!(
+        out("import \"regex\" as re; println(re.find(\"a.*?b\", \"axbxb\")[\"text\"]);"),
+        "axb\n"
+    );
     // Greedy `a*` must give back one `a` so the trailing `a` can match.
-    assert_eq!(out("import \"regex\" as re; println(re.test(\"^a*a$\", \"aaa\"));"), "true\n");
+    assert_eq!(
+        out("import \"regex\" as re; println(re.test(\"^a*a$\", \"aaa\"));"),
+        "true\n"
+    );
     // Nested capture groups, left-to-right index assignment.
     let nest = "import \"regex\" as re; let c = re.captures(\"((a+)(b+))\", \"aaabb\");
                 println(c[0]); println(c[1]); println(c[2]); println(c[3]);";
     assert_eq!(out(nest), "aaabb\naaabb\naaa\nbb\n");
     // Alternation in a group + an outer quantifier.
-    assert_eq!(out("import \"regex\" as re; println(re.test(\"^(cat|dog)s?$\", \"dogs\"));"), "true\n");
-    assert_eq!(out("import \"regex\" as re; println(re.test(\"^(ab)+$\", \"ababab\"));"), "true\n");
-    assert_eq!(out("import \"regex\" as re; println(re.test(\"^(ab)+$\", \"aba\"));"), "false\n");
+    assert_eq!(
+        out("import \"regex\" as re; println(re.test(\"^(cat|dog)s?$\", \"dogs\"));"),
+        "true\n"
+    );
+    assert_eq!(
+        out("import \"regex\" as re; println(re.test(\"^(ab)+$\", \"ababab\"));"),
+        "true\n"
+    );
+    assert_eq!(
+        out("import \"regex\" as re; println(re.test(\"^(ab)+$\", \"aba\"));"),
+        "false\n"
+    );
     // `.` does not cross a newline.
-    assert_eq!(out("import \"regex\" as re; println(re.test(\"a.b\", \"a\\nb\"));"), "false\n");
+    assert_eq!(
+        out("import \"regex\" as re; println(re.test(\"a.b\", \"a\\nb\"));"),
+        "false\n"
+    );
 }
 
 #[test]
 fn regex_nullable_loops_terminate() {
     // A quantifier over an empty-matchable body must terminate and match —
     // previously these recursed infinitely and crashed the process.
-    assert_eq!(out("import \"regex\" as re; println(re.test(\"(a*)*\", \"aaa\"));"), "true\n");
-    assert_eq!(out("import \"regex\" as re; println(re.find(\"(a*)*\", \"aaa\")[\"text\"]);"), "aaa\n");
-    assert_eq!(out("import \"regex\" as re; println(re.test(\"(a?)*b\", \"aab\"));"), "true\n");
-    assert_eq!(out("import \"regex\" as re; println(re.test(\"(.*)*\", \"xyz\"));"), "true\n");
-    assert_eq!(out("import \"regex\" as re; println(re.test(\"(a|)*b\", \"aab\"));"), "true\n");
+    assert_eq!(
+        out("import \"regex\" as re; println(re.test(\"(a*)*\", \"aaa\"));"),
+        "true\n"
+    );
+    assert_eq!(
+        out("import \"regex\" as re; println(re.find(\"(a*)*\", \"aaa\")[\"text\"]);"),
+        "aaa\n"
+    );
+    assert_eq!(
+        out("import \"regex\" as re; println(re.test(\"(a?)*b\", \"aab\"));"),
+        "true\n"
+    );
+    assert_eq!(
+        out("import \"regex\" as re; println(re.test(\"(.*)*\", \"xyz\"));"),
+        "true\n"
+    );
+    assert_eq!(
+        out("import \"regex\" as re; println(re.test(\"(a|)*b\", \"aab\"));"),
+        "true\n"
+    );
     // Negative case: must converge to a clean `false`, not loop/error (this is
     // what exposes a stale empty-loop mark under backtracking).
-    assert_eq!(out("import \"regex\" as re; println(re.test(\"(a|)*b\", \"aaa\"));"), "false\n");
+    assert_eq!(
+        out("import \"regex\" as re; println(re.test(\"(a|)*b\", \"aaa\"));"),
+        "false\n"
+    );
 }
 
 #[test]
 fn regex_class_ranges_with_escaped_bounds() {
     // A class range whose lower bound is an escaped char must still form a range.
-    assert_eq!(out("import \"regex\" as re; println(re.test(\"[\\\\t-~]\", \"A\"));"), "true\n");
-    assert_eq!(out("import \"regex\" as re; println(re.test(\"[\\\\t-~]\", \"5\"));"), "true\n");
+    assert_eq!(
+        out("import \"regex\" as re; println(re.test(\"[\\\\t-~]\", \"A\"));"),
+        "true\n"
+    );
+    assert_eq!(
+        out("import \"regex\" as re; println(re.test(\"[\\\\t-~]\", \"5\"));"),
+        "true\n"
+    );
     let fa = "import \"regex\" as re; let a = re.find_all(\"[\\\\.-9]\", \"./5a\");
               println(len(a)); println(a[0][\"text\"]); println(a[1][\"text\"]); println(a[2][\"text\"]);";
     assert_eq!(out(fa), "3\n.\n/\n5\n");
@@ -495,25 +747,61 @@ fn regex_invalid_pattern_throws() {
 
 #[test]
 fn datetime_module() {
-    assert_eq!(out("import \"datetime\" as dt; println(dt.is_leap_year(2024));"), "true\n");
-    assert_eq!(out("import \"datetime\" as dt; println(dt.is_leap_year(1900));"), "false\n");
-    assert_eq!(out("import \"datetime\" as dt; println(dt.is_leap_year(2000));"), "true\n");
-    assert_eq!(out("import \"datetime\" as dt; println(dt.days_in_month(2024, 2));"), "29\n");
-    assert_eq!(out("import \"datetime\" as dt; println(dt.days_in_month(2023, 2));"), "28\n");
-    assert_eq!(out("import \"datetime\" as dt; println(dt.days_in_month(2024, 4));"), "30\n");
+    assert_eq!(
+        out("import \"datetime\" as dt; println(dt.is_leap_year(2024));"),
+        "true\n"
+    );
+    assert_eq!(
+        out("import \"datetime\" as dt; println(dt.is_leap_year(1900));"),
+        "false\n"
+    );
+    assert_eq!(
+        out("import \"datetime\" as dt; println(dt.is_leap_year(2000));"),
+        "true\n"
+    );
+    assert_eq!(
+        out("import \"datetime\" as dt; println(dt.days_in_month(2024, 2));"),
+        "29\n"
+    );
+    assert_eq!(
+        out("import \"datetime\" as dt; println(dt.days_in_month(2023, 2));"),
+        "28\n"
+    );
+    assert_eq!(
+        out("import \"datetime\" as dt; println(dt.days_in_month(2024, 4));"),
+        "30\n"
+    );
     // Epoch 0 is 1970-01-01T00:00:00Z, a Thursday (weekday 4, Sunday = 0).
     let comp = "import \"datetime\" as dt; let c = dt.from_epoch(0);
                 println(c[\"year\"]); println(c[\"month\"]); println(c[\"day\"]);
                 println(c[\"hour\"]); println(c[\"weekday\"]); println(c[\"yearday\"]);";
     assert_eq!(out(comp), "1970\n1\n1\n0\n4\n1\n");
     // Round-trips against known timestamps.
-    assert_eq!(out("import \"datetime\" as dt; println(dt.to_epoch(1970, 1, 1, 0, 0, 0));"), "0\n");
-    assert_eq!(out("import \"datetime\" as dt; println(dt.to_epoch(2000, 1, 1, 0, 0, 0));"), "946684800\n");
-    assert_eq!(out("import \"datetime\" as dt; println(dt.from_epoch(946684800)[\"weekday\"]);"), "6\n");
-    assert_eq!(out("import \"datetime\" as dt; println(dt.iso(0));"), "1970-01-01T00:00:00Z\n");
-    assert_eq!(out("import \"datetime\" as dt; println(dt.iso(1609459200));"), "2021-01-01T00:00:00Z\n");
+    assert_eq!(
+        out("import \"datetime\" as dt; println(dt.to_epoch(1970, 1, 1, 0, 0, 0));"),
+        "0\n"
+    );
+    assert_eq!(
+        out("import \"datetime\" as dt; println(dt.to_epoch(2000, 1, 1, 0, 0, 0));"),
+        "946684800\n"
+    );
+    assert_eq!(
+        out("import \"datetime\" as dt; println(dt.from_epoch(946684800)[\"weekday\"]);"),
+        "6\n"
+    );
+    assert_eq!(
+        out("import \"datetime\" as dt; println(dt.iso(0));"),
+        "1970-01-01T00:00:00Z\n"
+    );
+    assert_eq!(
+        out("import \"datetime\" as dt; println(dt.iso(1609459200));"),
+        "2021-01-01T00:00:00Z\n"
+    );
     // Negative epoch (before 1970) is handled by Euclidean division.
-    assert_eq!(out("import \"datetime\" as dt; println(dt.iso(-1));"), "1969-12-31T23:59:59Z\n");
+    assert_eq!(
+        out("import \"datetime\" as dt; println(dt.iso(-1));"),
+        "1969-12-31T23:59:59Z\n"
+    );
     assert_eq!(
         out("import \"datetime\" as dt; println(dt.format(0, \"%Y/%m/%d %H:%M:%S\"));"),
         "1970/01/01 00:00:00\n"
@@ -534,22 +822,76 @@ fn datetime_from_epoch_is_gc_safe_under_stress() {
 #[test]
 fn path_module() {
     // `path` is self-hosted (std/path.lum) and uses POSIX `/` separators.
-    assert_eq!(out("import \"path\" as p; println(p.join([\"a\", \"b\", \"c\"]));"), "a/b/c\n");
-    assert_eq!(out("import \"path\" as p; println(p.join([\"/usr\", \"bin\"]));"), "/usr/bin\n");
-    assert_eq!(out("import \"path\" as p; println(p.join([\"a/\", \"\", \"b\"]));"), "a/b\n");
-    assert_eq!(out("import \"path\" as p; println(p.basename(\"/a/b/c.txt\"));"), "c.txt\n");
-    assert_eq!(out("import \"path\" as p; println(p.dirname(\"/a/b/c.txt\"));"), "/a/b\n");
-    assert_eq!(out("import \"path\" as p; println(p.dirname(\"file\"));"), ".\n");
-    assert_eq!(out("import \"path\" as p; println(p.dirname(\"/x\"));"), "/\n");
-    assert_eq!(out("import \"path\" as p; println(p.ext(\"archive.tar.gz\"));"), "gz\n");
-    assert_eq!(out("import \"path\" as p; println(p.ext(\"noext\"));"), "\n");
-    assert_eq!(out("import \"path\" as p; println(p.ext(\".hidden\"));"), "\n");
-    assert_eq!(out("import \"path\" as p; println(p.stem(\"a.b.c\"));"), "a.b\n");
-    assert_eq!(out("import \"path\" as p; println(p.is_absolute(\"/x\"));"), "true\n");
-    assert_eq!(out("import \"path\" as p; println(p.is_absolute(\"x\"));"), "false\n");
-    assert_eq!(out("import \"path\" as p; println(p.split(\"/a//b/c\"));"), "[\"a\", \"b\", \"c\"]\n");
-    assert_eq!(out("import \"path\" as p; println(p.normalize(\"/a/b/../c\"));"), "/a/c\n");
-    assert_eq!(out("import \"path\" as p; println(p.normalize(\"a/./b/../d\"));"), "a/d\n");
-    assert_eq!(out("import \"path\" as p; println(p.normalize(\"../x\"));"), "../x\n");
-    assert_eq!(out("import \"path\" as p; println(p.normalize(\"/..\"));"), "/\n");
+    assert_eq!(
+        out("import \"path\" as p; println(p.join([\"a\", \"b\", \"c\"]));"),
+        "a/b/c\n"
+    );
+    assert_eq!(
+        out("import \"path\" as p; println(p.join([\"/usr\", \"bin\"]));"),
+        "/usr/bin\n"
+    );
+    assert_eq!(
+        out("import \"path\" as p; println(p.join([\"a/\", \"\", \"b\"]));"),
+        "a/b\n"
+    );
+    assert_eq!(
+        out("import \"path\" as p; println(p.basename(\"/a/b/c.txt\"));"),
+        "c.txt\n"
+    );
+    assert_eq!(
+        out("import \"path\" as p; println(p.dirname(\"/a/b/c.txt\"));"),
+        "/a/b\n"
+    );
+    assert_eq!(
+        out("import \"path\" as p; println(p.dirname(\"file\"));"),
+        ".\n"
+    );
+    assert_eq!(
+        out("import \"path\" as p; println(p.dirname(\"/x\"));"),
+        "/\n"
+    );
+    assert_eq!(
+        out("import \"path\" as p; println(p.ext(\"archive.tar.gz\"));"),
+        "gz\n"
+    );
+    assert_eq!(
+        out("import \"path\" as p; println(p.ext(\"noext\"));"),
+        "\n"
+    );
+    assert_eq!(
+        out("import \"path\" as p; println(p.ext(\".hidden\"));"),
+        "\n"
+    );
+    assert_eq!(
+        out("import \"path\" as p; println(p.stem(\"a.b.c\"));"),
+        "a.b\n"
+    );
+    assert_eq!(
+        out("import \"path\" as p; println(p.is_absolute(\"/x\"));"),
+        "true\n"
+    );
+    assert_eq!(
+        out("import \"path\" as p; println(p.is_absolute(\"x\"));"),
+        "false\n"
+    );
+    assert_eq!(
+        out("import \"path\" as p; println(p.split(\"/a//b/c\"));"),
+        "[\"a\", \"b\", \"c\"]\n"
+    );
+    assert_eq!(
+        out("import \"path\" as p; println(p.normalize(\"/a/b/../c\"));"),
+        "/a/c\n"
+    );
+    assert_eq!(
+        out("import \"path\" as p; println(p.normalize(\"a/./b/../d\"));"),
+        "a/d\n"
+    );
+    assert_eq!(
+        out("import \"path\" as p; println(p.normalize(\"../x\"));"),
+        "../x\n"
+    );
+    assert_eq!(
+        out("import \"path\" as p; println(p.normalize(\"/..\"));"),
+        "/\n"
+    );
 }

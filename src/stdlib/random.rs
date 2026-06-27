@@ -31,7 +31,11 @@ fn randint(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
     let lo = int(vm, a[0])?;
     let hi = int(vm, a[1])?;
     if lo > hi {
-        return Err(err(vm, error_kind::VALUE, "randint(lo, hi) requires lo <= hi"));
+        return Err(err(
+            vm,
+            error_kind::VALUE,
+            "randint(lo, hi) requires lo <= hi",
+        ));
     }
     let span = (hi - lo) as u64 + 1;
     let r = vm.next_random_u64() % span;

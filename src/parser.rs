@@ -36,7 +36,11 @@ pub fn parse(tokens: Vec<Token>) -> (Program, Vec<Diagnostic>) {
 
 impl Parser {
     pub fn new(tokens: Vec<Token>) -> Self {
-        Parser { tokens, pos: 0, errors: Vec::new() }
+        Parser {
+            tokens,
+            pos: 0,
+            errors: Vec::new(),
+        }
     }
 
     pub fn parse_program(mut self) -> (Program, Vec<Diagnostic>) {
@@ -184,10 +188,20 @@ impl Parser {
         // Destructuring: `let [a, b] = ...` / `let {x, y} = ...`.
         if matches!(self.peek().kind, K::LBracket | K::LBrace) {
             let pattern = self.pattern()?;
-            self.consume(&K::Eq, "a destructuring 'let' must be initialized: expected '='")?;
+            self.consume(
+                &K::Eq,
+                "a destructuring 'let' must be initialized: expected '='",
+            )?;
             let init = self.expression()?;
-            let semi = self.consume(&K::Semicolon, "expected ';' after the destructuring declaration")?;
-            return Ok(Stmt::Destructure { pattern, init, span: kw.span.to(semi.span) });
+            let semi = self.consume(
+                &K::Semicolon,
+                "expected ';' after the destructuring declaration",
+            )?;
+            return Ok(Stmt::Destructure {
+                pattern,
+                init,
+                span: kw.span.to(semi.span),
+            });
         }
         let (name, name_span) = self.consume_ident("expected a variable name after 'let'")?;
         let init = if self.match_kind(&K::Eq) {
@@ -196,7 +210,12 @@ impl Parser {
             None
         };
         let semi = self.consume(&K::Semicolon, "expected ';' after variable declaration")?;
-        Ok(Stmt::Let { name, name_span, init, span: kw.span.to(semi.span) })
+        Ok(Stmt::Let {
+            name,
+            name_span,
+            init,
+            span: kw.span.to(semi.span),
+        })
     }
 
     fn const_decl(&mut self) -> PResult<Stmt> {
@@ -205,7 +224,12 @@ impl Parser {
         self.consume(&K::Eq, "a 'const' must be initialized: expected '='")?;
         let init = self.expression()?;
         let semi = self.consume(&K::Semicolon, "expected ';' after constant declaration")?;
-        Ok(Stmt::Const { name, name_span, init, span: kw.span.to(semi.span) })
+        Ok(Stmt::Const {
+            name,
+            name_span,
+            init,
+            span: kw.span.to(semi.span),
+        })
     }
 
     fn fn_decl(&mut self) -> PResult<Stmt> {
@@ -227,7 +251,13 @@ impl Parser {
         self.consume(&K::RParen, "expected ')' after parameters")?;
         let body = self.block()?;
         let span = start.to(body.span);
-        Ok(Function { name, name_span, params, body, span })
+        Ok(Function {
+            name,
+            name_span,
+            params,
+            body,
+            span,
+        })
     }
 
     fn params(&mut self) -> PResult<Vec<Param>> {
@@ -238,7 +268,12 @@ impl Parser {
                 // must be last.
                 if self.match_kind(&K::DotDot) {
                     let (name, span) = self.consume_ident("expected a name after '..'")?;
-                    params.push(Param { name, span, default: None, is_rest: true });
+                    params.push(Param {
+                        name,
+                        span,
+                        default: None,
+                        is_rest: true,
+                    });
                     self.match_kind(&K::Comma); // optional trailing comma
                     break;
                 }
@@ -248,7 +283,12 @@ impl Parser {
                 } else {
                     None
                 };
-                params.push(Param { name, span, default, is_rest: false });
+                params.push(Param {
+                    name,
+                    span,
+                    default,
+                    is_rest: false,
+                });
                 if !self.match_kind(&K::Comma) {
                     break;
                 }
@@ -331,7 +371,12 @@ impl Parser {
             None
         };
         let semi = self.consume(&K::Semicolon, "expected ';' after the field declaration")?;
-        fields.push(Field { name, name_span, init, span: name_span.to(semi.span) });
+        fields.push(Field {
+            name,
+            name_span,
+            init,
+            span: name_span.to(semi.span),
+        });
         Ok(())
     }
 
@@ -342,10 +387,13 @@ impl Parser {
 
     fn import_decl(&mut self) -> PResult<Stmt> {
         let kw = self.consume(&K::Import, "expected 'import'")?;
-        let (path, path_span) = self.string_literal("expected a module path string after 'import'")?;
+        let (path, path_span) =
+            self.string_literal("expected a module path string after 'import'")?;
         let kind = if self.match_contextual("as") {
             let (alias, span) = self.consume_ident("expected an alias name after 'as'")?;
-            ImportKind::Module { alias: Spanned::new(alias, span) }
+            ImportKind::Module {
+                alias: Spanned::new(alias, span),
+            }
         } else if self.match_kind(&K::Dot) {
             self.consume(&K::LBrace, "expected '{' after '.' in a selective import")?;
             let mut names = Vec::new();
@@ -365,10 +413,17 @@ impl Parser {
             ImportKind::Named(names)
         } else {
             let base = module_basename(&path);
-            ImportKind::Module { alias: Spanned::new(base, path_span) }
+            ImportKind::Module {
+                alias: Spanned::new(base, path_span),
+            }
         };
         let semi = self.consume(&K::Semicolon, "expected ';' after import")?;
-        Ok(Stmt::Import(Import { path, path_span, kind, span: kw.span.to(semi.span) }))
+        Ok(Stmt::Import(Import {
+            path,
+            path_span,
+            kind,
+            span: kw.span.to(semi.span),
+        }))
     }
 
     fn export_decl(&mut self) -> PResult<Stmt> {
@@ -380,12 +435,18 @@ impl Parser {
             K::Class => self.class_decl()?,
             _ => {
                 let span = self.peek().span;
-                self.error_at(span, "expected a declaration (let/const/fn/class) after 'export'");
+                self.error_at(
+                    span,
+                    "expected a declaration (let/const/fn/class) after 'export'",
+                );
                 return Err(ParseError);
             }
         };
         let span = kw.span.to(decl.span());
-        Ok(Stmt::Export { decl: Box::new(decl), span })
+        Ok(Stmt::Export {
+            decl: Box::new(decl),
+            span,
+        })
     }
 
     // ---- statements --------------------------------------------------------
@@ -408,12 +469,16 @@ impl Parser {
             K::Break => {
                 let kw = self.advance();
                 let semi = self.consume(&K::Semicolon, "expected ';' after 'break'")?;
-                Ok(Stmt::Break { span: kw.span.to(semi.span) })
+                Ok(Stmt::Break {
+                    span: kw.span.to(semi.span),
+                })
             }
             K::Continue => {
                 let kw = self.advance();
                 let semi = self.consume(&K::Semicolon, "expected ';' after 'continue'")?;
-                Ok(Stmt::Continue { span: kw.span.to(semi.span) })
+                Ok(Stmt::Continue {
+                    span: kw.span.to(semi.span),
+                })
             }
             K::Throw => self.throw_stmt(),
             K::Yield => self.yield_stmt(),
@@ -436,7 +501,10 @@ impl Parser {
             }
         }
         let close = self.consume(&K::RBrace, "expected '}' to close this block")?;
-        Ok(Block { stmts, span: open.span.to(close.span) })
+        Ok(Block {
+            stmts,
+            span: open.span.to(close.span),
+        })
     }
 
     fn if_stmt(&mut self) -> PResult<Stmt> {
@@ -455,7 +523,12 @@ impl Parser {
         } else {
             None
         };
-        Ok(Stmt::If { cond, then_block, else_branch, span })
+        Ok(Stmt::If {
+            cond,
+            then_block,
+            else_branch,
+            span,
+        })
     }
 
     fn while_stmt(&mut self) -> PResult<Stmt> {
@@ -475,7 +548,13 @@ impl Parser {
             let iter = self.expression()?;
             let body = self.block()?;
             let span = kw.span.to(body.span);
-            return Ok(Stmt::ForIn { var, var_span, iter, body, span });
+            return Ok(Stmt::ForIn {
+                var,
+                var_span,
+                iter,
+                body,
+                span,
+            });
         }
         // C-style `for init; cond; step { }`. The init clause supplies its `;`.
         let init = if self.match_kind(&K::Semicolon) {
@@ -498,7 +577,13 @@ impl Parser {
         };
         let body = self.block()?;
         let span = kw.span.to(body.span);
-        Ok(Stmt::ForC { init, cond, step, body, span })
+        Ok(Stmt::ForC {
+            init,
+            cond,
+            step,
+            body,
+            span,
+        })
     }
 
     fn return_stmt(&mut self) -> PResult<Stmt> {
@@ -509,21 +594,30 @@ impl Parser {
             Some(self.expression()?)
         };
         let semi = self.consume(&K::Semicolon, "expected ';' after return value")?;
-        Ok(Stmt::Return { value, span: kw.span.to(semi.span) })
+        Ok(Stmt::Return {
+            value,
+            span: kw.span.to(semi.span),
+        })
     }
 
     fn throw_stmt(&mut self) -> PResult<Stmt> {
         let kw = self.consume(&K::Throw, "expected 'throw'")?;
         let value = self.expression()?;
         let semi = self.consume(&K::Semicolon, "expected ';' after the thrown value")?;
-        Ok(Stmt::Throw { value, span: kw.span.to(semi.span) })
+        Ok(Stmt::Throw {
+            value,
+            span: kw.span.to(semi.span),
+        })
     }
 
     fn yield_stmt(&mut self) -> PResult<Stmt> {
         let kw = self.consume(&K::Yield, "expected 'yield'")?;
         let value = self.expression()?;
         let semi = self.consume(&K::Semicolon, "expected ';' after the yielded value")?;
-        Ok(Stmt::Yield { value, span: kw.span.to(semi.span) })
+        Ok(Stmt::Yield {
+            value,
+            span: kw.span.to(semi.span),
+        })
     }
 
     fn try_stmt(&mut self) -> PResult<Stmt> {
@@ -546,7 +640,12 @@ impl Parser {
             self.consume(&K::RParen, "expected ')' after the catch variable")?;
             let cbody = self.block()?;
             span = kw.span.to(cbody.span);
-            catches.push(CatchClause { kind, name, name_span, body: cbody });
+            catches.push(CatchClause {
+                kind,
+                name,
+                name_span,
+                body: cbody,
+            });
         }
         let finally = if self.match_kind(&K::Finally) {
             let b = self.block()?;
@@ -562,7 +661,12 @@ impl Parser {
             );
             return Err(ParseError);
         }
-        Ok(Stmt::Try { body, catches, finally, span: kw.span.to(span) })
+        Ok(Stmt::Try {
+            body,
+            catches,
+            finally,
+            span: kw.span.to(span),
+        })
     }
 
     fn expr_stmt(&mut self) -> PResult<Stmt> {
@@ -601,7 +705,11 @@ impl Parser {
         self.consume(&K::Eq, "expected '=' in destructuring assignment")?;
         let value = self.expression()?;
         let semi = self.consume(&K::Semicolon, "expected ';' after the assignment")?;
-        Ok(Stmt::DestructureAssign { pattern, value, span: start.to(semi.span) })
+        Ok(Stmt::DestructureAssign {
+            pattern,
+            value,
+            span: start.to(semi.span),
+        })
     }
 
     // ---- expressions (precedence climbing) --------------------------------
@@ -620,7 +728,13 @@ impl Parser {
                 return Err(ParseError);
             }
             let span = expr.span.to(value.span);
-            Ok(Expr::new(ExprKind::Assign { target: Box::new(expr), value: Box::new(value) }, span))
+            Ok(Expr::new(
+                ExprKind::Assign {
+                    target: Box::new(expr),
+                    value: Box::new(value),
+                },
+                span,
+            ))
         } else if let Some(op) = compound_op(&self.peek().kind) {
             let tok = self.advance();
             let value = self.assignment()?; // right-associative
@@ -630,7 +744,11 @@ impl Parser {
             }
             let span = expr.span.to(value.span);
             Ok(Expr::new(
-                ExprKind::CompoundAssign { target: Box::new(expr), op, value: Box::new(value) },
+                ExprKind::CompoundAssign {
+                    target: Box::new(expr),
+                    op,
+                    value: Box::new(value),
+                },
                 span,
             ))
         } else {
@@ -811,7 +929,11 @@ impl Parser {
     fn binary(&self, op: BinaryOp, left: Expr, right: Expr) -> Expr {
         let span = left.span.to(right.span);
         Expr::new(
-            ExprKind::Binary { op, left: Box::new(left), right: Box::new(right) },
+            ExprKind::Binary {
+                op,
+                left: Box::new(left),
+                right: Box::new(right),
+            },
             span,
         )
     }
@@ -826,7 +948,13 @@ impl Parser {
         self.advance();
         let operand = self.unary()?;
         let span = kw_span.to(operand.span);
-        Ok(Expr::new(ExprKind::Unary { op, operand: Box::new(operand) }, span))
+        Ok(Expr::new(
+            ExprKind::Unary {
+                op,
+                operand: Box::new(operand),
+            },
+            span,
+        ))
     }
 
     /// `**` exponentiation: binds tighter than unary minus (so `-2 ** 2` is
@@ -857,7 +985,10 @@ impl Parser {
                     let close = self.consume(&K::RBracket, "expected ']' after the index")?;
                     let span = expr.span.to(close.span);
                     expr = Expr::new(
-                        ExprKind::Index { object: Box::new(expr), index: Box::new(index) },
+                        ExprKind::Index {
+                            object: Box::new(expr),
+                            index: Box::new(index),
+                        },
                         span,
                     );
                 }
@@ -867,7 +998,11 @@ impl Parser {
                         self.consume_ident("expected a property name after '.'")?;
                     let span = expr.span.to(name_span);
                     expr = Expr::new(
-                        ExprKind::Get { object: Box::new(expr), name, name_span },
+                        ExprKind::Get {
+                            object: Box::new(expr),
+                            name,
+                            name_span,
+                        },
                         span,
                     );
                 }
@@ -898,7 +1033,11 @@ impl Parser {
         let close = self.consume(&K::RParen, "expected ')' after the arguments")?;
         let span = callee.span.to(close.span);
         Ok(Expr::new(
-            ExprKind::Call { callee: Box::new(callee), args, paren_span: close.span },
+            ExprKind::Call {
+                callee: Box::new(callee),
+                args,
+                paren_span: close.span,
+            },
             span,
         ))
     }
@@ -934,7 +1073,12 @@ impl Parser {
                 // `x => expr` — single-parameter arrow lambda.
                 self.advance(); // the identifier
                 self.advance(); // '=>'
-                let params = vec![Param { name, span, default: None, is_rest: false }];
+                let params = vec![Param {
+                    name,
+                    span,
+                    default: None,
+                    is_rest: false,
+                }];
                 self.finish_arrow(params, span)
             }
             K::Ident(name) => {
@@ -951,7 +1095,10 @@ impl Parser {
                 let (method, method_span) =
                     self.consume_ident("expected a method name after 'super.'")?;
                 Ok(Expr::new(
-                    ExprKind::Super { method, method_span },
+                    ExprKind::Super {
+                        method,
+                        method_span,
+                    },
                     span.to(method_span),
                 ))
             }
@@ -993,7 +1140,11 @@ impl Parser {
             } else {
                 let first = self.expression()?;
                 if self.check(&K::For) {
-                    return self.finish_comprehension(CompHead::Array(first), open.span, &K::RBracket);
+                    return self.finish_comprehension(
+                        CompHead::Array(first),
+                        open.span,
+                        &K::RBracket,
+                    );
                 }
                 elems.push(ArrayElem::Item(first));
             }
@@ -1014,7 +1165,12 @@ impl Parser {
 
     /// Parse the `for var in iter [if cond]` tail of a comprehension (the
     /// element/entry is already parsed) and the closing bracket.
-    fn finish_comprehension(&mut self, head: CompHead, open: Span, close_kind: &TokenKind) -> PResult<Expr> {
+    fn finish_comprehension(
+        &mut self,
+        head: CompHead,
+        open: Span,
+        close_kind: &TokenKind,
+    ) -> PResult<Expr> {
         self.consume(&K::For, "expected 'for' in comprehension")?;
         let (var, var_span) = self.consume_ident("expected the comprehension variable")?;
         self.consume(&K::In, "expected 'in' after the comprehension variable")?;
@@ -1054,7 +1210,11 @@ impl Parser {
             // comprehension can treat it as the loop *variable* rather than a
             // string shorthand (DESIGN D31).
             let key_span = self.peek().span;
-            let bare_ident = if let K::Ident(n) = &self.peek().kind { Some(n.clone()) } else { None };
+            let bare_ident = if let K::Ident(n) = &self.peek().kind {
+                Some(n.clone())
+            } else {
+                None
+            };
             let key = self.map_key()?;
             self.consume(&K::Colon, "expected ':' after the map key")?;
             let value = self.expression()?;
@@ -1064,7 +1224,11 @@ impl Parser {
                     (MapKey::Str(s), None) => Expr::new(ExprKind::Str(s), key_span),
                     (MapKey::Computed(e), _) => e,
                 };
-                return self.finish_comprehension(CompHead::Map(key_expr, value), open.span, &K::RBrace);
+                return self.finish_comprehension(
+                    CompHead::Map(key_expr, value),
+                    open.span,
+                    &K::RBrace,
+                );
             }
             entries.push((key, value));
             while self.match_kind(&K::Comma) {
@@ -1123,8 +1287,20 @@ impl Parser {
     fn finish_arrow(&mut self, params: Vec<Param>, start: Span) -> PResult<Expr> {
         let body = self.assignment()?;
         let span = start.to(body.span);
-        let block = Block { stmts: vec![Stmt::Return { value: Some(body), span }], span };
-        let func = Function { name: None, name_span: start, params, body: block, span };
+        let block = Block {
+            stmts: vec![Stmt::Return {
+                value: Some(body),
+                span,
+            }],
+            span,
+        };
+        let func = Function {
+            name: None,
+            name_span: start,
+            params,
+            body: block,
+            span,
+        };
         Ok(Expr::new(ExprKind::Lambda(func), span))
     }
 
@@ -1139,7 +1315,10 @@ impl Parser {
                 K::RParen => {
                     depth -= 1;
                     if depth == 0 {
-                        return matches!(self.tokens.get(i + 1).map(|t| &t.kind), Some(K::FatArrow));
+                        return matches!(
+                            self.tokens.get(i + 1).map(|t| &t.kind),
+                            Some(K::FatArrow)
+                        );
                     }
                 }
                 K::Eof => return false,
@@ -1168,7 +1347,10 @@ impl Parser {
         }
         let close = self.consume(&K::RBrace, "expected '}' to close the match")?;
         Ok(Expr::new(
-            ExprKind::Match { subject: Box::new(subject), arms },
+            ExprKind::Match {
+                subject: Box::new(subject),
+                arms,
+            },
             kw.span.to(close.span),
         ))
     }
@@ -1183,7 +1365,12 @@ impl Parser {
         self.consume(&K::FatArrow, "expected '=>' after the pattern")?;
         let body = self.expression()?;
         let span = pattern.span.to(body.span);
-        Ok(MatchArm { pattern, guard, body, span })
+        Ok(MatchArm {
+            pattern,
+            guard,
+            body,
+            span,
+        })
     }
 
     /// A pattern, possibly an `a | b | c` alternation (DESIGN D25). The bitwise
@@ -1200,7 +1387,10 @@ impl Parser {
             alts.push(self.pattern_atom()?);
         }
         let span = start.to(alts.last().unwrap().span);
-        Ok(Pattern { kind: PatternKind::Or(alts), span })
+        Ok(Pattern {
+            kind: PatternKind::Or(alts),
+            span,
+        })
     }
 
     fn pattern_atom(&mut self) -> PResult<Pattern> {
@@ -1217,28 +1407,46 @@ impl Parser {
             }
             K::Int(n) => {
                 self.advance();
-                Ok(Pattern { kind: PatternKind::Int(n), span })
+                Ok(Pattern {
+                    kind: PatternKind::Int(n),
+                    span,
+                })
             }
             K::Float(f) => {
                 self.advance();
-                Ok(Pattern { kind: PatternKind::Float(f), span })
+                Ok(Pattern {
+                    kind: PatternKind::Float(f),
+                    span,
+                })
             }
             K::Str(parts) => {
                 self.advance();
                 let s = self.plain_string(&parts, span, "string pattern")?;
-                Ok(Pattern { kind: PatternKind::Str(s), span })
+                Ok(Pattern {
+                    kind: PatternKind::Str(s),
+                    span,
+                })
             }
             K::True => {
                 self.advance();
-                Ok(Pattern { kind: PatternKind::Bool(true), span })
+                Ok(Pattern {
+                    kind: PatternKind::Bool(true),
+                    span,
+                })
             }
             K::False => {
                 self.advance();
-                Ok(Pattern { kind: PatternKind::Bool(false), span })
+                Ok(Pattern {
+                    kind: PatternKind::Bool(false),
+                    span,
+                })
             }
             K::Nil => {
                 self.advance();
-                Ok(Pattern { kind: PatternKind::Nil, span })
+                Ok(Pattern {
+                    kind: PatternKind::Nil,
+                    span,
+                })
             }
             K::Minus => {
                 self.advance();
@@ -1246,11 +1454,17 @@ impl Parser {
                 match self.peek().kind {
                     K::Int(n) => {
                         self.advance();
-                        Ok(Pattern { kind: PatternKind::Int(-n), span: span.to(neg_span) })
+                        Ok(Pattern {
+                            kind: PatternKind::Int(-n),
+                            span: span.to(neg_span),
+                        })
                     }
                     K::Float(f) => {
                         self.advance();
-                        Ok(Pattern { kind: PatternKind::Float(-f), span: span.to(neg_span) })
+                        Ok(Pattern {
+                            kind: PatternKind::Float(-f),
+                            span: span.to(neg_span),
+                        })
                     }
                     _ => {
                         self.error_at(neg_span, "expected a number after '-' in a pattern");
@@ -1298,10 +1512,16 @@ impl Parser {
         let close = self.consume(&K::RBracket, "expected ']' to close the array pattern")?;
         let span = open.span.to(close.span);
         if rest_count > 1 {
-            self.error_at(span, "an array pattern may have at most one '..' rest element");
+            self.error_at(
+                span,
+                "an array pattern may have at most one '..' rest element",
+            );
             return Err(ParseError);
         }
-        Ok(Pattern { kind: PatternKind::Array(elems), span })
+        Ok(Pattern {
+            kind: PatternKind::Array(elems),
+            span,
+        })
     }
 
     fn map_pattern(&mut self) -> PResult<Pattern> {
@@ -1317,7 +1537,10 @@ impl Parser {
                     }
                     K::Str(parts) => {
                         self.advance();
-                        (self.plain_string(&parts, key_span, "map pattern key")?, false)
+                        (
+                            self.plain_string(&parts, key_span, "map pattern key")?,
+                            false,
+                        )
                     }
                     _ => {
                         let found = self.peek().kind.describe();
@@ -1333,9 +1556,15 @@ impl Parser {
                 let pat = if self.match_kind(&K::Colon) {
                     self.pattern()?
                 } else if key_is_ident {
-                    Pattern { kind: PatternKind::Binding(key.clone()), span: key_span }
+                    Pattern {
+                        kind: PatternKind::Binding(key.clone()),
+                        span: key_span,
+                    }
                 } else {
-                    self.consume(&K::Colon, "a string map-pattern key needs an explicit ': pattern'")?;
+                    self.consume(
+                        &K::Colon,
+                        "a string map-pattern key needs an explicit ': pattern'",
+                    )?;
                     self.pattern()?
                 };
                 entries.push((key, pat));
@@ -1348,7 +1577,10 @@ impl Parser {
             }
         }
         let close = self.consume(&K::RBrace, "expected '}' to close the map pattern")?;
-        Ok(Pattern { kind: PatternKind::Map(entries), span: open.span.to(close.span) })
+        Ok(Pattern {
+            kind: PatternKind::Map(entries),
+            span: open.span.to(close.span),
+        })
     }
 
     // ---- string helpers ----------------------------------------------------
@@ -1423,7 +1655,10 @@ impl Parser {
 
 /// Whether an expression is a valid assignment target (`=` or `op=` left side).
 fn is_assignable(kind: &ExprKind) -> bool {
-    matches!(kind, ExprKind::Var(_) | ExprKind::Index { .. } | ExprKind::Get { .. })
+    matches!(
+        kind,
+        ExprKind::Var(_) | ExprKind::Index { .. } | ExprKind::Get { .. }
+    )
 }
 
 /// Map a compound-assignment token (`+=`, …) to its arithmetic operator.
@@ -1442,7 +1677,10 @@ fn compound_op(kind: &K) -> Option<BinaryOp> {
 /// directory prefix or `.lum` extension.
 fn module_basename(path: &str) -> String {
     let after_slash = path.rsplit(['/', '\\']).next().unwrap_or(path);
-    after_slash.strip_suffix(".lum").unwrap_or(after_slash).to_string()
+    after_slash
+        .strip_suffix(".lum")
+        .unwrap_or(after_slash)
+        .to_string()
 }
 
 #[cfg(test)]
@@ -1478,8 +1716,19 @@ mod tests {
         // 1 + 2 * 3 should be 1 + (2 * 3).
         let p = parse_ok("1 + 2 * 3;");
         if let Stmt::Expr { expr, .. } = &p.items[0] {
-            if let ExprKind::Binary { op: BinaryOp::Add, right, .. } = &expr.kind {
-                assert!(matches!(right.kind, ExprKind::Binary { op: BinaryOp::Mul, .. }));
+            if let ExprKind::Binary {
+                op: BinaryOp::Add,
+                right,
+                ..
+            } = &expr.kind
+            {
+                assert!(matches!(
+                    right.kind,
+                    ExprKind::Binary {
+                        op: BinaryOp::Mul,
+                        ..
+                    }
+                ));
             } else {
                 panic!("expected top-level Add, got {:?}", expr.kind);
             }
@@ -1493,7 +1742,13 @@ mod tests {
         // a + b < c * d  =>  (a + b) < (c * d)
         let p = parse_ok("a + b < c * d;");
         if let Stmt::Expr { expr, .. } = &p.items[0] {
-            assert!(matches!(expr.kind, ExprKind::Binary { op: BinaryOp::Lt, .. }));
+            assert!(matches!(
+                expr.kind,
+                ExprKind::Binary {
+                    op: BinaryOp::Lt,
+                    ..
+                }
+            ));
         } else {
             panic!();
         }
@@ -1552,7 +1807,9 @@ mod tests {
 
     #[test]
     fn collections_and_interpolation() {
-        parse_ok(r#"let a = [1, 2, ..rest, 3]; let m = {x: 1, "y": 2, [k]: 3}; let s = "hi ${name}!";"#);
+        parse_ok(
+            r#"let a = [1, 2, ..rest, 3]; let m = {x: 1, "y": 2, [k]: 3}; let s = "hi ${name}!";"#,
+        );
     }
 
     #[test]
@@ -1603,7 +1860,9 @@ mod tests {
     #[test]
     fn error_invalid_assignment_target() {
         let errs = parse_errs("1 + 2 = 3;");
-        assert!(errs.iter().any(|e| e.message.contains("invalid assignment target")));
+        assert!(errs
+            .iter()
+            .any(|e| e.message.contains("invalid assignment target")));
     }
 
     #[test]

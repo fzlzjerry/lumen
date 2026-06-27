@@ -106,7 +106,10 @@ fn len(vm: &mut Vm, args: &[Value]) -> Result<Value, Value> {
         Some(n) => Ok(Value::Int(n as i64)),
         None => {
             let t = vm.type_name(v);
-            Err(vm.make_error(error_kind::TYPE, format!("len() expects a string, array, or map, got {t}")))
+            Err(vm.make_error(
+                error_kind::TYPE,
+                format!("len() expects a string, array, or map, got {t}"),
+            ))
         }
     }
 }
@@ -116,7 +119,9 @@ fn int_fn(vm: &mut Vm, args: &[Value]) -> Result<Value, Value> {
     if args.len() == 2 {
         let base = match args[1] {
             Value::Int(n) if (2..=36).contains(&n) => n as u32,
-            Value::Int(_) => return Err(vm.make_error(error_kind::VALUE, "int() base must be in 2..=36")),
+            Value::Int(_) => {
+                return Err(vm.make_error(error_kind::VALUE, "int() base must be in 2..=36"))
+            }
             _ => return Err(vm.make_error(error_kind::TYPE, "int() base must be an integer")),
         };
         let s = match args[0].as_obj().map(|r| vm.heap.get(r)) {
@@ -125,7 +130,10 @@ fn int_fn(vm: &mut Vm, args: &[Value]) -> Result<Value, Value> {
         };
         return match i64::from_str_radix(&s, base) {
             Ok(n) => Ok(Value::Int(n)),
-            Err(_) => Err(vm.make_error(error_kind::VALUE, format!("int() could not parse '{s}' in base {base}"))),
+            Err(_) => Err(vm.make_error(
+                error_kind::VALUE,
+                format!("int() could not parse '{s}' in base {base}"),
+            )),
         };
     }
     match args[0] {
@@ -158,7 +166,9 @@ fn float_fn(vm: &mut Vm, args: &[Value]) -> Result<Value, Value> {
             };
             match parsed {
                 Some(f) => Ok(Value::Float(f)),
-                None => Err(vm.make_error(error_kind::VALUE, "float() could not convert this value")),
+                None => {
+                    Err(vm.make_error(error_kind::VALUE, "float() could not convert this value"))
+                }
             }
         }
         Value::Nil => Err(vm.make_error(error_kind::TYPE, "float() cannot convert nil")),
@@ -179,7 +189,11 @@ fn range(vm: &mut Vm, args: &[Value]) -> Result<Value, Value> {
     let (start, end, step) = match args.len() {
         1 => (0, as_int(vm, args[0])?, 1),
         2 => (as_int(vm, args[0])?, as_int(vm, args[1])?, 1),
-        _ => (as_int(vm, args[0])?, as_int(vm, args[1])?, as_int(vm, args[2])?),
+        _ => (
+            as_int(vm, args[0])?,
+            as_int(vm, args[1])?,
+            as_int(vm, args[2])?,
+        ),
     };
     if step == 0 {
         return Err(vm.make_error(error_kind::VALUE, "range() step cannot be zero"));
@@ -244,9 +258,14 @@ fn chr(vm: &mut Vm, args: &[Value]) -> Result<Value, Value> {
                 let s = c.to_string();
                 Ok(vm.new_string(&s))
             }
-            None => Err(vm.make_error(error_kind::VALUE, format!("chr(): {n} is not a valid code point"))),
+            None => Err(vm.make_error(
+                error_kind::VALUE,
+                format!("chr(): {n} is not a valid code point"),
+            )),
         },
-        Value::Int(n) => Err(vm.make_error(error_kind::VALUE, format!("chr(): {n} is out of range"))),
+        Value::Int(n) => {
+            Err(vm.make_error(error_kind::VALUE, format!("chr(): {n} is out of range")))
+        }
         _ => Err(vm.make_error(error_kind::TYPE, "chr() expects an integer")),
     }
 }
@@ -272,7 +291,10 @@ fn push(vm: &mut Vm, args: &[Value]) -> Result<Value, Value> {
     let (arr, x) = (args[0], args[1]);
     let is_array = matches!(arr.as_obj().map(|r| vm.heap.get(r)), Some(Obj::Array(_)));
     if !is_array {
-        return Err(vm.make_error(error_kind::TYPE, "push() expects an array as its first argument"));
+        return Err(vm.make_error(
+            error_kind::TYPE,
+            "push() expects an array as its first argument",
+        ));
     }
     let r = arr.as_obj().unwrap();
     if let Obj::Array(a) = vm.heap.get_mut(r) {
@@ -289,7 +311,11 @@ fn pop(vm: &mut Vm, args: &[Value]) -> Result<Value, Value> {
         return Err(vm.make_error(error_kind::TYPE, "pop() expects an array"));
     }
     let r = arr.as_obj().unwrap();
-    let popped = if let Obj::Array(a) = vm.heap.get_mut(r) { a.pop() } else { None };
+    let popped = if let Obj::Array(a) = vm.heap.get_mut(r) {
+        a.pop()
+    } else {
+        None
+    };
     match popped {
         Some(v) => Ok(v),
         None => Err(vm.make_error(error_kind::INDEX, "pop() from an empty array")),
@@ -322,7 +348,10 @@ fn has(vm: &mut Vm, args: &[Value]) -> Result<Value, Value> {
     let (m, k) = (args[0], args[1]);
     let is_map = matches!(m.as_obj().map(|r| vm.heap.get(r)), Some(Obj::Map(_)));
     if !is_map {
-        return Err(vm.make_error(error_kind::TYPE, "has() expects a map as its first argument"));
+        return Err(vm.make_error(
+            error_kind::TYPE,
+            "has() expects a map as its first argument",
+        ));
     }
     let key = vm.map_key(k)?;
     let r = m.as_obj().unwrap();
@@ -354,16 +383,27 @@ fn del(vm: &mut Vm, args: &[Value]) -> Result<Value, Value> {
         Kind::Array => {
             let idx = match k {
                 Value::Int(n) => n,
-                _ => return Err(vm.make_error(error_kind::TYPE, "del() array index must be an integer")),
+                _ => {
+                    return Err(
+                        vm.make_error(error_kind::TYPE, "del() array index must be an integer")
+                    )
+                }
             };
             let r = coll.as_obj().unwrap();
-            let len = if let Obj::Array(a) = vm.heap.get(r) { a.len() } else { 0 };
+            let len = if let Obj::Array(a) = vm.heap.get(r) {
+                a.len()
+            } else {
+                0
+            };
             let i = if idx >= 0 && (idx as usize) < len {
                 idx as usize
             } else if idx < 0 && ((-idx) as usize) <= len {
                 (len as i64 + idx) as usize
             } else {
-                return Err(vm.make_error(error_kind::INDEX, format!("del(): index {idx} out of bounds")));
+                return Err(vm.make_error(
+                    error_kind::INDEX,
+                    format!("del(): index {idx} out of bounds"),
+                ));
             };
             if let Obj::Array(a) = vm.heap.get_mut(r) {
                 a.remove(i);

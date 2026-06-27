@@ -36,7 +36,14 @@ pub fn lex(src: &str) -> (Vec<Token>, Vec<Diagnostic>) {
 impl<'src> Lexer<'src> {
     pub fn new(src: &'src str) -> Self {
         let chars = src.char_indices().map(|(i, c)| (i as u32, c)).collect();
-        Lexer { src, chars, pos: 0, line: 1, col: 1, errors: Vec::new() }
+        Lexer {
+            src,
+            chars,
+            pos: 0,
+            line: 1,
+            col: 1,
+            errors: Vec::new(),
+        }
     }
 
     /// Drive the lexer to completion.
@@ -69,7 +76,10 @@ impl<'src> Lexer<'src> {
 
     /// Byte offset of the next character (or end-of-source).
     fn offset(&self) -> u32 {
-        self.chars.get(self.pos).map(|&(o, _)| o).unwrap_or(self.src.len() as u32)
+        self.chars
+            .get(self.pos)
+            .map(|&(o, _)| o)
+            .unwrap_or(self.src.len() as u32)
     }
 
     /// Consume and return the current character, advancing line/column.
@@ -162,10 +172,7 @@ impl<'src> Lexer<'src> {
         while depth > 0 {
             match self.peek() {
                 None => {
-                    self.error(
-                        "unterminated block comment",
-                        Span::new(start, 2, line, col),
-                    );
+                    self.error("unterminated block comment", Span::new(start, 2, line, col));
                     return;
                 }
                 Some('/') if self.peek2() == Some('*') => {
@@ -219,8 +226,20 @@ impl<'src> Lexer<'src> {
                 ';' => TokenKind::Semicolon,
                 ':' => TokenKind::Colon,
                 '?' => TokenKind::Question,
-                '+' => if self.match_char('=') { TokenKind::PlusEq } else { TokenKind::Plus },
-                '-' => if self.match_char('=') { TokenKind::MinusEq } else { TokenKind::Minus },
+                '+' => {
+                    if self.match_char('=') {
+                        TokenKind::PlusEq
+                    } else {
+                        TokenKind::Plus
+                    }
+                }
+                '-' => {
+                    if self.match_char('=') {
+                        TokenKind::MinusEq
+                    } else {
+                        TokenKind::Minus
+                    }
+                }
                 '*' => {
                     if self.match_char('*') {
                         TokenKind::StarStar
@@ -230,9 +249,21 @@ impl<'src> Lexer<'src> {
                         TokenKind::Star
                     }
                 }
-                '%' => if self.match_char('=') { TokenKind::PercentEq } else { TokenKind::Percent },
+                '%' => {
+                    if self.match_char('=') {
+                        TokenKind::PercentEq
+                    } else {
+                        TokenKind::Percent
+                    }
+                }
                 // comments already consumed by skip_trivia
-                '/' => if self.match_char('=') { TokenKind::SlashEq } else { TokenKind::Slash },
+                '/' => {
+                    if self.match_char('=') {
+                        TokenKind::SlashEq
+                    } else {
+                        TokenKind::Slash
+                    }
+                }
                 '.' => {
                     if self.match_char('.') {
                         TokenKind::DotDot
@@ -411,10 +442,7 @@ impl<'src> Lexer<'src> {
         let kind = match i64::from_str_radix(&clean, radix) {
             Ok(v) => TokenKind::Int(v),
             Err(_) => {
-                self.error(
-                    format!("{name} literal does not fit in a 64-bit int"),
-                    span,
-                );
+                self.error(format!("{name} literal does not fit in a 64-bit int"), span);
                 TokenKind::Int(0)
             }
         };
@@ -518,10 +546,7 @@ impl<'src> Lexer<'src> {
             return;
         }
         if hex.is_empty() {
-            self.error(
-                "empty unicode escape '\\u{}'",
-                self.span_from(bs, bl, bc),
-            );
+            self.error("empty unicode escape '\\u{}'", self.span_from(bs, bl, bc));
             return;
         }
         match u32::from_str_radix(&hex, 16).ok().and_then(char::from_u32) {
@@ -552,10 +577,7 @@ impl<'src> Lexer<'src> {
                     toks.push(tok);
                 }
                 TokenKind::Eof => {
-                    self.error(
-                        "unterminated string interpolation (missing '}')",
-                        tok.span,
-                    );
+                    self.error("unterminated string interpolation (missing '}')", tok.span);
                     toks.push(tok);
                     return toks;
                 }
@@ -598,8 +620,8 @@ mod tests {
         assert_eq!(
             kinds("(){}[],;:.+-*/%"),
             vec![
-                LParen, RParen, LBrace, RBrace, LBracket, RBracket, Comma, Semicolon, Colon,
-                Dot, Plus, Minus, Star, Slash, Percent
+                LParen, RParen, LBrace, RBrace, LBracket, RBracket, Comma, Semicolon, Colon, Dot,
+                Plus, Minus, Star, Slash, Percent
             ]
         );
         assert_eq!(
@@ -629,8 +651,14 @@ mod tests {
 
     #[test]
     fn integer_literals_all_radixes() {
-        assert_eq!(kinds("0 42 1_000_000"), vec![Int(0), Int(42), Int(1_000_000)]);
-        assert_eq!(kinds("0xFF 0x10 0xde_ad"), vec![Int(255), Int(16), Int(0xdead)]);
+        assert_eq!(
+            kinds("0 42 1_000_000"),
+            vec![Int(0), Int(42), Int(1_000_000)]
+        );
+        assert_eq!(
+            kinds("0xFF 0x10 0xde_ad"),
+            vec![Int(255), Int(16), Int(0xdead)]
+        );
         assert_eq!(kinds("0b1010 0b1111_0000"), vec![Int(10), Int(0xF0)]);
         assert_eq!(kinds("0o17 0o755 0O10"), vec![Int(15), Int(493), Int(8)]);
     }

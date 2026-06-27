@@ -88,7 +88,11 @@ pub struct RuntimeError {
 
 impl RuntimeError {
     pub fn new(kind: &'static str, message: impl Into<String>) -> Self {
-        RuntimeError { kind, message: message.into(), span: None }
+        RuntimeError {
+            kind,
+            message: message.into(),
+            span: None,
+        }
     }
 }
 

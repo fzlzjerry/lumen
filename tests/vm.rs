@@ -66,10 +66,22 @@ fn truthiness_and_logical() {
 
 #[test]
 fn control_flow() {
-    assert_eq!(out("if 1 < 2 { println(\"yes\"); } else { println(\"no\"); }"), "yes\n");
-    assert_eq!(out("let s = 0; for let i = 1; i <= 5; i = i + 1 { s = s + i; } println(s);"), "15\n");
-    assert_eq!(out("let s = 0; for x in [1,2,3,4] { s = s + x; } println(s);"), "10\n");
-    assert_eq!(out("let i = 0; while i < 3 { print(i); i = i + 1; } println(\"\");"), "012\n");
+    assert_eq!(
+        out("if 1 < 2 { println(\"yes\"); } else { println(\"no\"); }"),
+        "yes\n"
+    );
+    assert_eq!(
+        out("let s = 0; for let i = 1; i <= 5; i = i + 1 { s = s + i; } println(s);"),
+        "15\n"
+    );
+    assert_eq!(
+        out("let s = 0; for x in [1,2,3,4] { s = s + x; } println(s);"),
+        "10\n"
+    );
+    assert_eq!(
+        out("let i = 0; while i < 3 { print(i); i = i + 1; } println(\"\");"),
+        "012\n"
+    );
 }
 
 #[test]
@@ -114,7 +126,8 @@ fn classes_inheritance_super() {
 
 #[test]
 fn instances_fields_and_init() {
-    let src = "class Point { init(x, y) { this.x = x; this.y = y; } sum() { return this.x + this.y; } }
+    let src =
+        "class Point { init(x, y) { this.x = x; this.y = y; } sum() { return this.x + this.y; } }
                let p = Point(3, 4); println(p.sum()); println(p.x); println(p.missing);";
     assert_eq!(out(src), "7\n3\nnil\n");
 }
@@ -128,9 +141,15 @@ fn custom_str_method_used_in_interpolation() {
 
 #[test]
 fn arrays_and_maps() {
-    assert_eq!(out("let a = [1,2,3]; push(a, 4); println(a);"), "[1, 2, 3, 4]\n");
+    assert_eq!(
+        out("let a = [1,2,3]; push(a, 4); println(a);"),
+        "[1, 2, 3, 4]\n"
+    );
     assert_eq!(out("println([1,2] + [3,4]);"), "[1, 2, 3, 4]\n");
-    assert_eq!(out("let m = {x: 1}; m[\"y\"] = 2; println(m[\"x\"] + m[\"y\"]);"), "3\n");
+    assert_eq!(
+        out("let m = {x: 1}; m[\"y\"] = 2; println(m[\"x\"] + m[\"y\"]);"),
+        "3\n"
+    );
     assert_eq!(out("println([10,20,30][-1]);"), "30\n");
     assert_eq!(out("println(\"abc\"[1]);"), "b\n");
 }
@@ -138,7 +157,10 @@ fn arrays_and_maps() {
 #[test]
 fn string_concatenation_and_interpolation() {
     assert_eq!(out("println(\"a\" + \"b\" + \"c\");"), "abc\n");
-    assert_eq!(out("let n = 5; println(\"n=${n}, n*2=${n*2}\");"), "n=5, n*2=10\n");
+    assert_eq!(
+        out("let n = 5; println(\"n=${n}, n*2=${n*2}\");"),
+        "n=5, n*2=10\n"
+    );
 }
 
 #[test]
@@ -196,12 +218,19 @@ fn or_patterns() {
                for x in [0, 2, 3, 5, 9] { println(size(x)); }";
     assert_eq!(out(src), "zero\nsmall\nsmall\nmedium\nlarge\n");
     // Mixed literal types in one alternation (match used directly as a call arg).
-    assert_eq!(out("println(match nil { nil | false => \"falsy\", _ => \"other\" });"), "falsy\n");
-    assert_eq!(out("println(match false { nil | false => \"falsy\", _ => \"other\" });"), "falsy\n");
+    assert_eq!(
+        out("println(match nil { nil | false => \"falsy\", _ => \"other\" });"),
+        "falsy\n"
+    );
+    assert_eq!(
+        out("println(match false { nil | false => \"falsy\", _ => \"other\" });"),
+        "falsy\n"
+    );
     // A binding inside an alternation is a static (resolver) error.
     let (_p, errs) = lumen::check_source("let r = match 5 { a | 2 => a, _ => 0 };");
     assert!(
-        errs.iter().any(|d| d.message.contains("alternative patterns")),
+        errs.iter()
+            .any(|d| d.message.contains("alternative patterns")),
         "got: {errs:?}"
     );
 }
@@ -228,7 +257,8 @@ fn tail_call_optimization() {
         "0\n"
     );
     // A non-tail recursion still overflows gracefully (catchable), not a crash.
-    let e = run("fn deep(n) { if n == 0 { return 0; } return 1 + deep(n - 1); } deep(100000);").unwrap_err();
+    let e = run("fn deep(n) { if n == 0 { return 0; } return 1 + deep(n - 1); } deep(100000);")
+        .unwrap_err();
     assert!(e.contains("StackOverflow"), "got: {e}");
     // `finally` suppresses TCO so the finally still runs.
     let fin = "fn h(n) { if n == 0 { return 0; } try { return h(n - 1); } finally { if n == 2 { print(\"f\"); } } } println(h(4));";
@@ -240,23 +270,33 @@ fn generators() {
     // for-in drives a finite generator lazily.
     let g = "fn up(n) { let i = 0; while i < n { yield i; i = i + 1; } } ";
     assert_eq!(
-        out(&format!("{g} let s = \"\"; for x in up(4) {{ s = s + \"${{x}}\"; }} println(s);")),
+        out(&format!(
+            "{g} let s = \"\"; for x in up(4) {{ s = s + \"${{x}}\"; }} println(s);"
+        )),
         "0123\n"
     );
     // next() steps manually and returns nil when exhausted.
-    assert_eq!(out(&format!("{g} let it = up(2); println(\"${{next(it)}} ${{next(it)}} ${{next(it)}}\");")), "0 1 nil\n");
+    assert_eq!(
+        out(&format!(
+            "{g} let it = up(2); println(\"${{next(it)}} ${{next(it)}} ${{next(it)}}\");"
+        )),
+        "0 1 nil\n"
+    );
     // type() of a generator.
     assert_eq!(out(&format!("{g} println(type(up(1)));")), "generator\n");
     // An infinite generator, consumed with a break — must not loop forever / OOM.
     let inf = "fn nats() { let i = 0; while true { yield i; i = i + 1; } } ";
     let take5 = "let c = 0; let acc = 0; for x in nats() { acc = acc + x; c = c + 1; if c == 5 { break; } } println(acc);";
     assert_eq!(out(&format!("{inf} {take5}")), "10\n"); // 0+1+2+3+4
-    // try/catch and finally survive a yield (handlers travel with the context).
+                                                        // try/catch and finally survive a yield (handlers travel with the context).
     let tc = "fn gv() { try { yield 1; throw \"x\"; } catch (e) { yield 2; } } let r = []; for v in gv() { push(r, v); } println(r);";
     assert_eq!(out(tc), "[1, 2]\n");
     // yield outside a function is a static error.
     let (_p, errs) = lumen::check_source("yield 1;");
-    assert!(errs.iter().any(|d| d.message.contains("yield")), "got: {errs:?}");
+    assert!(
+        errs.iter().any(|d| d.message.contains("yield")),
+        "got: {errs:?}"
+    );
 }
 
 #[test]
@@ -270,9 +310,15 @@ fn typed_catch() {
              catch (e) {{ return \"other\"; }} }} {body}"
         )
     };
-    assert_eq!(out(&prog("println(run(fn() { let a = [1]; return a[9]; }));")), "index\n");
+    assert_eq!(
+        out(&prog("println(run(fn() { let a = [1]; return a[9]; }));")),
+        "index\n"
+    );
     assert_eq!(out(&prog("println(run(fn() { return 1 / 0; }));")), "div\n");
-    assert_eq!(out(&prog("println(run(fn() { return nil.x.y; }));")), "other\n");
+    assert_eq!(
+        out(&prog("println(run(fn() { return nil.x.y; }));")),
+        "other\n"
+    );
     assert_eq!(out(&prog("println(run(fn() { return 7; }));")), "ok\n");
     // No matching typed clause and no bare clause -> re-raise to the outer try.
     let reraise = "fn outer() { try { try { let a = [1]; let z = a[9]; } \
@@ -285,8 +331,14 @@ fn typed_catch() {
                finally { print(\"fin \"); } } catch (e) { return \"caught\"; } } println(f());";
     assert_eq!(out(fin), "fin caught\n");
     // A bare catch before a typed one makes the typed one unreachable (warning).
-    let (_p, diags) = lumen::check_all("let g = 1; try { g; } catch (e) {} catch (IndexError x) {}");
-    assert!(diags.iter().any(|d| d.message.contains("unreachable catch")), "got: {diags:?}");
+    let (_p, diags) =
+        lumen::check_all("let g = 1; try { g; } catch (e) {} catch (IndexError x) {}");
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.message.contains("unreachable catch")),
+        "got: {diags:?}"
+    );
 }
 
 #[test]
@@ -294,8 +346,14 @@ fn static_methods_and_fields() {
     // Field initializers run per-instance before init; C() == 0.
     assert_eq!(out("class C { count = 0; } println(C().count);"), "0\n");
     // Static method on the class itself.
-    assert_eq!(out("class C { static make() { return C(); } } println(type(C.make()));"), "C\n");
-    assert_eq!(out("class C { static answer() { return 42; } } println(C.answer());"), "42\n");
+    assert_eq!(
+        out("class C { static make() { return C(); } } println(type(C.make()));"),
+        "C\n"
+    );
+    assert_eq!(
+        out("class C { static answer() { return 42; } } println(C.answer());"),
+        "42\n"
+    );
     // Multiple fields, and a field default that is a string.
     assert_eq!(
         out("class P { x = 1; y = 2; } let p = P(); println(\"${p.x},${p.y}\");"),
@@ -315,7 +373,10 @@ fn static_methods_and_fields() {
     );
     // `this` in a static method is a resolver error.
     let (_p, errs) = lumen::check_source("class C { static bad() { return this.x; } }");
-    assert!(errs.iter().any(|d| d.message.contains("this")), "got: {errs:?}");
+    assert!(
+        errs.iter().any(|d| d.message.contains("this")),
+        "got: {errs:?}"
+    );
     // A missing static is a NameError at runtime.
     let e = run("class C {} C.nope();").unwrap_err();
     assert!(e.contains("static") || e.contains("NameError"), "got: {e}");
@@ -347,8 +408,14 @@ fn operator_overloading() {
     assert_eq!(out(&p("println(V(3, 3) < V(1, 1));")), "false\n");
     assert_eq!(out(&p("println(V(3, 3) > V(1, 1));")), "true\n");
     assert_eq!(out(&p("println(V(1, 1) <= V(1, 1));")), "true\n");
-    assert_eq!(out(&p("let v = V(7, 8); println(\"${v[0]} ${v[1]}\");")), "7 8\n");
-    assert_eq!(out(&p("let v = V(0, 0); v[0] = 5; v[1] = 6; println(v);")), "(5,6)\n");
+    assert_eq!(
+        out(&p("let v = V(7, 8); println(\"${v[0]} ${v[1]}\");")),
+        "7 8\n"
+    );
+    assert_eq!(
+        out(&p("let v = V(0, 0); v[0] = 5; v[1] = 6; println(v);")),
+        "(5,6)\n"
+    );
     // Absent dunder keeps the built-in TypeError.
     let e = run(&p("V(1, 2) / 2;")).unwrap_err();
     assert!(e.contains("TypeError") || e.contains("'/'"), "got: {e}");
@@ -358,19 +425,43 @@ fn operator_overloading() {
 fn match_as_subexpression() {
     // `match` works as a nested sub-expression, not just at statement value
     // position — previously these miscompiled / panicked (DESIGN D34).
-    assert_eq!(out("println(match 2 { 1 => \"a\", 2 => \"two\", _ => \"x\" });"), "two\n"); // call arg
+    assert_eq!(
+        out("println(match 2 { 1 => \"a\", 2 => \"two\", _ => \"x\" });"),
+        "two\n"
+    ); // call arg
     assert_eq!(out("println(10 + match 3 { 3 => 5, _ => 0 });"), "15\n"); // binary operand
-    assert_eq!(out("println([match 1 { 1 => \"a\", _ => \"b\" }]);"), "[\"a\"]\n"); // array element
-    assert_eq!(out("println(len(match [1,2,3] { [a, ..r] => r, _ => [] }));"), "2\n"); // bindings nested
-    assert_eq!(out("println(\"v=${match 9 { 9 => \"nine\", _ => \"x\" }}\");"), "v=nine\n"); // interpolation
-    // A match capturing an outer variable as a sub-expression (upvalue path).
-    assert_eq!(out("let b = 100; println(b + match 5 { 5 => 5, _ => 0 });"), "105\n");
+    assert_eq!(
+        out("println([match 1 { 1 => \"a\", _ => \"b\" }]);"),
+        "[\"a\"]\n"
+    ); // array element
+    assert_eq!(
+        out("println(len(match [1,2,3] { [a, ..r] => r, _ => [] }));"),
+        "2\n"
+    ); // bindings nested
+    assert_eq!(
+        out("println(\"v=${match 9 { 9 => \"nine\", _ => \"x\" }}\");"),
+        "v=nine\n"
+    ); // interpolation
+       // A match capturing an outer variable as a sub-expression (upvalue path).
+    assert_eq!(
+        out("let b = 100; println(b + match 5 { 5 => 5, _ => 0 });"),
+        "105\n"
+    );
     // The clean statement-value positions still produce correct results.
-    assert_eq!(out("let r = match 2 { 1 | 2 => \"lo\", _ => \"hi\" }; println(r);"), "lo\n");
-    assert_eq!(out("fn f(n) { return match n { 0 => \"z\", _ => \"n\" }; } println(f(0));"), "z\n");
+    assert_eq!(
+        out("let r = match 2 { 1 | 2 => \"lo\", _ => \"hi\" }; println(r);"),
+        "lo\n"
+    );
+    assert_eq!(
+        out("fn f(n) { return match n { 0 => \"z\", _ => \"n\" }; } println(f(0));"),
+        "z\n"
+    );
     // No matching arm still throws, even nested.
     let e = run("println(match 9 { 1 => \"a\" });").unwrap_err();
-    assert!(e.contains("no matching pattern") || e.contains("ValueError"), "got: {e}");
+    assert!(
+        e.contains("no matching pattern") || e.contains("ValueError"),
+        "got: {e}"
+    );
 }
 
 #[test]

@@ -44,12 +44,20 @@ fn open(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
             .open(&path)
             .map(|f| FileHandle::Writer(BufWriter::new(f))),
         _ => {
-            return Err(err(vm, error_kind::VALUE, format!("invalid file mode '{mode}' (use \"r\", \"w\", or \"a\")")))
+            return Err(err(
+                vm,
+                error_kind::VALUE,
+                format!("invalid file mode '{mode}' (use \"r\", \"w\", or \"a\")"),
+            ))
         }
     };
     match opened {
         Ok(handle) => Ok(Value::Obj(vm.heap.alloc(Obj::FileHandle(handle)))),
-        Err(e) => Err(err(vm, error_kind::VALUE, format!("cannot open '{path}': {e}"))),
+        Err(e) => Err(err(
+            vm,
+            error_kind::VALUE,
+            format!("cannot open '{path}': {e}"),
+        )),
     }
 }
 
@@ -57,7 +65,11 @@ fn read_file(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
     let path = string_of(vm, a[0])?;
     match std::fs::read_to_string(&path) {
         Ok(s) => Ok(vm.new_string(&s)),
-        Err(e) => Err(err(vm, error_kind::VALUE, format!("cannot read '{path}': {e}"))),
+        Err(e) => Err(err(
+            vm,
+            error_kind::VALUE,
+            format!("cannot read '{path}': {e}"),
+        )),
     }
 }
 
@@ -66,7 +78,11 @@ fn write_file(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
     let content = vm.to_display(a[1], false)?;
     match std::fs::write(&path, content) {
         Ok(()) => Ok(Value::Nil),
-        Err(e) => Err(err(vm, error_kind::VALUE, format!("cannot write '{path}': {e}"))),
+        Err(e) => Err(err(
+            vm,
+            error_kind::VALUE,
+            format!("cannot write '{path}': {e}"),
+        )),
     }
 }
 
@@ -81,7 +97,11 @@ fn append_file(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
         .and_then(|mut file| file.write_all(content.as_bytes()));
     match res {
         Ok(()) => Ok(Value::Nil),
-        Err(e) => Err(err(vm, error_kind::VALUE, format!("cannot append to '{path}': {e}"))),
+        Err(e) => Err(err(
+            vm,
+            error_kind::VALUE,
+            format!("cannot append to '{path}': {e}"),
+        )),
     }
 }
 
@@ -95,7 +115,11 @@ fn mkdir(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
     let path = string_of(vm, a[0])?;
     match std::fs::create_dir_all(&path) {
         Ok(()) => Ok(Value::Nil),
-        Err(e) => Err(err(vm, error_kind::VALUE, format!("cannot create '{path}': {e}"))),
+        Err(e) => Err(err(
+            vm,
+            error_kind::VALUE,
+            format!("cannot create '{path}': {e}"),
+        )),
     }
 }
 
@@ -104,13 +128,25 @@ fn listdir(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
     let path = string_of(vm, a[0])?;
     let entries = match std::fs::read_dir(&path) {
         Ok(rd) => rd,
-        Err(e) => return Err(err(vm, error_kind::VALUE, format!("cannot read dir '{path}': {e}"))),
+        Err(e) => {
+            return Err(err(
+                vm,
+                error_kind::VALUE,
+                format!("cannot read dir '{path}': {e}"),
+            ))
+        }
     };
     let mut names: Vec<String> = Vec::new();
     for entry in entries {
         match entry {
             Ok(e) => names.push(e.file_name().to_string_lossy().into_owned()),
-            Err(e) => return Err(err(vm, error_kind::VALUE, format!("cannot read dir '{path}': {e}"))),
+            Err(e) => {
+                return Err(err(
+                    vm,
+                    error_kind::VALUE,
+                    format!("cannot read dir '{path}': {e}"),
+                ))
+            }
         }
     }
     names.sort();
@@ -123,7 +159,11 @@ fn remove(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
     let path = string_of(vm, a[0])?;
     match std::fs::remove_file(&path) {
         Ok(()) => Ok(Value::Nil),
-        Err(e) => Err(err(vm, error_kind::VALUE, format!("cannot remove '{path}': {e}"))),
+        Err(e) => Err(err(
+            vm,
+            error_kind::VALUE,
+            format!("cannot remove '{path}': {e}"),
+        )),
     }
 }
 
@@ -132,7 +172,11 @@ fn rmdir(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
     let path = string_of(vm, a[0])?;
     match std::fs::remove_dir(&path) {
         Ok(()) => Ok(Value::Nil),
-        Err(e) => Err(err(vm, error_kind::VALUE, format!("cannot remove dir '{path}': {e}"))),
+        Err(e) => Err(err(
+            vm,
+            error_kind::VALUE,
+            format!("cannot remove dir '{path}': {e}"),
+        )),
     }
 }
 
@@ -152,7 +196,11 @@ fn lines(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
             let vals: Vec<Value> = s.lines().map(|l| vm.new_string(l)).collect();
             Ok(vm.new_array(vals))
         }
-        Err(e) => Err(err(vm, error_kind::VALUE, format!("cannot read '{path}': {e}"))),
+        Err(e) => Err(err(
+            vm,
+            error_kind::VALUE,
+            format!("cannot read '{path}': {e}"),
+        )),
     }
 }
 

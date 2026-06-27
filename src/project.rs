@@ -57,7 +57,10 @@ fn unquote(s: &str) -> String {
 /// Whether a dependency name is safe to use as a directory component (it is
 /// joined into `.lumen/git/<name>`, so `/`, `..`, etc. must be rejected).
 fn is_valid_dep_name(name: &str) -> bool {
-    !name.is_empty() && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    !name.is_empty()
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
 }
 
 /// Parse a dependency's value: a bare string is a path; an inline table
@@ -65,7 +68,9 @@ fn is_valid_dep_name(name: &str) -> bool {
 /// (Inline tables are flat and comma-separated; values must not contain commas.)
 fn parse_dep(name: &str, raw: &str) -> Result<Dependency, String> {
     if !is_valid_dep_name(name) {
-        return Err(format!("dependency name '{name}' must be alphanumeric (with '-' or '_')"));
+        return Err(format!(
+            "dependency name '{name}' must be alphanumeric (with '-' or '_')"
+        ));
     }
     let raw = raw.trim();
     let source = if raw.starts_with('{') && raw.ends_with('}') {
@@ -80,16 +85,24 @@ fn parse_dep(name: &str, raw: &str) -> Result<Dependency, String> {
             fields.insert(part[..eq].trim().to_string(), unquote(&part[eq + 1..]));
         }
         if let Some(url) = fields.get("git") {
-            DepSource::Git { url: url.clone(), rev: fields.get("rev").cloned() }
+            DepSource::Git {
+                url: url.clone(),
+                rev: fields.get("rev").cloned(),
+            }
         } else if let Some(path) = fields.get("path") {
             DepSource::Path(path.clone())
         } else {
-            return Err(format!("dependency '{name}': inline table needs a 'git' or 'path' key"));
+            return Err(format!(
+                "dependency '{name}': inline table needs a 'git' or 'path' key"
+            ));
         }
     } else {
         DepSource::Path(unquote(raw))
     };
-    Ok(Dependency { name: name.to_string(), source })
+    Ok(Dependency {
+        name: name.to_string(),
+        source,
+    })
 }
 
 /// A tiny TOML subset parser: `[section]` headers and `key = value` lines, with
@@ -116,7 +129,10 @@ fn parse_toml(text: &str) -> HashMap<String, HashMap<String, String>> {
             {
                 val = val[1..val.len() - 1].to_string();
             }
-            sections.entry(current.clone()).or_default().insert(key, val);
+            sections
+                .entry(current.clone())
+                .or_default()
+                .insert(key, val);
         }
     }
     sections
@@ -131,14 +147,28 @@ pub fn parse_manifest(text: &str) -> Result<Manifest, String> {
         .get("name")
         .cloned()
         .ok_or_else(|| "lumen.toml: [package] is missing 'name'".to_string())?;
-    let version = pkg.get("version").cloned().unwrap_or_else(|| "0.1.0".to_string());
-    let entry = pkg.get("entry").cloned().unwrap_or_else(|| "src/main.lum".to_string());
+    let version = pkg
+        .get("version")
+        .cloned()
+        .unwrap_or_else(|| "0.1.0".to_string());
+    let entry = pkg
+        .get("entry")
+        .cloned()
+        .unwrap_or_else(|| "src/main.lum".to_string());
     let mut dependencies: Vec<Dependency> = match sections.get("dependencies") {
-        Some(d) => d.iter().map(|(k, v)| parse_dep(k, v)).collect::<Result<_, _>>()?,
+        Some(d) => d
+            .iter()
+            .map(|(k, v)| parse_dep(k, v))
+            .collect::<Result<_, _>>()?,
         None => Vec::new(),
     };
     dependencies.sort_by(|a, b| a.name.cmp(&b.name));
-    Ok(Manifest { name, version, entry, dependencies })
+    Ok(Manifest {
+        name,
+        version,
+        entry,
+        dependencies,
+    })
 }
 
 // ---- the lockfile (`lumen.lock`) ------------------------------------------
@@ -156,7 +186,11 @@ pub enum LockedSource {
     Path(String),
     /// A git source pinned to an exact `commit` SHA (the `rev` is kept for
     /// display / re-resolution).
-    Git { url: String, rev: Option<String>, commit: String },
+    Git {
+        url: String,
+        rev: Option<String>,
+        commit: String,
+    },
 }
 
 /// Render a `lumen.lock`: one `[name]` section per package, sorted by name.
@@ -207,7 +241,10 @@ fn parse_lockfile(text: &str) -> Vec<LockEntry> {
         } else {
             continue;
         };
-        entries.push(LockEntry { name: name.clone(), locked });
+        entries.push(LockEntry {
+            name: name.clone(),
+            locked,
+        });
     }
     entries.sort_by(|a, b| a.name.cmp(&b.name));
     entries
@@ -244,7 +281,9 @@ fn parse_add_args(args: &[String]) -> Result<(String, DepSource), String> {
     }
     let name = name.ok_or(USAGE)?;
     if !is_valid_dep_name(&name) {
-        return Err(format!("dependency name '{name}' must be alphanumeric (with '-' or '_')"));
+        return Err(format!(
+            "dependency name '{name}' must be alphanumeric (with '-' or '_')"
+        ));
     }
     let source = match (git, path) {
         (Some(url), _) => DepSource::Git { url, rev },
@@ -281,7 +320,9 @@ fn add_dependency_to_manifest(text: &str, name: &str, source: &DepSource) -> Str
     match dep_header {
         Some(hi) => {
             // The section runs until the next header (or EOF).
-            let end = (hi + 1..lines.len()).find(|&i| header(&lines[i])).unwrap_or(lines.len());
+            let end = (hi + 1..lines.len())
+                .find(|&i| header(&lines[i]))
+                .unwrap_or(lines.len());
             let existing = (hi + 1..end).find(|&i| {
                 let t = lines[i].split('#').next().unwrap_or("").trim();
                 t.find('=').is_some_and(|eq| t[..eq].trim() == name)
@@ -380,7 +421,12 @@ fn run_git(args: &[&str], cwd: Option<&Path>) -> Result<String, String> {
 ///
 /// Security note: this fetches and later executes third-party code. Only depend
 /// on sources you trust.
-fn resolve_git(url: &str, rev: Option<&str>, locked_commit: Option<&str>, dir: &Path) -> Result<String, String> {
+fn resolve_git(
+    url: &str,
+    rev: Option<&str>,
+    locked_commit: Option<&str>,
+    dir: &Path,
+) -> Result<String, String> {
     if !dir.join(".git").is_dir() {
         if let Some(parent) = dir.parent() {
             std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
@@ -402,11 +448,17 @@ fn resolve_git(url: &str, rev: Option<&str>, locked_commit: Option<&str>, dir: &
 /// and (re)write `lumen.lock` pinning each to a commit. Path-only projects need
 /// neither fetching nor a lockfile, so they are left untouched.
 fn resolve_dependencies(root: &Path, manifest: &Manifest) -> Result<(), String> {
-    if !manifest.dependencies.iter().any(|d| matches!(d.source, DepSource::Git { .. })) {
+    if !manifest
+        .dependencies
+        .iter()
+        .any(|d| matches!(d.source, DepSource::Git { .. }))
+    {
         return Ok(());
     }
     let lock_path = root.join("lumen.lock");
-    let existing = std::fs::read_to_string(&lock_path).map(|t| parse_lockfile(&t)).unwrap_or_default();
+    let existing = std::fs::read_to_string(&lock_path)
+        .map(|t| parse_lockfile(&t))
+        .unwrap_or_default();
     let mut entries = Vec::new();
     for dep in &manifest.dependencies {
         let locked = match &dep.source {
@@ -414,23 +466,37 @@ fn resolve_dependencies(root: &Path, manifest: &Manifest) -> Result<(), String> 
             DepSource::Git { url, rev } => {
                 // Reuse the locked commit only when both URL and rev still match;
                 // changing the rev in the manifest forces re-resolution.
-                let locked_commit = existing.iter().find(|e| e.name == dep.name).and_then(|e| match &e.locked {
-                    LockedSource::Git { url: lu, rev: lr, commit } if lu == url && lr == rev => {
-                        Some(commit.clone())
-                    }
-                    _ => None,
-                });
+                let locked_commit =
+                    existing
+                        .iter()
+                        .find(|e| e.name == dep.name)
+                        .and_then(|e| match &e.locked {
+                            LockedSource::Git {
+                                url: lu,
+                                rev: lr,
+                                commit,
+                            } if lu == url && lr == rev => Some(commit.clone()),
+                            _ => None,
+                        });
                 let dir = git_checkout_dir(root, &dep.name);
                 let commit = resolve_git(url, rev.as_deref(), locked_commit.as_deref(), &dir)
                     .map_err(|e| format!("dependency '{}': {e}", dep.name))?;
-                LockedSource::Git { url: url.clone(), rev: rev.clone(), commit }
+                LockedSource::Git {
+                    url: url.clone(),
+                    rev: rev.clone(),
+                    commit,
+                }
             }
         };
-        entries.push(LockEntry { name: dep.name.clone(), locked });
+        entries.push(LockEntry {
+            name: dep.name.clone(),
+            locked,
+        });
     }
     let rendered = render_lockfile(&entries);
     if std::fs::read_to_string(&lock_path).ok().as_deref() != Some(rendered.as_str()) {
-        std::fs::write(&lock_path, &rendered).map_err(|e| format!("cannot write lumen.lock: {e}"))?;
+        std::fs::write(&lock_path, &rendered)
+            .map_err(|e| format!("cannot write lumen.lock: {e}"))?;
     }
     Ok(())
 }
@@ -637,7 +703,11 @@ pub fn cmd_test() -> i32 {
     }
     let (mut passed, mut failed) = (0, 0);
     for file in &files {
-        let name = file.strip_prefix(&root).unwrap_or(file).to_string_lossy().to_string();
+        let name = file
+            .strip_prefix(&root)
+            .unwrap_or(file)
+            .to_string_lossy()
+            .to_string();
         let src = std::fs::read_to_string(file).unwrap_or_default();
         let (program, errs) = crate::check_source(&src);
         if !errs.is_empty() {
@@ -725,7 +795,10 @@ mod tests {
         assert_eq!(m.entry, "src/main.lum"); // default
         assert_eq!(
             m.dependencies,
-            vec![Dependency { name: "utils".into(), source: DepSource::Path("lib/utils".into()) }]
+            vec![Dependency {
+                name: "utils".into(),
+                source: DepSource::Path("lib/utils".into())
+            }]
         );
     }
 
@@ -747,22 +820,37 @@ mod tests {
         // Dependencies are sorted by name for deterministic lockfiles.
         let names: Vec<&str> = m.dependencies.iter().map(|d| d.name.as_str()).collect();
         assert_eq!(names, vec!["helpers", "latest", "mathlib", "utils"]);
-        let dep = |name: &str| &m.dependencies.iter().find(|d| d.name == name).unwrap().source;
+        let dep = |name: &str| {
+            &m.dependencies
+                .iter()
+                .find(|d| d.name == name)
+                .unwrap()
+                .source
+        };
         assert_eq!(*dep("utils"), DepSource::Path("lib/utils".into()));
         assert_eq!(*dep("helpers"), DepSource::Path("./helpers".into()));
         assert_eq!(
             *dep("mathlib"),
-            DepSource::Git { url: "https://github.com/u/r".into(), rev: Some("v1.0".into()) }
+            DepSource::Git {
+                url: "https://github.com/u/r".into(),
+                rev: Some("v1.0".into())
+            }
         );
         assert_eq!(
             *dep("latest"),
-            DepSource::Git { url: "https://github.com/u/x".into(), rev: None }
+            DepSource::Git {
+                url: "https://github.com/u/x".into(),
+                rev: None
+            }
         );
     }
 
     #[test]
     fn rejects_inline_table_without_git_or_path() {
-        assert!(parse_manifest("[package]\nname = \"d\"\n[dependencies]\nbad = { foo = \"x\" }\n").is_err());
+        assert!(
+            parse_manifest("[package]\nname = \"d\"\n[dependencies]\nbad = { foo = \"x\" }\n")
+                .is_err()
+        );
     }
 
     #[test]
@@ -776,7 +864,10 @@ mod tests {
                     commit: "abc123".into(),
                 },
             },
-            LockEntry { name: "utils".into(), locked: LockedSource::Path("lib/utils".into()) },
+            LockEntry {
+                name: "utils".into(),
+                locked: LockedSource::Path("lib/utils".into()),
+            },
         ];
         let parsed = parse_lockfile(&render_lockfile(&entries));
         assert_eq!(parsed.len(), 2);
@@ -796,14 +887,22 @@ mod tests {
     fn lockfile_git_without_rev_omits_it() {
         let entries = vec![LockEntry {
             name: "x".into(),
-            locked: LockedSource::Git { url: "u".into(), rev: None, commit: "sha".into() },
+            locked: LockedSource::Git {
+                url: "u".into(),
+                rev: None,
+                commit: "sha".into(),
+            },
         }];
         let text = render_lockfile(&entries);
         assert!(!text.contains("rev ="), "no rev line when unpinned");
         let parsed = parse_lockfile(&text);
         assert_eq!(
             parsed[0].locked,
-            LockedSource::Git { url: "u".into(), rev: None, commit: "sha".into() }
+            LockedSource::Git {
+                url: "u".into(),
+                rev: None,
+                commit: "sha".into()
+            }
         );
     }
 
@@ -819,10 +918,19 @@ mod tests {
         );
         assert_eq!(
             parse_add_args(&args(&["lib", "--git", "https://x", "--rev", "v1"])).unwrap(),
-            ("lib".into(), DepSource::Git { url: "https://x".into(), rev: Some("v1".into()) })
+            (
+                "lib".into(),
+                DepSource::Git {
+                    url: "https://x".into(),
+                    rev: Some("v1".into())
+                }
+            )
         );
         assert!(parse_add_args(&args(&[])).is_err(), "needs a name");
-        assert!(parse_add_args(&args(&["onlyname"])).is_err(), "needs a source");
+        assert!(
+            parse_add_args(&args(&["onlyname"])).is_err(),
+            "needs a source"
+        );
     }
 
     #[test]
@@ -831,7 +939,11 @@ mod tests {
         let out = add_dependency_to_manifest(toml, "utils", &DepSource::Path("../utils".into()));
         let m = parse_manifest(&out).unwrap();
         assert_eq!(
-            m.dependencies.iter().find(|d| d.name == "utils").unwrap().source,
+            m.dependencies
+                .iter()
+                .find(|d| d.name == "utils")
+                .unwrap()
+                .source,
             DepSource::Path("../utils".into())
         );
     }
@@ -842,13 +954,19 @@ mod tests {
         let out = add_dependency_to_manifest(
             toml,
             "lib",
-            &DepSource::Git { url: "https://x/r".into(), rev: Some("v1".into()) },
+            &DepSource::Git {
+                url: "https://x/r".into(),
+                rev: Some("v1".into()),
+            },
         );
         assert!(out.contains("[dependencies]"));
         let m = parse_manifest(&out).unwrap();
         assert_eq!(
             m.dependencies[0].source,
-            DepSource::Git { url: "https://x/r".into(), rev: Some("v1".into()) }
+            DepSource::Git {
+                url: "https://x/r".into(),
+                rev: Some("v1".into())
+            }
         );
     }
 
@@ -857,7 +975,11 @@ mod tests {
         let toml = "[package]\nname = \"d\"\n\n[dependencies]\nutils = \"old\"\n";
         let out = add_dependency_to_manifest(toml, "utils", &DepSource::Path("new".into()));
         let m = parse_manifest(&out).unwrap();
-        let utils: Vec<_> = m.dependencies.iter().filter(|d| d.name == "utils").collect();
+        let utils: Vec<_> = m
+            .dependencies
+            .iter()
+            .filter(|d| d.name == "utils")
+            .collect();
         assert_eq!(utils.len(), 1, "replaced, not duplicated");
         assert_eq!(utils[0].source, DepSource::Path("new".into()));
     }
@@ -883,10 +1005,17 @@ mod tests {
         git(&["config", "user.email", "t@example.com"]);
         git(&["config", "user.name", "Test"]);
         git(&["config", "commit.gpgsign", "false"]);
-        std::fs::write(repo.join("greet.lum"), "export fn hi() { return \"hi from dep\"; }\n").unwrap();
+        std::fs::write(
+            repo.join("greet.lum"),
+            "export fn hi() { return \"hi from dep\"; }\n",
+        )
+        .unwrap();
         git(&["add", "."]);
         git(&["commit", "-qm", "init"]);
-        let sha = String::from_utf8(git(&["rev-parse", "HEAD"]).stdout).unwrap().trim().to_string();
+        let sha = String::from_utf8(git(&["rev-parse", "HEAD"]).stdout)
+            .unwrap()
+            .trim()
+            .to_string();
 
         let manifest = Manifest {
             name: "proj".into(),
@@ -894,7 +1023,10 @@ mod tests {
             entry: "src/main.lum".into(),
             dependencies: vec![Dependency {
                 name: "greet".into(),
-                source: DepSource::Git { url: repo.to_string_lossy().into_owned(), rev: None },
+                source: DepSource::Git {
+                    url: repo.to_string_lossy().into_owned(),
+                    rev: None,
+                },
             }],
         };
         resolve_dependencies(&proj, &manifest).expect("resolve");
@@ -910,7 +1042,9 @@ mod tests {
     #[test]
     fn rejects_unsafe_dependency_name() {
         // A name with path separators must never reach `.lumen/git/<name>`.
-        assert!(parse_manifest("[package]\nname = \"d\"\n[dependencies]\n../evil = \"x\"\n").is_err());
+        assert!(
+            parse_manifest("[package]\nname = \"d\"\n[dependencies]\n../evil = \"x\"\n").is_err()
+        );
         assert!(parse_add_args(&args(&["../evil", "p"])).is_err());
         assert!(parse_add_args(&args(&["ok_name-1", "p"])).is_ok());
     }
@@ -922,13 +1056,34 @@ mod tests {
         let root = base.join("proj");
         // A git checkout that is laid out as a normal project (modules under src/).
         std::fs::create_dir_all(git_checkout_dir(&root, "x").join("src")).unwrap();
-        let with_src = Dependency { name: "x".into(), source: DepSource::Git { url: "u".into(), rev: None } };
+        let with_src = Dependency {
+            name: "x".into(),
+            source: DepSource::Git {
+                url: "u".into(),
+                rev: None,
+            },
+        };
         let dirs = dep_search_dirs(&root, &with_src);
-        assert!(dirs.contains(&git_checkout_dir(&root, "x")), "the checkout root");
-        assert!(dirs.contains(&git_checkout_dir(&root, "x").join("src")), "and its src/");
+        assert!(
+            dirs.contains(&git_checkout_dir(&root, "x")),
+            "the checkout root"
+        );
+        assert!(
+            dirs.contains(&git_checkout_dir(&root, "x").join("src")),
+            "and its src/"
+        );
         // A checkout with modules at the root: only the root is searched.
-        let no_src = Dependency { name: "y".into(), source: DepSource::Git { url: "u".into(), rev: None } };
-        assert_eq!(dep_search_dirs(&root, &no_src), vec![git_checkout_dir(&root, "y")]);
+        let no_src = Dependency {
+            name: "y".into(),
+            source: DepSource::Git {
+                url: "u".into(),
+                rev: None,
+            },
+        };
+        assert_eq!(
+            dep_search_dirs(&root, &no_src),
+            vec![git_checkout_dir(&root, "y")]
+        );
         let _ = std::fs::remove_dir_all(&base);
     }
 
@@ -941,7 +1096,11 @@ mod tests {
         std::fs::create_dir_all(&repo).unwrap();
         std::fs::create_dir_all(&proj).unwrap();
         let git = |args: &[&str]| {
-            std::process::Command::new("git").args(args).current_dir(&repo).output().expect("git runs")
+            std::process::Command::new("git")
+                .args(args)
+                .current_dir(&repo)
+                .output()
+                .expect("git runs")
         };
         git(&["init", "-q"]);
         git(&["config", "user.email", "t@example.com"]);
@@ -950,11 +1109,17 @@ mod tests {
         std::fs::write(repo.join("m.lum"), "export fn v() { return 1; }\n").unwrap();
         git(&["add", "."]);
         git(&["commit", "-qm", "a"]);
-        let sha_a = String::from_utf8(git(&["rev-parse", "HEAD"]).stdout).unwrap().trim().to_string();
+        let sha_a = String::from_utf8(git(&["rev-parse", "HEAD"]).stdout)
+            .unwrap()
+            .trim()
+            .to_string();
         std::fs::write(repo.join("m.lum"), "export fn v() { return 2; }\n").unwrap();
         git(&["add", "."]);
         git(&["commit", "-qm", "b"]);
-        let sha_b = String::from_utf8(git(&["rev-parse", "HEAD"]).stdout).unwrap().trim().to_string();
+        let sha_b = String::from_utf8(git(&["rev-parse", "HEAD"]).stdout)
+            .unwrap()
+            .trim()
+            .to_string();
         assert_ne!(sha_a, sha_b);
 
         let mk = |rev: &str| Manifest {
@@ -970,11 +1135,16 @@ mod tests {
             }],
         };
         resolve_dependencies(&proj, &mk(&sha_a)).expect("resolve a");
-        assert!(std::fs::read_to_string(proj.join("lumen.lock")).unwrap().contains(&sha_a));
+        assert!(std::fs::read_to_string(proj.join("lumen.lock"))
+            .unwrap()
+            .contains(&sha_a));
         // Changing the rev must re-resolve, not reuse the stale locked commit.
         resolve_dependencies(&proj, &mk(&sha_b)).expect("resolve b");
         let lock = std::fs::read_to_string(proj.join("lumen.lock")).unwrap();
-        assert!(lock.contains(&sha_b), "rev change re-resolved to the new commit");
+        assert!(
+            lock.contains(&sha_b),
+            "rev change re-resolved to the new commit"
+        );
         assert!(!lock.contains(&sha_a), "the old commit is no longer pinned");
         let _ = std::fs::remove_dir_all(&base);
     }

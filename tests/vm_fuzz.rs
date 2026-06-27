@@ -39,11 +39,19 @@ struct Gen {
     counter: usize,
 }
 
-const BINOPS: &[&str] = &["+", "-", "*", "/", "%", "<", "<=", ">", ">=", "==", "!=", "&&", "||"];
+const BINOPS: &[&str] = &[
+    "+", "-", "*", "/", "%", "<", "<=", ">", ">=", "==", "!=", "&&", "||",
+];
 
 impl Gen {
     fn new(seed: u64) -> Self {
-        Gen { rng: Rng::new(seed), out: String::new(), vars: Vec::new(), funcs: Vec::new(), counter: 0 }
+        Gen {
+            rng: Rng::new(seed),
+            out: String::new(),
+            vars: Vec::new(),
+            funcs: Vec::new(),
+            counter: 0,
+        }
     }
 
     fn fresh(&mut self) -> String {
@@ -111,7 +119,8 @@ impl Gen {
                 self.pad(indent);
                 let lim = self.rng.below(6);
                 let scope = self.vars.len();
-                self.out.push_str(&format!("for let {i} = 0; {i} < {lim}; {i} = {i} + 1 {{\n"));
+                self.out
+                    .push_str(&format!("for let {i} = 0; {i} < {lim}; {i} = {i} + 1 {{\n"));
                 self.vars.push(i.clone());
                 let body = 1 + self.rng.below(3);
                 for _ in 0..body {
@@ -127,7 +136,8 @@ impl Gen {
                 let arity = self.rng.below(3);
                 let params: Vec<String> = (0..arity).map(|k| format!("p{k}")).collect();
                 self.pad(indent);
-                self.out.push_str(&format!("fn {name}({}) {{\n", params.join(", ")));
+                self.out
+                    .push_str(&format!("fn {name}({}) {{\n", params.join(", ")));
                 let saved = self.vars.clone();
                 self.vars.extend(params.clone());
                 let body = 1 + self.rng.below(2);
@@ -147,7 +157,8 @@ impl Gen {
                 if let Some((name, arity)) = self.pick_func() {
                     self.pad(indent);
                     let args: Vec<String> = (0..arity).map(|_| self.expr(1)).collect();
-                    self.out.push_str(&format!("{name}({});\n", args.join(", ")));
+                    self.out
+                        .push_str(&format!("{name}({});\n", args.join(", ")));
                 } else {
                     self.stmt(indent);
                 }
@@ -231,7 +242,9 @@ impl Gen {
             2 => "true".to_string(),
             3 => "nil".to_string(),
             4 => "\"s\"".to_string(),
-            _ => self.pick_var().unwrap_or_else(|| self.rng.below(10).to_string()),
+            _ => self
+                .pick_var()
+                .unwrap_or_else(|| self.rng.below(10).to_string()),
         }
     }
 }
@@ -309,5 +322,8 @@ fn vm_never_panics_on_valid_programs() {
         }
     }
     panic::set_hook(prev);
-    assert!(reached > 500, "fuzzer reached the VM only {reached} times; generator too invalid");
+    assert!(
+        reached > 500,
+        "fuzzer reached the VM only {reached} times; generator too invalid"
+    );
 }

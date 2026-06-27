@@ -27,13 +27,18 @@ impl Write for SharedBuf {
 fn run_example(path: &Path) -> String {
     let src = std::fs::read_to_string(path).expect("read example");
     let (program, errs) = lumen::check_source(&src);
-    assert!(errs.is_empty(), "{}: front-end errors: {errs:?}", path.display());
+    assert!(
+        errs.is_empty(),
+        "{}: front-end errors: {errs:?}",
+        path.display()
+    );
     let proto = lumen::compiler::compile(&program).expect("compile");
     let buf = SharedBuf(Rc::new(RefCell::new(Vec::new())));
     let mut vm = Vm::with_output(Box::new(buf.clone()));
     lumen::stdlib::install(&mut vm);
     vm.set_base_dir(Path::new("examples").to_path_buf());
-    vm.interpret(proto).unwrap_or_else(|e| panic!("{}: runtime error:\n{e}", path.display()));
+    vm.interpret(proto)
+        .unwrap_or_else(|e| panic!("{}: runtime error:\n{e}", path.display()));
     let out = String::from_utf8(buf.0.borrow().clone()).unwrap();
     out
 }
@@ -63,11 +68,15 @@ fn all_examples_match_snapshots() {
             .unwrap_or_else(|_| panic!("missing snapshot {expected_path}"));
         let actual = run_example(&path);
         assert_eq!(
-            actual, expected,
+            actual,
+            expected,
             "\noutput drift for {}\n--- expected ---\n{expected}\n--- actual ---\n{actual}",
             path.display()
         );
         checked += 1;
     }
-    assert!(checked >= 15, "expected to check >=15 examples, did {checked}");
+    assert!(
+        checked >= 15,
+        "expected to check >=15 examples, did {checked}"
+    );
 }

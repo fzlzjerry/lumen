@@ -38,7 +38,11 @@ fn require_map(vm: &mut Vm, v: Value) -> Result<crate::value::GcRef, Value> {
 fn get(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
     let r = require_map(vm, a[0])?;
     let key = vm.map_key(a[1])?;
-    let found = if let Obj::Map(m) = vm.heap.get(r) { m.get(key) } else { None };
+    let found = if let Obj::Map(m) = vm.heap.get(r) {
+        m.get(key)
+    } else {
+        None
+    };
     Ok(found.unwrap_or_else(|| if a.len() == 3 { a[2] } else { Value::Nil }))
 }
 
@@ -63,33 +67,52 @@ fn has(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
 fn remove(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
     let r = require_map(vm, a[0])?;
     let key = vm.map_key(a[1])?;
-    let removed = if let Obj::Map(m) = vm.heap.get_mut(r) { m.remove(key) } else { false };
+    let removed = if let Obj::Map(m) = vm.heap.get_mut(r) {
+        m.remove(key)
+    } else {
+        false
+    };
     Ok(Value::Bool(removed))
 }
 
 fn keys(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
     let r = require_map(vm, a[0])?;
-    let ks = if let Obj::Map(m) = vm.heap.get(r) { m.keys() } else { Vec::new() };
+    let ks = if let Obj::Map(m) = vm.heap.get(r) {
+        m.keys()
+    } else {
+        Vec::new()
+    };
     Ok(vm.new_array(ks))
 }
 
 fn values(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
     let r = require_map(vm, a[0])?;
-    let vs = if let Obj::Map(m) = vm.heap.get(r) { m.values() } else { Vec::new() };
+    let vs = if let Obj::Map(m) = vm.heap.get(r) {
+        m.values()
+    } else {
+        Vec::new()
+    };
     Ok(vm.new_array(vs))
 }
 
 fn len(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
     let r = require_map(vm, a[0])?;
-    let n = if let Obj::Map(m) = vm.heap.get(r) { m.len() } else { 0 };
+    let n = if let Obj::Map(m) = vm.heap.get(r) {
+        m.len()
+    } else {
+        0
+    };
     Ok(Value::Int(n as i64))
 }
 
 /// `entries(m)` -> array of `[key, value]` pairs in insertion order.
 fn entries(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
     let r = require_map(vm, a[0])?;
-    let pairs: Vec<(Value, Value)> =
-        if let Obj::Map(m) = vm.heap.get(r) { m.iter().collect() } else { Vec::new() };
+    let pairs: Vec<(Value, Value)> = if let Obj::Map(m) = vm.heap.get(r) {
+        m.iter().collect()
+    } else {
+        Vec::new()
+    };
     let mut out = Vec::with_capacity(pairs.len());
     let result = vm.new_array(Vec::new());
     vm.push_temp_root(result);
@@ -108,10 +131,16 @@ fn merge(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
     let ra = require_map(vm, a[0])?;
     let rb = require_map(vm, a[1])?;
     let mut out = LumMap::new();
-    let a_entries: Vec<(Value, Value)> =
-        if let Obj::Map(m) = vm.heap.get(ra) { m.iter().collect() } else { Vec::new() };
-    let b_entries: Vec<(Value, Value)> =
-        if let Obj::Map(m) = vm.heap.get(rb) { m.iter().collect() } else { Vec::new() };
+    let a_entries: Vec<(Value, Value)> = if let Obj::Map(m) = vm.heap.get(ra) {
+        m.iter().collect()
+    } else {
+        Vec::new()
+    };
+    let b_entries: Vec<(Value, Value)> = if let Obj::Map(m) = vm.heap.get(rb) {
+        m.iter().collect()
+    } else {
+        Vec::new()
+    };
     for (k, v) in a_entries.into_iter().chain(b_entries) {
         let key = vm.map_key(k)?;
         out.insert(key, k, v);
@@ -229,7 +258,11 @@ fn from_entries(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
     for pair in pairs {
         let kv = super::array_of(vm, pair)?;
         if kv.len() != 2 {
-            return Err(err(vm, error_kind::VALUE, "from_entries() expects [key, value] pairs"));
+            return Err(err(
+                vm,
+                error_kind::VALUE,
+                "from_entries() expects [key, value] pairs",
+            ));
         }
         let key = vm.map_key(kv[0])?;
         out.insert(key, kv[0], kv[1]);

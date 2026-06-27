@@ -22,7 +22,9 @@ use std::rc::Rc;
 
 /// Compile a whole program into the top-level (script) function prototype.
 pub fn compile(program: &Program) -> Result<Rc<FnProto>, Vec<Diagnostic>> {
-    Compiler::new().compile_script(program, false).map(|(p, _)| p)
+    Compiler::new()
+        .compile_script(program, false)
+        .map(|(p, _)| p)
 }
 
 /// Compile for the REPL: if the final top-level statement is a bare expression,
@@ -98,7 +100,11 @@ impl FnState {
             kind,
             // Slot 0 is reserved: the closure itself for functions, the receiver
             // (`this`) for methods.
-            locals: vec![CLocal { name: slot0_name.to_string(), depth: 0, is_captured: false }],
+            locals: vec![CLocal {
+                name: slot0_name.to_string(),
+                depth: 0,
+                is_captured: false,
+            }],
             upvalues: Vec::new(),
             scope_depth: 0,
             cf: Vec::new(),
@@ -120,7 +126,11 @@ struct Compiler {
 
 impl Compiler {
     fn new() -> Self {
-        Compiler { funcs: Vec::new(), errors: Vec::new(), stmt_value_pos: false }
+        Compiler {
+            funcs: Vec::new(),
+            errors: Vec::new(),
+            stmt_value_pos: false,
+        }
     }
 
     /// Compile an expression in statement-value position (a clean operand stack).
@@ -268,7 +278,14 @@ impl Compiler {
                 break;
             }
             let captured = last.is_captured;
-            self.emit_op(if captured { OpCode::CloseUpvalue } else { OpCode::Pop }, line);
+            self.emit_op(
+                if captured {
+                    OpCode::CloseUpvalue
+                } else {
+                    OpCode::Pop
+                },
+                line,
+            );
             self.cur().locals.pop();
         }
     }
@@ -280,7 +297,11 @@ impl Compiler {
         }
         let slot = self.cur_ref().locals.len();
         let depth = self.cur_ref().scope_depth;
-        self.cur().locals.push(CLocal { name: name.to_string(), depth, is_captured: false });
+        self.cur().locals.push(CLocal {
+            name: name.to_string(),
+            depth,
+            is_captured: false,
+        });
         let names = &mut self.cur().local_names;
         if slot >= names.len() {
             names.resize(slot + 1, String::new());
@@ -337,10 +358,15 @@ impl Compiler {
             return Some(i as u8);
         }
         if self.funcs[fn_idx].upvalues.len() >= 256 {
-            self.error(span, "too many captured variables (upvalues) in one function (max 256)");
+            self.error(
+                span,
+                "too many captured variables (upvalues) in one function (max 256)",
+            );
             return Some(0);
         }
-        self.funcs[fn_idx].upvalues.push(CUpvalue { is_local, index });
+        self.funcs[fn_idx]
+            .upvalues
+            .push(CUpvalue { is_local, index });
         Some((self.funcs[fn_idx].upvalues.len() - 1) as u8)
     }
 
@@ -372,21 +398,33 @@ impl Compiler {
 
     fn compile_stmt(&mut self, stmt: &Stmt) {
         match stmt {
-            Stmt::Let { name, init, span, .. } => {
+            Stmt::Let {
+                name, init, span, ..
+            } => {
                 match init {
                     Some(e) => self.compile_value_expr(e),
                     None => self.emit_op(OpCode::Nil, span.line),
                 }
                 self.define_variable(name, *span);
             }
-            Stmt::Const { name, init, span, .. } => {
+            Stmt::Const {
+                name, init, span, ..
+            } => {
                 self.compile_value_expr(init);
                 self.define_variable(name, *span);
             }
-            Stmt::Destructure { pattern, init, span } => {
+            Stmt::Destructure {
+                pattern,
+                init,
+                span,
+            } => {
                 self.compile_destructure(pattern, init, *span);
             }
-            Stmt::DestructureAssign { pattern, value, span } => {
+            Stmt::DestructureAssign {
+                pattern,
+                value,
+                span,
+            } => {
                 self.compile_destructure_assign(pattern, value, *span);
             }
             Stmt::Function(f) => {
@@ -419,16 +457,29 @@ impl Compiler {
                 }
                 self.end_scope(b.span.line);
             }
-            Stmt::If { cond, then_block, else_branch, span } => {
+            Stmt::If {
+                cond,
+                then_block,
+                else_branch,
+                span,
+            } => {
                 self.compile_if(cond, then_block, else_branch.as_deref(), *span);
             }
             Stmt::While { cond, body, span } => self.compile_while(cond, body, *span),
-            Stmt::ForIn { var, iter, body, span, .. } => {
-                self.compile_for_in(var, iter, body, *span)
-            }
-            Stmt::ForC { init, cond, step, body, span } => {
-                self.compile_for_c(init.as_deref(), cond.as_ref(), step.as_ref(), body, *span)
-            }
+            Stmt::ForIn {
+                var,
+                iter,
+                body,
+                span,
+                ..
+            } => self.compile_for_in(var, iter, body, *span),
+            Stmt::ForC {
+                init,
+                cond,
+                step,
+                body,
+                span,
+            } => self.compile_for_c(init.as_deref(), cond.as_ref(), step.as_ref(), body, *span),
             Stmt::Return { value, span } => self.compile_return(value.as_ref(), *span),
             Stmt::Break { span } => self.compile_break(true, *span),
             Stmt::Continue { span } => self.compile_break(false, *span),
@@ -440,9 +491,12 @@ impl Compiler {
                 self.compile_value_expr(value);
                 self.emit_op(OpCode::Yield, span.line);
             }
-            Stmt::Try { body, catches, finally, span } => {
-                self.compile_try(body, catches, finally.as_ref(), *span)
-            }
+            Stmt::Try {
+                body,
+                catches,
+                finally,
+                span,
+            } => self.compile_try(body, catches, finally.as_ref(), *span),
         }
     }
 
@@ -492,7 +546,11 @@ impl Compiler {
         let exit_jump = self.emit_jump(OpCode::JumpIfFalse, span.line);
         self.emit_op(OpCode::Pop, span.line); // pop cond (enter body)
         let local_base = self.cur_ref().locals.len();
-        self.cur().cf.push(Cf::Loop { continue_target: loop_start, break_jumps: Vec::new(), local_base });
+        self.cur().cf.push(Cf::Loop {
+            continue_target: loop_start,
+            break_jumps: Vec::new(),
+            local_base,
+        });
         self.compile_block(body);
         let cf = self.cur().cf.pop().unwrap();
         self.emit_loop(loop_start, span);
@@ -544,7 +602,11 @@ impl Compiler {
         self.emit_loop(loop_start, span);
         self.patch_jump(body_jump, span);
 
-        self.cur().cf.push(Cf::Loop { continue_target: post_body, break_jumps: Vec::new(), local_base });
+        self.cur().cf.push(Cf::Loop {
+            continue_target: post_body,
+            break_jumps: Vec::new(),
+            local_base,
+        });
         self.compile_block(body);
         let cf = self.cur().cf.pop().unwrap();
         self.emit_loop(post_body, span); // after the body, close + step
@@ -576,7 +638,11 @@ impl Compiler {
 
         // The element pushed by IterNext becomes the loop variable.
         let local_base = self.cur_ref().locals.len();
-        self.cur().cf.push(Cf::Loop { continue_target: loop_start, break_jumps: Vec::new(), local_base });
+        self.cur().cf.push(Cf::Loop {
+            continue_target: loop_start,
+            break_jumps: Vec::new(),
+            local_base,
+        });
         self.begin_scope();
         self.add_local(var, span);
         for s in &body.stmts {
@@ -615,7 +681,14 @@ impl Compiler {
         self.add_local("@it", span);
         let it_slot = (self.cur_ref().locals.len() - 1) as u8;
         // Accumulator and running index.
-        self.emit_op(if matches!(comp, Comp::Array(_)) { OpCode::NewArray } else { OpCode::NewMap }, line);
+        self.emit_op(
+            if matches!(comp, Comp::Array(_)) {
+                OpCode::NewArray
+            } else {
+                OpCode::NewMap
+            },
+            line,
+        );
         self.add_local("@acc", span);
         let acc_slot = (self.cur_ref().locals.len() - 1) as u8;
         self.emit_load_const(Constant::Int(0), span);
@@ -664,7 +737,7 @@ impl Compiler {
         self.end_scope(line); // pop the loop variable (closing it if captured)
         self.emit_loop(loop_start, span);
         self.patch_jump(exit_at, span); // IterNext's exit lands here
-        // Return the accumulator.
+                                        // Return the accumulator.
         self.emit_op_u8(OpCode::GetLocal, acc_slot, line);
         self.emit_op(OpCode::Return, line);
 
@@ -712,8 +785,15 @@ impl Compiler {
         let mut target: Option<(usize, usize, usize)> = None; // (index, local_base, continue_target)
         for i in (0..cf_len).rev() {
             match &self.cur_ref().cf[i] {
-                Cf::Try { finally, n_handlers } => actions.push((*n_handlers, finally.clone())),
-                Cf::Loop { local_base, continue_target, .. } => {
+                Cf::Try {
+                    finally,
+                    n_handlers,
+                } => actions.push((*n_handlers, finally.clone())),
+                Cf::Loop {
+                    local_base,
+                    continue_target,
+                    ..
+                } => {
                     target = Some((i, *local_base, *continue_target));
                     break;
                 }
@@ -749,23 +829,46 @@ impl Compiler {
     /// removing them from tracking (compilation of the body continues).
     fn discard_locals_above(&mut self, base: usize, line: u32) {
         let locals = &self.cur_ref().locals;
-        let ops: Vec<bool> = (base..locals.len()).rev().map(|i| locals[i].is_captured).collect();
+        let ops: Vec<bool> = (base..locals.len())
+            .rev()
+            .map(|i| locals[i].is_captured)
+            .collect();
         for captured in ops {
-            self.emit_op(if captured { OpCode::CloseUpvalue } else { OpCode::Pop }, line);
+            self.emit_op(
+                if captured {
+                    OpCode::CloseUpvalue
+                } else {
+                    OpCode::Pop
+                },
+                line,
+            );
         }
     }
 
     fn compile_return(&mut self, value: Option<&Expr>, span: Span) {
-        let has_finally = self
-            .cur_ref()
-            .cf
-            .iter()
-            .any(|c| matches!(c, Cf::Try { finally: Some(_), .. }));
+        let has_finally = self.cur_ref().cf.iter().any(|c| {
+            matches!(
+                c,
+                Cf::Try {
+                    finally: Some(_),
+                    ..
+                }
+            )
+        });
         // Tail-call optimization: `return f(args);` reuses the current frame when
         // no `finally` must run first (DESIGN D30). Spread calls keep the normal
         // path (the argument count is dynamic).
         if !has_finally {
-            if let Some(Expr { kind: ExprKind::Call { callee, args, paren_span }, span: cspan }) = value {
+            if let Some(Expr {
+                kind:
+                    ExprKind::Call {
+                        callee,
+                        args,
+                        paren_span,
+                    },
+                span: cspan,
+            }) = value
+            {
                 if !args.iter().any(|a| matches!(a, CallArg::Spread(_))) {
                     self.compile_tail_call(callee, args, *paren_span, cspan.line, *cspan);
                     return;
@@ -794,7 +897,9 @@ impl Compiler {
                 .iter()
                 .rev()
                 .filter_map(|c| match c {
-                    Cf::Try { finally: Some(f), .. } => Some(f.clone()),
+                    Cf::Try {
+                        finally: Some(f), ..
+                    } => Some(f.clone()),
                     _ => None,
                 })
                 .collect();
@@ -829,7 +934,10 @@ impl Compiler {
             // try / catch (no finally)
             (false, None) => {
                 let catch_jump = self.emit_jump(OpCode::PushHandler, line);
-                self.cur().cf.push(Cf::Try { finally: None, n_handlers: 1 });
+                self.cur().cf.push(Cf::Try {
+                    finally: None,
+                    n_handlers: 1,
+                });
                 self.compile_block(body);
                 self.cur().cf.pop();
                 self.emit_op(OpCode::PopHandler, line);
@@ -842,7 +950,10 @@ impl Compiler {
             (false, Some(f)) => {
                 let fin_handler = self.emit_jump(OpCode::PushHandler, line);
                 let catch_jump = self.emit_jump(OpCode::PushHandler, line);
-                self.cur().cf.push(Cf::Try { finally: Some(f.clone()), n_handlers: 2 });
+                self.cur().cf.push(Cf::Try {
+                    finally: Some(f.clone()),
+                    n_handlers: 2,
+                });
                 self.compile_block(body);
                 self.cur().cf.pop();
                 self.emit_op(OpCode::PopHandler, line); // pop catch handler
@@ -867,7 +978,10 @@ impl Compiler {
             // try / finally (no catch): exceptions run finally, then propagate.
             (true, Some(f)) => {
                 let fin_handler = self.emit_jump(OpCode::PushHandler, line);
-                self.cur().cf.push(Cf::Try { finally: Some(f.clone()), n_handlers: 1 });
+                self.cur().cf.push(Cf::Try {
+                    finally: Some(f.clone()),
+                    n_handlers: 1,
+                });
                 self.compile_block(body);
                 self.cur().cf.pop();
                 self.emit_op(OpCode::PopHandler, line);
@@ -937,12 +1051,20 @@ impl Compiler {
     }
 
     fn compile_function(&mut self, f: &Function, kind: FnKind, line: u32) {
-        let slot0 = if matches!(kind, FnKind::Method | FnKind::Initializer) { "this" } else { "" };
+        let slot0 = if matches!(kind, FnKind::Method | FnKind::Initializer) {
+            "this"
+        } else {
+            ""
+        };
         self.funcs.push(FnState::new(kind, f.name.clone(), slot0));
         self.begin_scope();
 
         let has_rest = f.params.last().map(|p| p.is_rest).unwrap_or(false);
-        let fixed = if has_rest { f.params.len() - 1 } else { f.params.len() };
+        let fixed = if has_rest {
+            f.params.len() - 1
+        } else {
+            f.params.len()
+        };
         let required = f
             .params
             .iter()
@@ -1272,12 +1394,16 @@ impl Compiler {
                 self.emit_op(binary_op(*op), line);
             }
             ExprKind::Logical { op, left, right } => self.compile_logical(*op, left, right, span),
-            ExprKind::Ternary { cond, then_branch, else_branch } => {
-                self.compile_ternary(cond, then_branch, else_branch, span)
-            }
-            ExprKind::Call { callee, args, paren_span } => {
-                self.compile_call(callee, args, *paren_span, line, span)
-            }
+            ExprKind::Ternary {
+                cond,
+                then_branch,
+                else_branch,
+            } => self.compile_ternary(cond, then_branch, else_branch, span),
+            ExprKind::Call {
+                callee,
+                args,
+                paren_span,
+            } => self.compile_call(callee, args, *paren_span, line, span),
             ExprKind::Index { object, index } => {
                 self.compile_expr(object);
                 self.compile_expr(index);
@@ -1290,12 +1416,35 @@ impl Compiler {
             }
             ExprKind::Lambda(f) => self.compile_function(f, FnKind::Function, line),
             ExprKind::Match { subject, arms } => self.compile_match(subject, arms, span, clean),
-            ExprKind::ArrayComp { element, var, var_span, iter, cond } => {
-                self.compile_comprehension(Comp::Array(element), var, *var_span, iter, cond.as_deref(), span)
-            }
-            ExprKind::MapComp { key, value, var, var_span, iter, cond } => {
-                self.compile_comprehension(Comp::Map(key, value), var, *var_span, iter, cond.as_deref(), span)
-            }
+            ExprKind::ArrayComp {
+                element,
+                var,
+                var_span,
+                iter,
+                cond,
+            } => self.compile_comprehension(
+                Comp::Array(element),
+                var,
+                *var_span,
+                iter,
+                cond.as_deref(),
+                span,
+            ),
+            ExprKind::MapComp {
+                key,
+                value,
+                var,
+                var_span,
+                iter,
+                cond,
+            } => self.compile_comprehension(
+                Comp::Map(key, value),
+                var,
+                *var_span,
+                iter,
+                cond.as_deref(),
+                span,
+            ),
         }
     }
 
@@ -1313,11 +1462,20 @@ impl Compiler {
             // spread machinery), then apply it with CALL_SPREAD. This path also
             // handles method/super calls without the INVOKE fusion: the callee is
             // first materialized as a (possibly bound) value on the stack.
-            if let ExprKind::Get { object, name, name_span } = &callee.kind {
+            if let ExprKind::Get {
+                object,
+                name,
+                name_span,
+            } = &callee.kind
+            {
                 self.compile_expr(object);
                 let idx = self.string_const(name, *name_span);
                 self.emit_op_u16(OpCode::GetProp, idx, line);
-            } else if let ExprKind::Super { method, method_span } = &callee.kind {
+            } else if let ExprKind::Super {
+                method,
+                method_span,
+            } = &callee.kind
+            {
                 self.named_variable_get("this", span);
                 self.named_variable_get("super", span);
                 let idx = self.string_const(method, *method_span);
@@ -1348,7 +1506,12 @@ impl Compiler {
         // `obj.method(args)` fuses to a single INVOKE and `super.m(args)`
         // to SUPER_INVOKE — both skip the bound-method allocation of the
         // generic GET_PROP/GET_SUPER + CALL path.
-        if let ExprKind::Get { object, name, name_span } = &callee.kind {
+        if let ExprKind::Get {
+            object,
+            name,
+            name_span,
+        } = &callee.kind
+        {
             self.compile_expr(object);
             for a in args {
                 self.compile_call_arg(a);
@@ -1356,7 +1519,11 @@ impl Compiler {
             let idx = self.string_const(name, *name_span);
             self.emit_op_u16(OpCode::Invoke, idx, line);
             self.emit_byte(args.len() as u8, line);
-        } else if let ExprKind::Super { method, method_span } = &callee.kind {
+        } else if let ExprKind::Super {
+            method,
+            method_span,
+        } = &callee.kind
+        {
             // Layout: [this, args…, superclass]. SUPER_INVOKE pops the
             // superclass and calls with `this` already in the receiver slot.
             self.named_variable_get("this", span);
@@ -1399,11 +1566,20 @@ impl Compiler {
         if args.len() > 255 {
             self.error(paren_span, "too many call arguments (max 255)");
         }
-        if let ExprKind::Get { object, name, name_span } = &callee.kind {
+        if let ExprKind::Get {
+            object,
+            name,
+            name_span,
+        } = &callee.kind
+        {
             self.compile_expr(object);
             let idx = self.string_const(name, *name_span);
             self.emit_op_u16(OpCode::GetProp, idx, line);
-        } else if let ExprKind::Super { method, method_span } = &callee.kind {
+        } else if let ExprKind::Super {
+            method,
+            method_span,
+        } = &callee.kind
+        {
             self.named_variable_get("this", span);
             self.named_variable_get("super", span);
             let idx = self.string_const(method, *method_span);
@@ -1625,7 +1801,10 @@ impl Compiler {
             self.emit_op(OpCode::Pop, line);
         }
         // No arm matched.
-        self.emit_load_const(Constant::Str("no matching pattern in match expression".into()), span);
+        self.emit_load_const(
+            Constant::Str("no matching pattern in match expression".into()),
+            span,
+        );
         self.emit_op(OpCode::Throw, line);
 
         for j in end_jumps {
@@ -1639,9 +1818,19 @@ impl Compiler {
     /// keeping nothing else, and remove them from tracking.
     fn clean_arm_bindings(&mut self, base: usize, line: u32) {
         let locals = &self.cur_ref().locals;
-        let ops: Vec<bool> = (base..locals.len()).rev().map(|i| locals[i].is_captured).collect();
+        let ops: Vec<bool> = (base..locals.len())
+            .rev()
+            .map(|i| locals[i].is_captured)
+            .collect();
         for captured in &ops {
-            self.emit_op(if *captured { OpCode::CloseUpvalue } else { OpCode::Pop }, line);
+            self.emit_op(
+                if *captured {
+                    OpCode::CloseUpvalue
+                } else {
+                    OpCode::Pop
+                },
+                line,
+            );
         }
         self.cur().locals.truncate(base);
     }
@@ -1843,7 +2032,11 @@ fn stmt_contains_yield(s: &Stmt) -> bool {
     match s {
         Stmt::Yield { .. } => true,
         Stmt::Block(b) => stmts_contain_yield(&b.stmts),
-        Stmt::If { then_block, else_branch, .. } => {
+        Stmt::If {
+            then_block,
+            else_branch,
+            ..
+        } => {
             stmts_contain_yield(&then_block.stmts)
                 || else_branch.as_deref().is_some_and(stmt_contains_yield)
         }
@@ -1852,10 +2045,17 @@ fn stmt_contains_yield(s: &Stmt) -> bool {
         Stmt::ForC { init, body, .. } => {
             init.as_deref().is_some_and(stmt_contains_yield) || stmts_contain_yield(&body.stmts)
         }
-        Stmt::Try { body, catches, finally, .. } => {
+        Stmt::Try {
+            body,
+            catches,
+            finally,
+            ..
+        } => {
             stmts_contain_yield(&body.stmts)
                 || catches.iter().any(|c| stmts_contain_yield(&c.body.stmts))
-                || finally.as_ref().is_some_and(|f| stmts_contain_yield(&f.stmts))
+                || finally
+                    .as_ref()
+                    .is_some_and(|f| stmts_contain_yield(&f.stmts))
         }
         // Functions/classes (and lambdas inside expressions) start a new function
         // scope, so their `yield`s belong to them, not here.
@@ -1933,10 +2133,8 @@ mod tests {
 
     #[test]
     fn class_emits_class_method_inherit_super() {
-        let d = dis(
-            "class A { m() { return 1; } }
-             class B < A { m() { let r = super.m(); return r; } }",
-        );
+        let d = dis("class A { m() { return 1; } }
+             class B < A { m() { let r = super.m(); return r; } }");
         assert!(d.contains("CLASS"));
         assert!(d.contains("METHOD"));
         assert!(d.contains("INHERIT"));
@@ -1950,10 +2148,8 @@ mod tests {
         let d = dis("fn f(n) { if n == 0 { return 0; } return f(n - 1); }");
         assert!(d.contains("TAIL_CALL"));
         // A tail super call materializes a bound method then TAIL_CALLs it.
-        let d2 = dis(
-            "class A { m() { return 1; } }
-             class B < A { m() { return super.m(); } }",
-        );
+        let d2 = dis("class A { m() { return 1; } }
+             class B < A { m() { return super.m(); } }");
         assert!(d2.contains("GET_SUPER"));
         assert!(d2.contains("TAIL_CALL"));
     }
@@ -1962,10 +2158,8 @@ mod tests {
     fn super_reference_without_call_emits_get_super() {
         // Referencing a super method without immediately calling it still uses
         // GET_SUPER (only the fused call form becomes SUPER_INVOKE).
-        let d = dis(
-            "class A { m() { return 1; } }
-             class B < A { m() { let f = super.m; return f(); } }",
-        );
+        let d = dis("class A { m() { return 1; } }
+             class B < A { m() { let f = super.m; return f(); } }");
         assert!(d.contains("GET_SUPER"));
         assert!(!d.contains("SUPER_INVOKE"));
     }

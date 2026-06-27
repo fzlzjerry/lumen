@@ -57,10 +57,20 @@ fn sum(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
                 is_float = true;
                 float_sum += *x;
             }
-            _ => return Err(err(vm, error_kind::TYPE, "sum() expects an array of numbers")),
+            _ => {
+                return Err(err(
+                    vm,
+                    error_kind::TYPE,
+                    "sum() expects an array of numbers",
+                ))
+            }
         }
     }
-    Ok(if is_float { Value::Float(float_sum) } else { Value::Int(int_sum) })
+    Ok(if is_float {
+        Value::Float(float_sum)
+    } else {
+        Value::Int(int_sum)
+    })
 }
 
 fn arr_min(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
@@ -204,7 +214,9 @@ fn compare(vm: &mut Vm, a: Value, b: Value, cmp: Option<Value>) -> Result<Orderi
     match cmp {
         Some(f) => {
             let r = vm.call_and_run(f, &[a, b])?;
-            let n = r.as_f64().ok_or_else(|| err(vm, error_kind::TYPE, "comparator must return a number"))?;
+            let n = r
+                .as_f64()
+                .ok_or_else(|| err(vm, error_kind::TYPE, "comparator must return a number"))?;
             Ok(n.partial_cmp(&0.0).unwrap_or(Ordering::Equal))
         }
         None => {
@@ -229,7 +241,9 @@ fn reverse(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
 fn contains(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
     let items = array_of(vm, a[0])?;
     let target = a[1];
-    Ok(Value::Bool(items.iter().any(|&it| vm.values_equal(it, target))))
+    Ok(Value::Bool(
+        items.iter().any(|&it| vm.values_equal(it, target)),
+    ))
 }
 
 fn index_of(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
@@ -243,11 +257,19 @@ fn slice(vm: &mut Vm, a: &[Value]) -> Result<Value, Value> {
     let items = array_of(vm, a[0])?;
     let len = items.len() as i64;
     let norm = |i: i64| -> usize {
-        if i < 0 { ((len + i).max(0)) as usize } else { (i.min(len)) as usize }
+        if i < 0 {
+            ((len + i).max(0)) as usize
+        } else {
+            (i.min(len)) as usize
+        }
     };
     let start = norm(int(vm, a[1])?);
     let end = norm(int(vm, a[2])?);
-    let out = if start < end { items[start..end].to_vec() } else { Vec::new() };
+    let out = if start < end {
+        items[start..end].to_vec()
+    } else {
+        Vec::new()
+    };
     Ok(vm.new_array(out))
 }
 

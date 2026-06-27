@@ -15,9 +15,9 @@
 //! at work: most objects die young, so the common case (a minor collection)
 //! costs O(nursery), never rescanning the promoted live set.
 
+use crate::fxhash::FxHashMap;
 use crate::object::{Closure, LumMap, Obj, Upvalue};
 use crate::value::{GcRef, Value};
-use crate::fxhash::FxHashMap;
 
 /// An object plus its GC bookkeeping bits.
 pub(crate) struct GcBox {
@@ -97,7 +97,12 @@ impl Heap {
     /// **not** itself collect; the VM collects at safe points.
     pub fn alloc(&mut self, obj: Obj) -> GcRef {
         self.young_bytes += obj_size(&obj);
-        let boxed = GcBox { obj, marked: false, generation: 0, remembered: false };
+        let boxed = GcBox {
+            obj,
+            marked: false,
+            generation: 0,
+            remembered: false,
+        };
         if let Some(idx) = self.free.pop() {
             self.slots[idx as usize] = Some(boxed);
             GcRef(idx)
@@ -512,7 +517,10 @@ mod tests {
         h.mark_ref(container, false);
         h.trace_references(false);
         h.sweep_major(); // promote container to old
-        assert_eq!(h.slots[container.0 as usize].as_ref().unwrap().generation, 1);
+        assert_eq!(
+            h.slots[container.0 as usize].as_ref().unwrap().generation,
+            1
+        );
 
         // A fresh young object the old container now points at.
         let young = h.alloc(Obj::Array(vec![Value::Int(7)]));
@@ -525,13 +533,19 @@ mod tests {
         h.mark_remembered();
         h.trace_references(true);
         h.sweep_minor();
-        assert!(h.slots[young.0 as usize].is_some(), "write barrier failed: young freed");
+        assert!(
+            h.slots[young.0 as usize].is_some(),
+            "write barrier failed: young freed"
+        );
 
         // Without the barrier, an unremembered young object is collected.
         let orphan = h.alloc(Obj::Array(vec![]));
         h.mark_remembered();
         h.trace_references(true);
         h.sweep_minor();
-        assert!(h.slots[orphan.0 as usize].is_none(), "unrooted young should be collected");
+        assert!(
+            h.slots[orphan.0 as usize].is_none(),
+            "unrooted young should be collected"
+        );
     }
 }

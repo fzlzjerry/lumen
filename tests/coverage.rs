@@ -28,14 +28,17 @@ fn run(src: &str) -> String {
     let buf = SharedBuf(Rc::new(RefCell::new(Vec::new())));
     let mut vm = Vm::with_output(Box::new(buf.clone()));
     lumen::stdlib::install(&mut vm);
-    vm.interpret(proto).unwrap_or_else(|e| panic!("runtime error:\n{e}"));
+    vm.interpret(proto)
+        .unwrap_or_else(|e| panic!("runtime error:\n{e}"));
     let out = String::from_utf8(buf.0.borrow().clone()).unwrap();
     out
 }
 
 /// Run `try { body } catch (e) { println(e.kind); }` and return the printed kind.
 fn kind(body: &str) -> String {
-    let out = run(&format!("try {{ {body} }} catch (e) {{ println(e.kind); }}"));
+    let out = run(&format!(
+        "try {{ {body} }} catch (e) {{ println(e.kind); }}"
+    ));
     out.trim().to_string()
 }
 
@@ -51,7 +54,10 @@ fn vm_and_builtin_error_paths() {
     assert_eq!(kind("print(1 < \"x\");"), "TypeError"); // compare mixed types
     assert_eq!(kind("print(\"abc\"[9]);"), "IndexError"); // string index OOB
     assert_eq!(kind("let a = [1]; a[5] = 2;"), "IndexError"); // array set OOB (not append)
-    assert_eq!(kind("class A {} class B < A {} let b = B(1);"), "ArityError"); // no init, args given
+    assert_eq!(
+        kind("class A {} class B < A {} let b = B(1);"),
+        "ArityError"
+    ); // no init, args given
     assert_eq!(kind("let notc = 5; class Z < notc {}"), "TypeError"); // superclass not a class
 
     // Builtin argument errors.
@@ -70,12 +76,24 @@ fn vm_and_builtin_error_paths() {
     // Stdlib module argument errors.
     assert_eq!(kind("import \"math\" as m; m.sqrt(\"x\");"), "TypeError");
     assert_eq!(kind("import \"string\" as s; s.upper(5);"), "TypeError");
-    assert_eq!(kind("import \"array\" as a; a.sum([1, \"x\"]);"), "TypeError");
+    assert_eq!(
+        kind("import \"array\" as a; a.sum([1, \"x\"]);"),
+        "TypeError"
+    );
     assert_eq!(kind("import \"array\" as a; a.min([]);"), "ValueError");
     assert_eq!(kind("import \"map\" as mp; mp.get(5, \"k\");"), "TypeError");
-    assert_eq!(kind("import \"json\" as j; j.parse(\"{bad}\");"), "ValueError");
-    assert_eq!(kind("import \"json\" as j; j.stringify(fn(){});"), "TypeError"); // unserializable
-    assert_eq!(kind("import \"random\" as r; r.randint(5, 1);"), "ValueError");
+    assert_eq!(
+        kind("import \"json\" as j; j.parse(\"{bad}\");"),
+        "ValueError"
+    );
+    assert_eq!(
+        kind("import \"json\" as j; j.stringify(fn(){});"),
+        "TypeError"
+    ); // unserializable
+    assert_eq!(
+        kind("import \"random\" as r; r.randint(5, 1);"),
+        "ValueError"
+    );
     assert_eq!(kind("import \"random\" as r; r.choice([]);"), "ValueError");
 }
 
@@ -89,13 +107,22 @@ fn more_vm_runtime_paths() {
     assert_eq!(kind("print(1 % 0);"), "DivisionByZero");
     assert_eq!(kind("print(1.0 % 0.0);"), "DivisionByZero");
     // for-in over a string and over a map (iteration of each kind).
-    assert_eq!(run("for ch in \"ab\" { print(ch); } println(\"\");"), "ab\n");
-    assert_eq!(run("for k in {x: 1, y: 2} { print(k); } println(\"\");"), "xy\n");
+    assert_eq!(
+        run("for ch in \"ab\" { print(ch); } println(\"\");"),
+        "ab\n"
+    );
+    assert_eq!(
+        run("for k in {x: 1, y: 2} { print(k); } println(\"\");"),
+        "xy\n"
+    );
     // Array spread of a string and of a map (ArrayExtend on each).
-    assert_eq!(run("println([..\"ab\", \"c\"]);"), "[\"a\", \"b\", \"c\"]\n");
+    assert_eq!(
+        run("println([..\"ab\", \"c\"]);"),
+        "[\"a\", \"b\", \"c\"]\n"
+    );
     assert_eq!(run("println([..{p: 1, q: 2}]);"), "[\"p\", \"q\"]\n");
     assert_eq!(kind("println([..5]);"), "TypeError"); // spread a non-iterable
-    // super method *call* (GET_SUPER then CALL) and an undefined super method.
+                                                      // super method *call* (GET_SUPER then CALL) and an undefined super method.
     assert_eq!(
         run("class A { greet(n) { return \"hi ${n}\"; } } class B < A { greet(n) { return super.greet(n) + \"!\"; } } println(B().greet(\"x\"));"),
         "hi x!\n"
@@ -110,9 +137,15 @@ fn more_vm_runtime_paths() {
         "42\n"
     );
     // and/or value-preservation + short-circuit (no evaluation of RHS).
-    assert_eq!(run("fn boom() { throw \"no\"; } println(true || boom()); println(false && boom());"), "true\nfalse\n");
+    assert_eq!(
+        run("fn boom() { throw \"no\"; } println(true || boom()); println(false && boom());"),
+        "true\nfalse\n"
+    );
     // Equality across object identities and nil.
-    assert_eq!(run("let a = [1]; let b = [1]; println(a == a); println(a == b); println(nil == nil);"), "true\nfalse\ntrue\n");
+    assert_eq!(
+        run("let a = [1]; let b = [1]; println(a == a); println(a == b); println(nil == nil);"),
+        "true\nfalse\ntrue\n"
+    );
 }
 
 #[test]
@@ -204,7 +237,10 @@ fn debug_renders_diverse_local_types() {
             DebugStatus::Running => {}
         }
     }
-    assert!(max_locals >= 10, "expected to see many typed locals, saw {max_locals}");
+    assert!(
+        max_locals >= 10,
+        "expected to see many typed locals, saw {max_locals}"
+    );
 }
 
 #[test]
@@ -215,7 +251,9 @@ fn import_errors() {
     let proto = lumen::compiler::compile(&program).unwrap();
     let mut vm = Vm::with_output(Box::new(std::io::sink()));
     lumen::stdlib::install(&mut vm);
-    let msg = vm.interpret(proto).expect_err("missing module should error");
+    let msg = vm
+        .interpret(proto)
+        .expect_err("missing module should error");
     assert!(msg.contains("cannot find module"));
 }
 
@@ -233,12 +271,24 @@ fn builtin_conversions_and_helpers() {
     assert_eq!(run("println(chr(65)); println(ord(\"A\"));"), "A\n65\n");
     assert_eq!(run("println(range(3)); println(range(2, 5)); println(range(0, 10, 3)); println(range(5, 0, -1));"),
         "[0, 1, 2]\n[2, 3, 4]\n[0, 3, 6, 9]\n[5, 4, 3, 2, 1]\n");
-    assert_eq!(run("println(len(\"héllo\")); println(len([1,2,3])); println(len({a: 1}));"), "5\n3\n1\n");
-    assert_eq!(run("let a = [3]; assert(pop(a) == 3); println(len(a));"), "0\n");
+    assert_eq!(
+        run("println(len(\"héllo\")); println(len([1,2,3])); println(len({a: 1}));"),
+        "5\n3\n1\n"
+    );
+    assert_eq!(
+        run("let a = [3]; assert(pop(a) == 3); println(len(a));"),
+        "0\n"
+    );
     assert_eq!(run("let m = {a: 1, b: 2}; del(m, \"a\"); println(keys(m)); println(values(m)); println(has(m, \"b\"));"),
         "[\"b\"]\n[2]\ntrue\n");
-    assert_eq!(run("let a = [1,2,3]; del(a, 1); println(a); del(a, -1); println(a);"), "[1, 3]\n[1]\n");
-    assert_eq!(run("println(str(nil)); println(str([1, \"a\", true]));"), "nil\n[1, \"a\", true]\n");
+    assert_eq!(
+        run("let a = [1,2,3]; del(a, 1); println(a); del(a, -1); println(a);"),
+        "[1, 3]\n[1]\n"
+    );
+    assert_eq!(
+        run("println(str(nil)); println(str([1, \"a\", true]));"),
+        "nil\n[1, \"a\", true]\n"
+    );
 }
 
 #[test]
@@ -246,10 +296,19 @@ fn vm_value_display_paths() {
     // Exercises to_display for each object kind via interpolation.
     assert_eq!(run("fn f(){} println(\"${f}\");"), "<fn f>\n");
     assert_eq!(run("class C {} println(\"${C}\");"), "<class C>\n");
-    assert_eq!(run("class C {} let c = C(); println(\"${c}\");"), "<C instance>\n");
+    assert_eq!(
+        run("class C {} let c = C(); println(\"${c}\");"),
+        "<C instance>\n"
+    );
     assert_eq!(run("println(\"${println}\");"), "<fn println>\n");
-    assert_eq!(run("import \"math\" as m; println(\"${m}\");"), "<module math>\n");
-    assert_eq!(run("println(\"${ {a: 1, b: [2, 3]} }\");"), "{\"a\": 1, \"b\": [2, 3]}\n");
+    assert_eq!(
+        run("import \"math\" as m; println(\"${m}\");"),
+        "<module math>\n"
+    );
+    assert_eq!(
+        run("println(\"${ {a: 1, b: [2, 3]} }\");"),
+        "{\"a\": 1, \"b\": [2, 3]}\n"
+    );
 }
 
 #[test]
@@ -277,7 +336,10 @@ fn string_breadth() {
         println(s.trim_start(\"  x\")); println(s.trim_end(\"x  \"));
         println(s.pad_right(\"7\", 3, \".\"));
         println(s.index_of(\"abc\", \"z\"));";
-    assert_eq!(run(src), "ell\no\n[\"a\", \"b\", \"c\"]\ntrue\nx\nx\n7..\n-1\n");
+    assert_eq!(
+        run(src),
+        "ell\no\n[\"a\", \"b\", \"c\"]\ntrue\nx\nx\n7..\n-1\n"
+    );
 }
 
 #[test]
@@ -363,20 +425,29 @@ fn debug_api_drives_execution() {
 #[test]
 fn try_finally_without_catch_runs_on_all_paths() {
     // normal completion
-    assert_eq!(run("try { println(\"body\"); } finally { println(\"fin\"); }"), "body\nfin\n");
+    assert_eq!(
+        run("try { println(\"body\"); } finally { println(\"fin\"); }"),
+        "body\nfin\n"
+    );
     // exception propagates but finally still runs (then caught by outer)
     let src = "try {
                    try { throw \"x\"; } finally { println(\"inner-fin\"); }
                } catch (e) { println(\"caught ${e}\"); }";
     assert_eq!(run(src), "inner-fin\ncaught x\n");
     // return through finally
-    assert_eq!(run("fn f() { try { return 1; } finally { println(\"cleanup\"); } } println(f());"), "cleanup\n1\n");
+    assert_eq!(
+        run("fn f() { try { return 1; } finally { println(\"cleanup\"); } } println(f());"),
+        "cleanup\n1\n"
+    );
 }
 
 #[test]
 fn nested_modules_and_caching() {
     // Importing the same native module twice yields the same object (cached).
-    assert_eq!(run("import \"math\" as a; import \"math\" as b; println(a == b);"), "true\n");
+    assert_eq!(
+        run("import \"math\" as a; import \"math\" as b; println(a == b);"),
+        "true\n"
+    );
     // Self-hosted module functions work and are cached too.
     assert_eq!(
         run("import \"seq\" as q; println(q.find([1,2,3,4], fn(x) { return x > 2; }));"),
@@ -389,9 +460,18 @@ fn assignment_forms_and_index_growth() {
     // index-assign at exactly length appends.
     assert_eq!(run("let a = [1, 2]; a[2] = 3; println(a);"), "[1, 2, 3]\n");
     // negative index assignment.
-    assert_eq!(run("let a = [1, 2, 3]; a[-1] = 99; println(a);"), "[1, 2, 99]\n");
+    assert_eq!(
+        run("let a = [1, 2, 3]; a[-1] = 99; println(a);"),
+        "[1, 2, 99]\n"
+    );
     // map computed-key set/get.
-    assert_eq!(run("let m = {}; m[1 + 1] = \"two\"; println(m[2]);"), "two\n");
+    assert_eq!(
+        run("let m = {}; m[1 + 1] = \"two\"; println(m[2]);"),
+        "two\n"
+    );
     // field create + chained access.
-    assert_eq!(run("class P {} let p = P(); p.x = 5; p.y = p.x * 2; println(p.y);"), "10\n");
+    assert_eq!(
+        run("class P {} let p = P(); p.x = 5; p.y = p.x * 2; println(p.y);"),
+        "10\n"
+    );
 }
