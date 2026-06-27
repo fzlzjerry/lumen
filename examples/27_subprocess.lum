@@ -1,0 +1,19 @@
+// Subprocesses: os.exec(cmd, args) runs an external program and returns a map
+// with its exit `status` and captured `stdout` / `stderr`.
+
+import "os" as os;
+
+// Run `echo` with two arguments and read back what it printed.
+let r = os.exec("echo", ["Lumen", "subprocess"]);
+println("exit status: ${r["status"]}");
+print("output: ${r["stdout"]}");
+
+// A command that exits non-zero reports its status.
+let f = os.exec("false", []);
+println("`false` status: ${f["status"]}");
+
+// stdout and stderr are captured separately. `ls` of a missing path writes to
+// stderr and exits non-zero.
+let bad = os.exec("ls", ["/no/such/path/here"]);
+println("`ls` failed: ${bad["status"] != 0}");
+println("captured stderr: ${len(bad["stderr"]) > 0}");

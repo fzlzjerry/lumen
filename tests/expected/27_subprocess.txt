@@ -1,0 +1,5 @@
+exit status: 0
+output: Lumen subprocess
+`false` status: 1
+`ls` failed: true
+captured stderr: true

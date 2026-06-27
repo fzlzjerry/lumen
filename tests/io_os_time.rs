@@ -140,6 +140,29 @@ fn io_handle_errors() {
 }
 
 #[test]
+fn os_exec_runs_a_command() {
+    // `echo` is available on the POSIX test platforms; capture status + stdout.
+    let out = run(
+        r#"import "os" as os;
+        let r = os.exec("echo", ["hello", "world"]);
+        println(r["status"]);
+        print(r["stdout"]);
+        let f = os.exec("false", []);
+        println(f["status"]);
+        "#,
+    );
+    assert_eq!(out, "0\nhello world\n1\n");
+}
+
+#[test]
+fn os_exec_missing_command_throws() {
+    let msg = run_expect_throw(
+        r#"import "os" as os; os.exec("definitely_not_a_real_command_xyzzy", []);"#,
+    );
+    assert!(msg.contains("ValueError") || msg.contains("failed to run"), "got: {msg}");
+}
+
+#[test]
 fn io_exists_is_false_for_missing() {
     let out = run(
         r#"import "io";

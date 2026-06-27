@@ -345,7 +345,15 @@ println(h.base64_decode("TWFu"));    // "Man"
 | `env` | `(name, default?) -> string \| nil` | An environment variable, or `default`/`nil` if unset. |
 | `platform` | `() -> string` | The OS name (e.g. `"linux"`). |
 | `cwd` | `() -> string` | The current working directory. |
+| `exec` | `(cmd, args) -> map` | Run `cmd` with the string `args`, waiting for it to finish; returns `{status, stdout, stderr}` (`status` is the exit code, or -1 if killed by a signal). **Throws** `ValueError` if the program cannot be started. |
 | `exit` | `(code?) -> never` | Exit the process with `code` (default 0). |
+
+```lumen
+import "os" as os;
+let r = os.exec("echo", ["hello"]);
+println(r["status"]);   // 0
+print(r["stdout"]);     // "hello\n"
+```
 
 ### `time` — clock and sleeping
 
