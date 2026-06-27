@@ -1,0 +1,32 @@
+// Comprehensions build a collection from an iterable in a single expression:
+// `[element for x in iterable if condition]` for arrays and
+// `{key: value for x in iterable if condition}` for maps.
+
+// Map a range to its doubles / squares.
+println([x * 2 for x in range(5)]);          // [0, 2, 4, 6, 8]
+println([x * x for x in range(1, 6)]);       // [1, 4, 9, 16, 25]
+
+// Filter with `if`.
+println([x for x in range(10) if x % 2 == 0]);   // [0, 2, 4, 6, 8]
+
+// Transform an existing array, keeping only some elements.
+let words = ["the", "quick", "brown", "fox", "jumps"];
+println([w for w in words if len(w) > 3]);   // ["quick", "brown", "jumps"]
+println([len(w) for w in words]);            // [3, 5, 5, 3, 5]
+
+// Comprehensions capture surrounding variables.
+let scale = 10;
+println([x * scale for x in range(4)]);      // [0, 10, 20, 30]
+
+// Map comprehensions: a bare-identifier key is the loop variable.
+println({n: n * n for n in range(5)});       // {0: 0, 1: 1, 2: 4, 3: 9, 4: 16}
+
+// A computed key uses [..]; here we index words by their length.
+println({[len(w)]: w for w in ["a", "bb", "ccc"]});  // {1: "a", 2: "bb", 3: "ccc"}
+
+// Comprehensions nest and compose with everything else.
+println([[y for y in range(x)] for x in range(4)]);  // [[], [0], [0, 1], [0, 1, 2]]
+
+import "array" as arr;
+let squares = [x * x for x in range(1, 8)];
+println("sum of squares 1..7 = ${arr.sum(squares)}");

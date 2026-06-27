@@ -436,6 +436,23 @@ pub enum ExprKind {
         subject: Box<Expr>,
         arms: Vec<MatchArm>,
     },
+    /// `[element for var in iter if cond]` — an array comprehension (DESIGN D31).
+    ArrayComp {
+        element: Box<Expr>,
+        var: String,
+        var_span: Span,
+        iter: Box<Expr>,
+        cond: Option<Box<Expr>>,
+    },
+    /// `{key: value for var in iter if cond}` — a map comprehension (DESIGN D31).
+    MapComp {
+        key: Box<Expr>,
+        value: Box<Expr>,
+        var: String,
+        var_span: Span,
+        iter: Box<Expr>,
+        cond: Option<Box<Expr>>,
+    },
 }
 
 /// One arm of a `match` expression.

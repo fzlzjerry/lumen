@@ -497,6 +497,26 @@ impl Printer {
                 });
                 format!("match {subj} {arms_str}")
             }
+            ExprKind::ArrayComp { element, var, iter, cond, .. } => {
+                let el = self.expr(element, 0);
+                let it = self.expr(iter, 0);
+                let guard = cond.as_ref().map(|c| format!(" if {}", self.expr(c, 0))).unwrap_or_default();
+                format!("[{el} for {var} in {it}{guard}]")
+            }
+            ExprKind::MapComp { key, value, var, iter, cond, .. } => {
+                // A bare identifier key is the loop variable; a string is a literal
+                // key; anything else must be bracketed as a computed key so it
+                // re-parses (DESIGN D31).
+                let k = match &key.kind {
+                    ExprKind::Var(name) => name.clone(),
+                    ExprKind::Str(s) => format!("\"{}\"", escape_string(s)),
+                    _ => format!("[{}]", self.expr(key, 0)),
+                };
+                let v = self.expr(value, 0);
+                let it = self.expr(iter, 0);
+                let guard = cond.as_ref().map(|c| format!(" if {}", self.expr(c, 0))).unwrap_or_default();
+                format!("{{{k}: {v} for {var} in {it}{guard}}}")
+            }
         }
     }
 

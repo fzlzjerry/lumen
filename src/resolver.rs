@@ -567,6 +567,32 @@ impl Resolver {
         }
     }
 
+    /// Resolve a comprehension's body in its own function scope (DESIGN D31): the
+    /// loop variable is a parameter-like local, and `this`/`super` are inherited
+    /// from the enclosing context like a lambda. `exprs` are the element (array) or
+    /// key+value (map) expressions.
+    fn resolve_comprehension_body(
+        &mut self,
+        var_span: Span,
+        var: &str,
+        exprs: &[Option<&Expr>],
+        cond: Option<&Expr>,
+    ) {
+        let this = self.current_ref().allows_this;
+        let supr = self.current_ref().allows_super;
+        self.funcs.push(FuncCtx::new(FuncKind::Function, this, supr));
+        self.begin_scope();
+        self.declare_defined(var, var_span, false);
+        if let Some(c) = cond {
+            self.resolve_expr(c);
+        }
+        for e in exprs.iter().flatten() {
+            self.resolve_expr(e);
+        }
+        self.end_scope();
+        self.funcs.pop();
+    }
+
     fn resolve_function(
         &mut self,
         f: &Function,
@@ -736,6 +762,17 @@ impl Resolver {
                     self.resolve_expr(&arm.body);
                     self.end_scope();
                 }
+            }
+            ExprKind::ArrayComp { element, var, var_span, iter, cond } => {
+                // The iterable is evaluated in the enclosing scope; the body runs in
+                // its own function scope (matching the compiler's IIFE — DESIGN D31),
+                // inheriting `this`/`super` like a lambda.
+                self.resolve_expr(iter);
+                self.resolve_comprehension_body(*var_span, var, &[Some(element)], cond.as_deref());
+            }
+            ExprKind::MapComp { key, value, var, var_span, iter, cond } => {
+                self.resolve_expr(iter);
+                self.resolve_comprehension_body(*var_span, var, &[Some(key), Some(value)], cond.as_deref());
             }
         }
     }

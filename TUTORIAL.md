@@ -281,6 +281,15 @@ println(has(person, "age")); // true
 del(person, "age");
 ```
 
+**Comprehensions** build a collection from an iterable in one expression — for
+arrays `[e for x in it if c]` and for maps `{k: v for x in it if c}`:
+
+```lumen
+println([x * x for x in range(5)]);              // [0, 1, 4, 9, 16]
+println([x for x in range(10) if x % 2 == 0]);   // [0, 2, 4, 6, 8]
+println({n: n * n for n in range(4)});           // {0: 0, 1: 1, 2: 4, 3: 9}
+```
+
 ## 7. Classes and inheritance
 
 Classes have an `init` constructor, methods, single inheritance with `<`, and

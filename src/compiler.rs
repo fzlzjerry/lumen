@@ -54,6 +54,13 @@ enum Access {
     Key(Box<Access>, String),
 }
 
+/// The body of a comprehension being compiled: an array element, or a map
+/// `key`/`value` pair.
+enum Comp<'a> {
+    Array(&'a Expr),
+    Map(&'a Expr, &'a Expr),
+}
+
 /// Control-flow frames threaded for `break`/`continue`/`return` so they emit the
 /// right scope/handler/finally cleanup when jumping out of nested constructs.
 enum Cf {
@@ -570,6 +577,110 @@ impl Compiler {
         self.patch_jump(exit_at, span); // IterNext's exit lands here
         self.patch_breaks(cf, span);
         self.end_scope(span.line); // pop @iter and @idx
+    }
+
+    /// Compile a comprehension (`[e for x in it if c]` / `{k: v for ...}`) as an
+    /// immediately-invoked zero-visible-arg function whose body is the build loop
+    /// (DESIGN D31). Running it in its own frame keeps the loop's slots clean
+    /// regardless of the surrounding operand stack (so a comprehension works as a
+    /// call argument, operand, etc.). The iterable is evaluated in the enclosing
+    /// scope and passed as the function's single argument; everything else
+    /// (`element`/`cond`/`key`/`value`) is compiled inside and captures outer
+    /// variables as upvalues.
+    fn compile_comprehension(
+        &mut self,
+        comp: Comp,
+        var: &str,
+        var_span: Span,
+        iter: &Expr,
+        cond: Option<&Expr>,
+        span: Span,
+    ) {
+        let line = span.line;
+        self.funcs.push(FnState::new(FnKind::Function, None, ""));
+        self.cur().arity = 1;
+        self.begin_scope();
+        // Slot 1: the iterable (the function's one parameter).
+        self.add_local("@it", span);
+        let it_slot = (self.cur_ref().locals.len() - 1) as u8;
+        // Accumulator and running index.
+        self.emit_op(if matches!(comp, Comp::Array(_)) { OpCode::NewArray } else { OpCode::NewMap }, line);
+        self.add_local("@acc", span);
+        let acc_slot = (self.cur_ref().locals.len() - 1) as u8;
+        self.emit_load_const(Constant::Int(0), span);
+        self.add_local("@idx", span);
+        let idx_slot = (self.cur_ref().locals.len() - 1) as u8;
+
+        let loop_start = self.chunk().len();
+        self.emit_op(OpCode::IterNext, line);
+        self.emit_byte(it_slot, line);
+        self.emit_byte(idx_slot, line);
+        let exit_at = self.chunk().len();
+        self.chunk().write_u16(0xFFFF, line);
+
+        // The element pushed by IterNext becomes the loop variable.
+        self.begin_scope();
+        self.add_local(var, var_span);
+        // Optional `if cond`: skip the push when false (popping the test bool on
+        // both paths).
+        let skip = cond.map(|c| {
+            self.compile_expr(c);
+            let j = self.emit_jump(OpCode::JumpIfFalse, line);
+            self.emit_op(OpCode::Pop, line); // matched: drop the test bool
+            j
+        });
+        match comp {
+            Comp::Array(element) => {
+                self.emit_op_u8(OpCode::GetLocal, acc_slot, line);
+                self.compile_expr(element);
+                self.emit_op(OpCode::ArrayPush, line);
+                self.emit_op(OpCode::Pop, line); // drop the acc copy ARRAY_PUSH left
+            }
+            Comp::Map(key, value) => {
+                self.emit_op_u8(OpCode::GetLocal, acc_slot, line);
+                self.compile_expr(key);
+                self.compile_expr(value);
+                self.emit_op(OpCode::MapInsert, line);
+                self.emit_op(OpCode::Pop, line); // drop the acc copy MAP_INSERT left
+            }
+        }
+        if let Some(j) = skip {
+            let done = self.emit_jump(OpCode::Jump, line);
+            self.patch_jump(j, span); // cond-false lands here with the bool still on top
+            self.emit_op(OpCode::Pop, line);
+            self.patch_jump(done, span);
+        }
+        self.end_scope(line); // pop the loop variable (closing it if captured)
+        self.emit_loop(loop_start, span);
+        self.patch_jump(exit_at, span); // IterNext's exit lands here
+        // Return the accumulator.
+        self.emit_op_u8(OpCode::GetLocal, acc_slot, line);
+        self.emit_op(OpCode::Return, line);
+
+        // Freeze the function and emit it as a closure, then invoke it with the
+        // iterable (evaluated in the enclosing scope) as the sole argument.
+        let state = self.funcs.pop().unwrap();
+        let upvalues = state.upvalues;
+        let proto = Rc::new(FnProto {
+            name: None,
+            arity: 1,
+            required_arity: 1,
+            has_rest: false,
+            upvalue_count: upvalues.len(),
+            is_generator: false,
+            chunk: state.chunk,
+            kind: FnKind::Function,
+            exports: Vec::new(),
+            local_names: state.local_names,
+        });
+        let idx = self.make_const(Constant::Fn(proto), span);
+        self.emit_op_u16(OpCode::Closure, idx, line);
+        for up in &upvalues {
+            self.emit_byte(u8::from(up.is_local), line);
+            self.emit_byte(up.index, line);
+        }
+        self.compile_expr(iter); // the argument, in the enclosing scope
+        self.emit_op_u8(OpCode::Call, 1, line);
     }
 
     /// Patch a finished loop's `break` jumps to the current position.
@@ -1165,6 +1276,12 @@ impl Compiler {
             }
             ExprKind::Lambda(f) => self.compile_function(f, FnKind::Function, line),
             ExprKind::Match { subject, arms } => self.compile_match(subject, arms, span),
+            ExprKind::ArrayComp { element, var, var_span, iter, cond } => {
+                self.compile_comprehension(Comp::Array(element), var, *var_span, iter, cond.as_deref(), span)
+            }
+            ExprKind::MapComp { key, value, var, var_span, iter, cond } => {
+                self.compile_comprehension(Comp::Map(key, value), var, *var_span, iter, cond.as_deref(), span)
+            }
         }
     }
 

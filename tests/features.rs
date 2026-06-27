@@ -325,6 +325,27 @@ fn instance_reflection_and_is_operator() {
 }
 
 #[test]
+fn comprehensions() {
+    // Array comprehension (the headline example).
+    assert_eq!(out("let a = [x * 2 for x in range(3)]; println(a);"), "[0, 2, 4]\n");
+    // With a filter.
+    assert_eq!(out("println([x for x in range(10) if x % 2 == 0]);"), "[0, 2, 4, 6, 8]\n");
+    // Works as a call argument (its own frame — DESIGN D31).
+    assert_eq!(out("println(len([x for x in range(7)]));"), "7\n");
+    // Map comprehension; a bare-ident key is the loop variable.
+    assert_eq!(out("println({x: x * x for x in range(4)});"), "{0: 0, 1: 1, 2: 4, 3: 9}\n");
+    // Computed and string keys.
+    assert_eq!(out("println({[x + 10]: x for x in range(2)});"), "{10: 0, 11: 1}\n");
+    // Captures an outer variable.
+    assert_eq!(out("let k = 10; println([x * k for x in range(3)]);"), "[0, 10, 20]\n");
+    // `this` inside a comprehension in a method.
+    let cls = "class S { init(k) { this.k = k; } f(xs) { return [x * this.k for x in xs]; } }";
+    assert_eq!(out(&format!("{cls} println(S(3).f([1, 2, 3]));")), "[3, 6, 9]\n");
+    // Over a string.
+    assert_eq!(out("println([c for c in \"abc\"]);"), "[\"a\", \"b\", \"c\"]\n");
+}
+
+#[test]
 fn round_radix_and_octal() {
     // math.round(x, ndigits) rounds to decimals (float); round(x) -> int.
     assert_eq!(out("import \"math\" as m; println(m.round(3.14159, 2));"), "3.14\n");
@@ -399,6 +420,10 @@ fn formatter_roundtrips_new_features() {
         "let q = -2 ** 2;",
         "let r = (-2) ** 2;",
         "let s = foo()[0] ** 2 * 3;",
+        "let ac = [x * 2 for x in range(3)];",
+        "let af = [x for x in xs if x > 0];",
+        "let mc = {k: k * k for k in range(4)};",
+        "let mk = {[i + 1]: i for i in xs if i > 0};",
         "let [a, b, ..rest] = xs;",
         "let {x, y} = m;",
         "let g = fn(n = 5) { return n; };",

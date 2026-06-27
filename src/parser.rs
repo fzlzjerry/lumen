@@ -23,6 +23,12 @@ pub struct Parser {
     errors: Vec<Diagnostic>,
 }
 
+/// The already-parsed head of a comprehension, before its `for` clause.
+enum CompHead {
+    Array(Expr),
+    Map(Expr, Expr),
+}
+
 /// Parse `tokens` into a program plus any syntax errors.
 pub fn parse(tokens: Vec<Token>) -> (Program, Vec<Diagnostic>) {
     Parser::new(tokens).parse_program()
@@ -980,17 +986,25 @@ impl Parser {
         let open = self.consume(&K::LBracket, "expected '['")?;
         let mut elems = Vec::new();
         if !self.check(&K::RBracket) {
-            loop {
+            // First element. If it is a plain expression followed by `for`, this is
+            // a comprehension (DESIGN D31).
+            if self.match_kind(&K::DotDot) {
+                elems.push(ArrayElem::Spread(self.expression()?));
+            } else {
+                let first = self.expression()?;
+                if self.check(&K::For) {
+                    return self.finish_comprehension(CompHead::Array(first), open.span, &K::RBracket);
+                }
+                elems.push(ArrayElem::Item(first));
+            }
+            while self.match_kind(&K::Comma) {
+                if self.check(&K::RBracket) {
+                    break;
+                }
                 if self.match_kind(&K::DotDot) {
                     elems.push(ArrayElem::Spread(self.expression()?));
                 } else {
                     elems.push(ArrayElem::Item(self.expression()?));
-                }
-                if !self.match_kind(&K::Comma) {
-                    break;
-                }
-                if self.check(&K::RBracket) {
-                    break;
                 }
             }
         }
@@ -998,21 +1012,69 @@ impl Parser {
         Ok(Expr::new(ExprKind::Array(elems), open.span.to(close.span)))
     }
 
+    /// Parse the `for var in iter [if cond]` tail of a comprehension (the
+    /// element/entry is already parsed) and the closing bracket.
+    fn finish_comprehension(&mut self, head: CompHead, open: Span, close_kind: &TokenKind) -> PResult<Expr> {
+        self.consume(&K::For, "expected 'for' in comprehension")?;
+        let (var, var_span) = self.consume_ident("expected the comprehension variable")?;
+        self.consume(&K::In, "expected 'in' after the comprehension variable")?;
+        let iter = self.expression()?;
+        let cond = if self.match_kind(&K::If) {
+            Some(Box::new(self.expression()?))
+        } else {
+            None
+        };
+        let close = self.consume(close_kind, "expected the comprehension to be closed")?;
+        let span = open.to(close.span);
+        let kind = match head {
+            CompHead::Array(element) => ExprKind::ArrayComp {
+                element: Box::new(element),
+                var,
+                var_span,
+                iter: Box::new(iter),
+                cond,
+            },
+            CompHead::Map(key, value) => ExprKind::MapComp {
+                key: Box::new(key),
+                value: Box::new(value),
+                var,
+                var_span,
+                iter: Box::new(iter),
+                cond,
+            },
+        };
+        Ok(Expr::new(kind, span))
+    }
+
     fn map_literal(&mut self) -> PResult<Expr> {
         let open = self.consume(&K::LBrace, "expected '{'")?;
         let mut entries = Vec::new();
         if !self.check(&K::RBrace) {
-            loop {
+            // First entry. Remember whether the key was a bare identifier so a
+            // comprehension can treat it as the loop *variable* rather than a
+            // string shorthand (DESIGN D31).
+            let key_span = self.peek().span;
+            let bare_ident = if let K::Ident(n) = &self.peek().kind { Some(n.clone()) } else { None };
+            let key = self.map_key()?;
+            self.consume(&K::Colon, "expected ':' after the map key")?;
+            let value = self.expression()?;
+            if self.check(&K::For) {
+                let key_expr = match (key, bare_ident) {
+                    (MapKey::Str(_), Some(name)) => Expr::new(ExprKind::Var(name), key_span),
+                    (MapKey::Str(s), None) => Expr::new(ExprKind::Str(s), key_span),
+                    (MapKey::Computed(e), _) => e,
+                };
+                return self.finish_comprehension(CompHead::Map(key_expr, value), open.span, &K::RBrace);
+            }
+            entries.push((key, value));
+            while self.match_kind(&K::Comma) {
+                if self.check(&K::RBrace) {
+                    break;
+                }
                 let key = self.map_key()?;
                 self.consume(&K::Colon, "expected ':' after the map key")?;
                 let value = self.expression()?;
                 entries.push((key, value));
-                if !self.match_kind(&K::Comma) {
-                    break;
-                }
-                if self.check(&K::RBrace) {
-                    break;
-                }
             }
         }
         let close = self.consume(&K::RBrace, "expected '}' to close the map")?;

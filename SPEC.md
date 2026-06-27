@@ -288,16 +288,29 @@ primary    = intLit | floatLit | string | boolLit | nilLit
            | identifier | "this" | "super" "." identifier
            | "(" expression ")"
            | arrayLit | mapLit | lambda | matchExpr ;
-arrayLit   = "[" [ element { "," element } [ "," ] ] "]" ;
+arrayLit   = "[" ( comprehension | [ element { "," element } [ "," ] ] ) "]" ;
 element    = [ ".." ] expression ;     (* ".." spreads an array into this one *)
-mapLit     = "{" [ entry { "," entry } [ "," ] ] "}" ;
+mapLit     = "{" ( mapComp | [ entry { "," entry } [ "," ] ] ) "}" ;
 entry      = ( string | identifier | "[" expression "]" ) ":" expression ;
+comprehension = expression compClause ;
+mapComp    = entry compClause ;        (* a bare-identifier key is the loop var *)
+compClause = "for" identifier "in" expression [ "if" expression ] ;
 lambda     = "fn" "(" [ paramList ] ")" block      (* block body, explicit return *)
            | identifier "=>" assignment            (* arrow: single param, expr body *)
            | "(" [ paramList ] ")" "=>" assignment ;
 matchExpr  = "match" exprNoBrace "{" arm { "," arm } [ "," ] "}" ;
 arm        = pattern [ "if" expression ] "=>" expression ;
 ```
+
+A **comprehension** builds a collection from an iterable: `[e for x in it if c]`
+evaluates `e` for each `x` drawn from `it` (skipping those failing the optional
+`if c`) and collects the results into an array; `{k: v for x in it if c}` does the
+same into a map. It is recognized when a `for` follows the first element/entry of
+a `[...]` / `{...}`. The comprehension variable is scoped to the comprehension. In
+a map comprehension a **bare-identifier key is the loop variable** (`{x: x for x
+in it}` keys by `x`'s value), unlike a map literal where `{x: 1}` keys by the
+string `"x"`; string and `[expr]` keys keep their literal/computed meaning (DESIGN
+D31).
 
 In a map literal an `identifier` key is shorthand for the string of that name
 (`{x: 1}` ≡ `{"x": 1}`); a `[expr]` key is computed. `super.method` is only

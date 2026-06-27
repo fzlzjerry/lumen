@@ -687,6 +687,21 @@ fn lambdas_in_expr(e: &Expr, out: &mut Vec<Def>) {
                 lambdas_in_expr(&arm.body, out);
             }
         }
+        ExprKind::ArrayComp { element, iter, cond, .. } => {
+            lambdas_in_expr(element, out);
+            lambdas_in_expr(iter, out);
+            if let Some(c) = cond {
+                lambdas_in_expr(c, out);
+            }
+        }
+        ExprKind::MapComp { key, value, iter, cond, .. } => {
+            lambdas_in_expr(key, out);
+            lambdas_in_expr(value, out);
+            lambdas_in_expr(iter, out);
+            if let Some(c) = cond {
+                lambdas_in_expr(c, out);
+            }
+        }
         // Leaves: Int/Float/Str/Bool/Nil/Var/This/Super.
         _ => {}
     }

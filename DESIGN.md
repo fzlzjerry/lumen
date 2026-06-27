@@ -298,6 +298,24 @@ module rather than erroring, matching Python's pragmatic behavior.
 
 ---
 
+## D31 — Comprehensions desugar to a build loop
+
+`[e for x in it if c]` and `{k: v for x in it if c}` build a collection lazily
+from an iterable. They are recognized in array/map-literal position when a `for`
+follows the first element/entry, and compile to the same machinery a hand-written
+loop would: allocate the accumulator, run a `for-in` (`ITER_NEXT`) over `it`, skip
+iterations failing the optional `if`, and `ARRAY_PUSH` / `MAP_INSERT` the result.
+The comprehension variable lives in its own scope, so it does not leak.
+
+v1 supports a **single** `for` and an optional `if` (no nested generators); these
+are a clean future extension. The one subtlety is map-comprehension **keys**:
+unlike a map *literal*, where a bare identifier `{x: 1}` is shorthand for the
+string `"x"`, in a comprehension a bare identifier key is the loop **variable**
+(`{x: x * x for x in range(3)}` keys by the value of `x`) — because comprehension
+keys are inherently dynamic. String- and `[expr]`-form keys keep their literal /
+computed meaning. Keeping comprehensions as their own AST nodes (rather than
+desugaring in the parser) lets `lumen fmt` print them back in comprehension form.
+
 ## D30 — Tail-call optimization by frame reuse
 
 `return f(args);` in **tail position** reuses the current call frame instead of
