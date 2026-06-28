@@ -305,6 +305,24 @@ fn higher_order_natives_are_gc_safe_under_stress() {
 }
 
 #[test]
+fn reflection_builtins_are_gc_safe_under_stress() {
+    // getattr allocates a bound method and fields() builds an array of fresh
+    // strings; running under stress GC proves those allocations stay rooted.
+    let src = "class Box { init(n) { this.n = n; } get() { return this.n; } }
+               let total = 0;
+               for let i = 0; i < 30; i = i + 1 {
+                   let b = Box(i);
+                   setattr(b, \"extra\", i * 2);
+                   let g = getattr(b, \"get\");
+                   total = total + g() + getattr(b, \"extra\") + len(fields(b));
+               }
+               println(total);";
+    // sum over i in 0..30 of: i (get) + 2i (extra) + 2 (fields n,extra) = 3i + 2
+    // = 3*(0+..+29) + 2*30 = 3*435 + 60 = 1365.
+    assert_eq!(run_with(src, true), "1365\n");
+}
+
+#[test]
 fn self_hosted_set_module() {
     // The `set` module: a hash set written in Lumen (dedup, set algebra).
     let src = r#"import "set";

@@ -73,6 +73,11 @@ global of the same name).
 | `has` | `has(map, key) -> bool` | Whether the map contains `key`. **Throws** `TypeError` if not a map. |
 | `del` | `del(coll, key) -> nil` | Remove `key` from a map, or the element at index `key` from an array (negative indices allowed). |
 | `next` | `next(gen) -> any` | Advance a generator to its next `yield` and return the value; returns `nil` once the generator is exhausted. **Throws** `TypeError` if not a generator. |
+| `getattr` | `getattr(obj, name, default?) -> any` | Reflective property read on a class instance: returns the field `name` if present, else a bound method if the class defines one, else `default` if given. **Throws** `NameError` when the attribute is missing and no default is supplied (stricter than `.name`, which reads missing as `nil`), or `TypeError` if `obj` is not an instance / `name` is not a string. |
+| `setattr` | `setattr(obj, name, value) -> nil` | Reflective field write on a class instance; same effect as `obj.name = value`. **Throws** `TypeError` if `obj` is not an instance or `name` is not a string. |
+| `hasattr` | `hasattr(obj, name) -> bool` | Whether `obj` is an instance that has a field or method named `name`. Returns `false` (never throws) for a non-instance. **Throws** `TypeError` only if `name` is not a string. |
+| `fields` | `fields(obj) -> array` | The instance's own field **names** (methods excluded), as strings. Order is **not** guaranteed. **Throws** `TypeError` if `obj` is not an instance. |
+| `callable` | `callable(x) -> bool` | Whether `x` can be called: a function/closure, native function, bound method, or class (callable as its constructor). Accepts any value; never throws. |
 
 ```lumen
 println(type([1, 2]));          // array

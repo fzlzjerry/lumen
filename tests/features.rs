@@ -592,6 +592,75 @@ fn typed_catch_matches_user_classes() {
 }
 
 #[test]
+fn reflection_builtins() {
+    // setattr writes a field; getattr and `.` both read it back.
+    assert_eq!(
+        out("class C {} let c = C(); setattr(c, \"x\", 7); \
+             println(getattr(c, \"x\")); println(c.x);"),
+        "7\n7\n"
+    );
+    // getattr of a method returns a callable bound method that invokes correctly.
+    assert_eq!(
+        out(
+            "class C { init(v) { this.v = v; } get() { return this.v; } } \
+             let c = C(9); let m = getattr(c, \"get\"); \
+             println(callable(m)); println(m());"
+        ),
+        "true\n9\n"
+    );
+    // getattr of a missing attribute throws without a default...
+    let e = run("class C {} getattr(C(), \"nope\");").unwrap_err();
+    assert!(e.contains("no attribute 'nope'"), "got: {e}");
+    // ...and returns the default when one is supplied.
+    assert_eq!(
+        out("class C {} println(getattr(C(), \"nope\", 42));"),
+        "42\n"
+    );
+    // getattr/setattr/fields reject non-instances and non-string names.
+    let e = run("getattr(5, \"x\");").unwrap_err();
+    assert!(e.contains("instance"), "got: {e}");
+    let e = run("class C {} setattr(C(), 1, 2);").unwrap_err();
+    assert!(e.contains("name must be a string"), "got: {e}");
+
+    // hasattr: true for a field and a method, false for a missing name.
+    assert_eq!(
+        out("class C { m() {} } let c = C(); setattr(c, \"f\", 1); \
+             println(hasattr(c, \"f\")); println(hasattr(c, \"m\")); \
+             println(hasattr(c, \"z\"));"),
+        "true\ntrue\nfalse\n"
+    );
+    // hasattr is false (not an error) on a non-instance.
+    assert_eq!(out("println(hasattr(5, \"x\"));"), "false\n");
+
+    // fields lists exactly the instance's own field names (methods excluded);
+    // order is unspecified, so check membership via a set rather than position.
+    assert_eq!(
+        out("class C { init() { this.a = 1; this.b = 2; } m() {} } \
+             let fs = fields(C()); let seen = {}; \
+             for k in fs { seen[k] = true; } \
+             println(len(fs)); println(has(seen, \"a\")); println(has(seen, \"b\"));"),
+        "2\ntrue\ntrue\n"
+    );
+    // fields on a fresh instance with no fields is empty.
+    assert_eq!(out("class C {} println(len(fields(C())));"), "0\n");
+
+    // callable: true for fn, closure, native, and class.
+    assert_eq!(out("fn f() {} println(callable(f));"), "true\n");
+    assert_eq!(
+        out("fn mk() { return fn() {}; } println(callable(mk()));"),
+        "true\n"
+    );
+    assert_eq!(out("println(callable(println));"), "true\n");
+    assert_eq!(out("class C {} println(callable(C));"), "true\n");
+    // callable: false for non-callables, including a plain instance.
+    assert_eq!(out("class C {} println(callable(C()));"), "false\n");
+    assert_eq!(out("println(callable(5));"), "false\n");
+    assert_eq!(out("println(callable(\"s\"));"), "false\n");
+    assert_eq!(out("println(callable([1, 2]));"), "false\n");
+    assert_eq!(out("println(callable(nil));"), "false\n");
+}
+
+#[test]
 fn formatter_roundtrips_new_features() {
     // Parse -> print -> parse must be stable for the new syntax.
     let srcs = [

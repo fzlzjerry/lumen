@@ -8,7 +8,7 @@
 //! heap borrow never overlaps a `make_error`/allocation.
 
 use super::Vm;
-use crate::object::{Arity, Obj};
+use crate::object::{Arity, BoundMethod, Obj};
 use crate::value::{error_kind, Value};
 
 /// Register every global builtin into the VM's builtin table.
@@ -35,6 +35,120 @@ pub fn register(vm: &mut Vm) {
     vm.define_native("has", Exact(2), has);
     vm.define_native("del", Exact(2), del);
     vm.define_native("next", Exact(1), next_fn);
+    vm.define_native("getattr", Range(2, 3), getattr);
+    vm.define_native("setattr", Exact(3), setattr);
+    vm.define_native("hasattr", Exact(2), hasattr);
+    vm.define_native("fields", Exact(1), fields);
+    vm.define_native("callable", Exact(1), callable);
+}
+
+/// Read the string out of `args[i]`, or raise a `TypeError` naming `who` when it
+/// is not a string — the shared name-argument check for the reflection builtins.
+fn arg_name(vm: &mut Vm, args: &[Value], i: usize, who: &str) -> Result<String, Value> {
+    match args[i].as_obj().map(|r| vm.heap.get(r)) {
+        Some(Obj::Str(s)) => Ok(s.clone()),
+        _ => Err(vm.make_error(error_kind::TYPE, format!("{who}() name must be a string"))),
+    }
+}
+
+/// Require that `args[0]` is a class instance, returning its handle; otherwise a
+/// `TypeError` naming `who`. Mirrors the instance check in `Vm::set_property`.
+fn arg_instance(vm: &mut Vm, args: &[Value], who: &str) -> Result<crate::value::GcRef, Value> {
+    match args[0].as_obj() {
+        Some(r) if matches!(vm.heap.get(r), Obj::Instance(_)) => Ok(r),
+        _ => Err(vm.make_error(error_kind::TYPE, format!("{who}() expects an instance"))),
+    }
+}
+
+/// `getattr(obj, name, default?)` — reflective property read over a class
+/// instance. Returns the field if present, else a bound method if the class
+/// defines one, else the `default` (when given), else a `NameError`. Mirrors the
+/// instance branch of `Vm::get_property`, but is stricter than `.name`: a missing
+/// attribute with no default *throws* rather than reading as nil, so callers can
+/// distinguish absence (pair with `hasattr`).
+fn getattr(vm: &mut Vm, args: &[Value]) -> Result<Value, Value> {
+    let r = arg_instance(vm, args, "getattr")?;
+    let name = arg_name(vm, args, 1, "getattr")?;
+    let (field, class) = match vm.heap.get(r) {
+        Obj::Instance(inst) => (inst.fields.get(&name).copied(), inst.class),
+        _ => unreachable!("checked by arg_instance"),
+    };
+    if let Some(v) = field {
+        return Ok(v);
+    }
+    if let Some(method) = vm.find_method(class, &name) {
+        // `args[0]` stays rooted on the stack across this alloc.
+        let bound = vm.heap.alloc(Obj::Bound(BoundMethod {
+            receiver: args[0],
+            method,
+        }));
+        return Ok(Value::Obj(bound));
+    }
+    if args.len() == 3 {
+        return Ok(args[2]);
+    }
+    Err(vm.make_error(
+        error_kind::NAME,
+        format!("instance has no attribute '{name}'"),
+    ))
+}
+
+/// `setattr(obj, name, value)` — reflective field write. Same effect as
+/// `obj.name = value` (`Vm::set_property`): inserts or overwrites the field.
+fn setattr(vm: &mut Vm, args: &[Value]) -> Result<Value, Value> {
+    let r = arg_instance(vm, args, "setattr")?;
+    let name = arg_name(vm, args, 1, "setattr")?;
+    let value = args[2];
+    if let Obj::Instance(inst) = vm.heap.get_mut(r) {
+        inst.fields.insert(name, value);
+    }
+    vm.write_barrier(r, value); // the instance may be old and `value` young
+    Ok(Value::Nil)
+}
+
+/// `hasattr(obj, name)` — true iff `obj` is an instance whose class defines, or
+/// whose fields contain, `name`. A non-instance returns `false` (never throws).
+fn hasattr(vm: &mut Vm, args: &[Value]) -> Result<Value, Value> {
+    let name = arg_name(vm, args, 1, "hasattr")?;
+    let present = match args[0].as_obj() {
+        Some(r) => {
+            let (has_field, class) = match vm.heap.get(r) {
+                Obj::Instance(inst) => (inst.fields.contains_key(&name), Some(inst.class)),
+                _ => (false, None),
+            };
+            match class {
+                Some(c) => has_field || vm.find_method(c, &name).is_some(),
+                None => false,
+            }
+        }
+        None => false,
+    };
+    Ok(Value::Bool(present))
+}
+
+/// `fields(obj)` — an array of the instance's own field names (methods excluded).
+/// The order follows the underlying hash map and is **not** guaranteed.
+fn fields(vm: &mut Vm, args: &[Value]) -> Result<Value, Value> {
+    let r = arg_instance(vm, args, "fields")?;
+    let names: Vec<String> = match vm.heap.get(r) {
+        Obj::Instance(inst) => inst.fields.keys().cloned().collect(),
+        _ => unreachable!("checked by arg_instance"),
+    };
+    let vals: Vec<Value> = names.iter().map(|n| vm.new_string(n)).collect();
+    Ok(vm.new_array(vals))
+}
+
+/// `callable(x)` — true iff `x` can be called: a function/closure, a native
+/// function, a bound method (Lumen or native), or a class (callable as its
+/// constructor). Accepts any value and never throws.
+fn callable(vm: &mut Vm, args: &[Value]) -> Result<Value, Value> {
+    let yes = matches!(
+        args[0].as_obj().map(|r| vm.heap.get(r)),
+        Some(
+            Obj::Closure(_) | Obj::Native(_) | Obj::Bound(_) | Obj::BoundNative(_) | Obj::Class(_)
+        )
+    );
+    Ok(Value::Bool(yes))
 }
 
 /// `next(gen)` — advance a generator and return its next yielded value, or `nil`

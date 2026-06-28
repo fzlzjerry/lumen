@@ -612,6 +612,14 @@ Always in scope (shadowable): `print(x...)`, `println(x...)`, `str(x)`,
 `type(x)`, `len(x)`, `int(x)`, `float(x)`, `bool(x)`, `range(...)`, `assert(c,
 msg?)`, `clock()`, `input(prompt?)`, `chr(i)`, `ord(s)`, `push(arr, x)`,
 `pop(arr)`, `keys(map)`, `values(map)`, `has(map, k)`, `del(map_or_arr, k)`,
-`next(gen)` (advance a generator; `nil` when exhausted). The
+`next(gen)` (advance a generator; `nil` when exhausted), and the instance
+**reflection** functions `getattr(obj, name, default?)`, `setattr(obj, name,
+value)`, `hasattr(obj, name)`, `fields(obj)` (own field names, order
+unspecified), and `callable(x)`. `getattr` returns the named field, else a bound
+method the class defines, else `default`; with no default a missing attribute
+**throws** `NameError` (unlike `obj.name`, which reads missing as `nil`).
+`hasattr` is `false` (not an error) for a non-instance, and `callable` accepts
+any value (functions, native functions, bound methods, and classes are
+callable). The
 native modules (`math`, `string`, `array`, `map`, `io`, `os`, `time`, `json`,
 `random`) are documented in [`API.md`](API.md).
