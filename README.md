@@ -45,7 +45,8 @@ println(label);
 - **Classes** with single inheritance, `super`, constructors, static methods,
   field declarations, a custom `str()` hook, and **operator overloading** via
   dunder methods (`__add__`, `__eq__`, `__index__`, …). `type(instance)` gives
-  the class name, and `is` tests class membership.
+  the class name, and `is` tests class membership. **Runtime reflection** over
+  instances: `getattr`/`setattr`/`hasattr`/`fields`/`callable`.
 - **Control flow**: `if`/`else`, `while`, C-style and `for-in` loops,
   `break`/`continue`, and **tail-call optimization** (deep recursion runs in
   constant stack).
@@ -223,7 +224,7 @@ manipulation), and `testing` (a unit-test harness). Full reference:
 
 ```sh
 cargo build            # debug build (zero warnings)
-cargo test             # all 289 tests: unit + e2e snapshots + errors + fuzz + GC stress
+cargo test             # all 292 tests: unit + e2e snapshots + errors + fuzz + GC stress
 cargo build --release  # optimized build
 cargo llvm-cov --summary-only   # coverage (core components are ≥90%)
 ```
