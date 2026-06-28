@@ -210,12 +210,19 @@ catchClause  = "catch" "(" [ identifier ] identifier ")" block ;  (* `catch (Kin
 ```
 
 A `try` must be followed by one or more `catch` clauses, a `finally` clause, or
-both. A clause may be **typed** — `catch (Kind e)` fires only when the thrown
-value is a built-in error whose `.kind` equals `"Kind"` — or **bare** —
-`catch (e)` fires for any thrown value. Clauses are tried top-to-bottom, first
-match wins; if no clause matches, the value re-propagates (running `finally`,
-if present). A bare clause after which further clauses are unreachable is a
-warning (DESIGN D28). A
+both. A clause may be **typed** — `catch (Name e)` — or **bare** — `catch (e)`,
+which fires for any thrown value. A typed clause **matches by class name**: it
+fires when the thrown value is either a built-in error whose `.kind` equals
+`"Name"`, **or** an instance of a user class named `Name` *or of any subclass of
+such a class* (the match walks the instance's superclass chain, like `is`). So
+`catch (BaseError e)` catches instances of any subclass of a class literally
+named `BaseError`. Because matching is purely by name, two distinct classes that
+share a name both match, and a user class whose name equals a built-in kind
+(e.g. a class named `ValueError`) is also caught under that name. When a clause
+matches, `e` is bound to the thrown value itself (the error object or the
+instance). Clauses are tried top-to-bottom, first match wins; if no clause
+matches, the value re-propagates (running `finally`, if present). A bare clause
+after which further clauses are unreachable is a warning (DESIGN D28). A
 `try`/`finally` without a `catch` runs the `finally` on every exit (including a
 propagating exception) but does not handle the exception.
 

@@ -541,6 +541,57 @@ fn power_operator() {
 }
 
 #[test]
+fn typed_catch_matches_user_classes() {
+    // (a) An instance of a custom class is caught by a clause naming that
+    // class, and the bound `e` is the instance (its fields are visible).
+    assert_eq!(
+        out("class C { init(v) { this.v = v; } } \
+             try { throw C(7); } catch (C e) { println(e.v); }"),
+        "7\n"
+    );
+
+    // (b) A subclass instance is caught by a clause naming a superclass
+    // (inheritance), while an unrelated clause is skipped.
+    assert_eq!(
+        out("class Base {} class Derived < Base {} class Other {} \
+             try { throw Derived(); } \
+             catch (Other e) { println(\"other\"); } \
+             catch (Base e) { println(\"base\"); }"),
+        "base\n"
+    );
+
+    // No clause matches -> the exception re-raises (here uncaught).
+    let e = run("class Base {} class Off {} \
+                 try { throw Base(); } catch (Off e) { println(\"off\"); }")
+    .unwrap_err();
+    assert!(!e.is_empty());
+
+    // (c) A built-in error is still caught by its kind name (regression).
+    assert_eq!(
+        out("try { let a = [1, 2, 3]; a[99]; } \
+             catch (IndexError e) { println(e.kind); }"),
+        "IndexError\n"
+    );
+
+    // (d) Typed clauses are tried in order; the first matching clause wins.
+    assert_eq!(
+        out("class A {} class B < A {} \
+             try { throw B(); } \
+             catch (B e) { println(\"first\"); } \
+             catch (A e) { println(\"second\"); }"),
+        "first\n"
+    );
+
+    // A user class whose name equals a built-in kind is caught by that name.
+    assert_eq!(
+        out("class ValueError { init(m) { this.m = m; } } \
+             try { throw ValueError(\"oops\"); } \
+             catch (ValueError e) { println(e.m); }"),
+        "oops\n"
+    );
+}
+
+#[test]
 fn formatter_roundtrips_new_features() {
     // Parse -> print -> parse must be stable for the new syntax.
     let srcs = [

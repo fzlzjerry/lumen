@@ -20,6 +20,25 @@ For language semantics (types, evaluation, scope, errors) see [`SPEC.md`](SPEC.m
   }
   ```
 
+- **Typed catch matches by class name.** `catch (Name e)` fires when the thrown
+  value is a built-in error whose `.kind` equals `"Name"`, *or* a class instance
+  whose own class (or any superclass, walking the chain like `is`) is named
+  `Name` — so you can `throw` your own exception classes and catch them, and
+  `catch (BaseError e)` catches any subclass of a class named `BaseError`.
+  Matching is purely by name, so a user class named `ValueError` is caught under
+  that name just like the built-in kind. A bare `catch (e)` still catches
+  everything; if no clause matches, the value re-raises. Example:
+
+  ```lumen
+  class HttpError { init(code) { this.code = code; } }
+  class NotFound < HttpError {}
+  try {
+      throw NotFound(404);
+  } catch (HttpError e) {        // catches the NotFound subclass
+      println("http ${e.code}"); // http 404
+  }
+  ```
+
 - Calling any function with the wrong number of arguments throws `ArityError`.
 - String indexing and the `string` module operate on **Unicode scalar values**
   (characters), not bytes: `len("héllo")` is `5`, and `s[-1]` is the last char.

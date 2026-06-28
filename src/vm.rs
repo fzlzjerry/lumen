@@ -1158,10 +1158,31 @@ impl Vm {
             OpCode::MatchError => {
                 let kind = self.read_string();
                 let v = self.pop();
-                let ok = matches!(
-                    v.as_obj().map(|r| self.heap.get(r)),
-                    Some(Obj::Error(e)) if e.kind == kind
-                );
+                // A typed catch matches by class name. A built-in error matches
+                // when its `kind` equals the name; a user instance matches when
+                // any class on its superclass chain is named `kind` (so
+                // `catch (Base e)` catches subclasses of a class named Base).
+                let ok = match v.as_obj().map(|r| self.heap.get(r)) {
+                    Some(Obj::Error(e)) => e.kind == kind,
+                    Some(Obj::Instance(inst)) => {
+                        let mut cur = Some(inst.class);
+                        let mut matched = false;
+                        while let Some(c) = cur {
+                            cur = match self.heap.get(c) {
+                                Obj::Class(cl) => {
+                                    if cl.name == kind {
+                                        matched = true;
+                                        break;
+                                    }
+                                    cl.superclass
+                                }
+                                _ => None,
+                            };
+                        }
+                        matched
+                    }
+                    _ => false,
+                };
                 self.push(Value::Bool(ok));
             }
             OpCode::ArrayRest => {

@@ -210,9 +210,11 @@ pub enum OpCode {
     /// separate static table (DESIGN D27).
     StaticMethod,
 
-    /// `MatchError u16` — pop a value; push `true` iff it is a built-in error
-    /// object whose `.kind` equals the string `constants[idx]`. Drives the
-    /// dispatch of typed `catch (Kind e)` clauses (DESIGN D28).
+    /// `MatchError u16` — pop a value; push `true` iff it matches the class name
+    /// `constants[idx]`: either a built-in error object whose `.kind` equals the
+    /// name, or an instance one of whose classes (walking the superclass chain)
+    /// is named the name. Drives the dispatch of typed `catch (Name e)` clauses
+    /// (DESIGN D28).
     MatchError,
 
     /// `Yield` — pop a value and suspend the running generator, handing the value

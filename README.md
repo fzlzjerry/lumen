@@ -51,8 +51,9 @@ println(label);
   constant stack).
 - **Generators**: `yield` produces lazy sequences, driven by `for-in` / `next`.
 - **Exceptions**: `throw` / `try` / `catch` / `finally` (catch is optional),
-  with **typed catch** (`catch (IndexError e)`), built-in error objects, and
-  full stack traces.
+  with **typed catch** by class name (`catch (IndexError e)`, or your own
+  exception classes — matched along the inheritance chain), built-in error
+  objects, and full stack traces.
 - **Collections**: array and map literals, **comprehensions**
   (`[e for x in it if c]`), spread (`..`) in literals *and* calls, negative
   indexing, insertion-ordered maps.
